@@ -44,6 +44,14 @@ Wynik:
 dist/
 ```
 
+## Testy
+
+```powershell
+npm test
+```
+
+Zakres testow obejmuje permissions, blokady workflow, pusty `selectedTransport`, reset `localStorage` i bledny payload. W UI jest widok `System Tests` z checklist PASS / FAIL oraz widoczny przycisk `Reset demo data`.
+
 ## Publiczne demo HTTPS
 
 Projekt jest przygotowany pod GitHub Pages przez workflow:

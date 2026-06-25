@@ -16,6 +16,8 @@ export class AuditEngine {
       objectId: event.objectId,
       transportId: event.transportId || null,
       action: event.type,
+      requestedAction: event.requestedAction || event.type,
+      result: event.result || (event.type === "ACTION_BLOCKED" ? "blocked" : "success"),
       previousState: event.previousState ?? null,
       newState: event.newState ?? null,
       device: event.device || "demo-browser",

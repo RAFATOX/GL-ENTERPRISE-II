@@ -1,4 +1,6 @@
-export const STORAGE_KEY = "global-logistic-gl2-core-engine-v4";
+export const DEMO_MODE = true;
+export const DEMO_DATA_VERSION = 6;
+export const STORAGE_KEY = "global-logistic-gl2-core-engine-v5";
 
 export const Roles = Object.freeze({
   PLATFORM_OWNER: "platform_owner",
@@ -308,7 +310,8 @@ export const EventTypes = Object.freeze({
   DIGITAL_CMR_LOCKED: "DIGITAL_CMR_LOCKED",
   DISPUTE_EVIDENCE_PACK_CREATED: "DISPUTE_EVIDENCE_PACK_CREATED",
   INSURANCE_RISK_CLOSED: "INSURANCE_RISK_CLOSED",
-  DEMO_RESET: "DEMO_RESET"
+  DEMO_RESET: "DEMO_RESET",
+  PAYLOAD_PARSE_ERROR: "PAYLOAD_PARSE_ERROR"
 });
 
 export const SourceTypes = Object.freeze({
@@ -434,6 +437,7 @@ export const NavItems = Object.freeze([
   { id: "trust", label: "Reputacja" },
   { id: "ai", label: "Kontrola AI" },
   { id: "audit", label: "Dziennik audytu" },
+  { id: "system_tests", label: "System Tests" },
   { id: "admin", label: "Panel admina" }
 ]);
 

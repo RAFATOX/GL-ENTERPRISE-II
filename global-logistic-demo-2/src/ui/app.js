@@ -1,6 +1,7 @@
 import { ActionTypes } from "../core/constants.js";
 import { GLCoreEngine } from "../core/gl-core-engine.js";
 import { renderApp } from "./renderers.js";
+import { parsePayload, payloadFromForm } from "./action-handler.js";
 
 const engine = new GLCoreEngine();
 const root = document.querySelector("#app");
@@ -13,9 +14,15 @@ engine.subscribe(render);
 render();
 
 root.addEventListener("click", (event) => {
+  const resetButton = event.target.closest("[data-reset-demo]");
+  if (resetButton) {
+    engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true });
+    return;
+  }
+
   const roleButton = event.target.closest("[data-role]");
   if (roleButton) {
-    engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: roleButton.dataset.role });
+    engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: roleButton.dataset.role }, { demoOnly: true });
     return;
   }
 
@@ -33,15 +40,23 @@ root.addEventListener("click", (event) => {
 
   const actionButton = event.target.closest("[data-action]");
   if (actionButton) {
-    engine.dispatchAction(actionButton.dataset.action, parsePayload(actionButton.dataset.payload));
+    const parsed = parsePayload(actionButton.dataset.payload);
+    if (!parsed.ok) {
+      engine.dispatchAction(actionButton.dataset.action, {}, { payloadError: parsed.error });
+      return;
+    }
+    engine.dispatchAction(actionButton.dataset.action, parsed.payload);
   }
 });
 
-function parsePayload(raw) {
-  if (!raw) return {};
-  try {
-    return JSON.parse(decodeURIComponent(raw));
-  } catch (error) {
-    return {};
+root.addEventListener("submit", (event) => {
+  const form = event.target.closest("[data-form-action]");
+  if (!form) return;
+  event.preventDefault();
+  const parsed = payloadFromForm(form);
+  if (!parsed.ok) {
+    engine.dispatchAction(form.dataset.formAction, {}, { payloadError: parsed.error });
+    return;
   }
-}
+  engine.dispatchAction(parsed.action, parsed.payload, { source: "demo-form" });
+});

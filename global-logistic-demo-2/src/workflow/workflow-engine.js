@@ -55,6 +55,9 @@ export class WorkflowEngine {
         break;
       case ActionTypes.CREATE_LOAD:
         if (!actor.companyId && !payload.clientCompanyId) reasons.push("client company is required");
+        if (!payload.description) reasons.push("load description is required");
+        if (!payload.pickupAddress) reasons.push("pickup address is required");
+        if (!payload.deliveryAddress) reasons.push("delivery address is required");
         break;
       case ActionTypes.ADD_LOAD_PHOTO:
         requireTransport(selectedTransport, reasons);
@@ -495,6 +498,13 @@ function validateTransition(transport, actionType, modules, reasons) {
   const [expectedStatus] = transition;
   if (transport.status !== expectedStatus) {
     reasons.push(`expected status ${expectedStatus}, current: ${transport.status}`);
+  }
+  if (actionType === ActionTypes.START_PICKUP_NAVIGATION) {
+    if (!transport.driverId) reasons.push("driver is required before starting transport");
+    if (!modules.gps.hasCoordinates(transport.pickup)) reasons.push("missing pickup GPS coordinates");
+  }
+  if (actionType === ActionTypes.ARRIVE_DELIVERY || actionType === ActionTypes.START_UNLOADING) {
+    if (!modules.gps.hasCoordinates(transport.delivery)) reasons.push("missing delivery GPS coordinates");
   }
   if (actionType === ActionTypes.START_LOADING && !modules.security.isCleared(transport.id, "pickup")) {
     reasons.push("pickup security check must be cleared before loading");

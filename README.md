@@ -64,6 +64,15 @@ Wynik builda trafia do:
 global-logistic-demo-2/dist
 ```
 
+## Testy
+
+```powershell
+cd global-logistic-demo-2
+npm test
+```
+
+W aplikacji jest tez widok `System Tests`, ktory pokazuje checklist stabilnosci demo. Globalny przycisk `Reset demo data` czysci stan demo z `localStorage` i przywraca dane startowe.
+
 ## Deploy przez GitHub
 
 1. Upewnij sie, ze repozytorium `RAFATOX/GL-ENTERPRISE-II` jest utworzone i publiczne albo ze masz do niego dostep.

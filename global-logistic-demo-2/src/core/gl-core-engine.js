@@ -121,7 +121,7 @@ export class GLCoreEngine {
 
   explainAction(actionType, payload = {}) {
     const context = this.createContext(actionType, payload);
-    const permission = this.modules.permissions.can(actionType, context);
+    const permission = this.modules.permissions.canPerformAction(context.actor, actionType, context);
     if (!permission.ok) return { ok: false, stage: "permission", reasons: [permission.reason] };
     const validation = this.modules.workflow.validate(context, this.modules);
     if (!validation.ok) return { ok: false, stage: "validation", reasons: validation.reasons };
@@ -130,7 +130,11 @@ export class GLCoreEngine {
 
   dispatchAction(actionType, payload = {}, meta = {}) {
     const context = this.createContext(actionType, payload, meta);
-    const permission = this.modules.permissions.can(actionType, context);
+    if (meta.payloadError) {
+      return this.error(context, [meta.payloadError], "payload");
+    }
+
+    const permission = this.modules.permissions.canPerformAction(context.actor, actionType, context);
     if (!permission.ok) {
       return this.block(context, [permission.reason], "permission");
     }
@@ -184,10 +188,30 @@ export class GLCoreEngine {
       objectId,
       previousState: null,
       newState: "blocked",
-      reason: `${stage}: ${reasons.join("; ")}`
+      reason: `${stage}: ${reasons.join("; ")}`,
+      result: "blocked"
     }, context);
     const events = this.publishEvents([event], context);
     this.finishDispatch({ ok: false, events, reasons });
+    return { ok: false, events, reasons };
+  }
+
+  error(context, reasons, stage) {
+    const objectType = context.payload.transportId || this.state.session.selectedTransportId
+      ? "transport"
+      : "system";
+    const objectId = context.payload.transportId || this.state.session.selectedTransportId || "demo";
+    const event = this.makeEvent({
+      type: EventTypes.PAYLOAD_PARSE_ERROR,
+      objectType,
+      objectId,
+      previousState: null,
+      newState: "error",
+      reason: `${stage}: ${reasons.join("; ")}`,
+      result: "error"
+    }, context);
+    const events = this.publishEvents([event], context);
+    this.finishDispatch({ ok: false, result: "error", events, reasons });
     return { ok: false, events, reasons };
   }
 
@@ -371,6 +395,7 @@ export class GLCoreEngine {
     this.state.revision += 1;
     this.state.session.lastResult = {
       ok: result.ok,
+      result: result.result || (result.ok ? "success" : "blocked"),
       at: nowIso(),
       events: (result.events || []).map((event) => event.type),
       reasons: result.reasons || []
@@ -383,6 +408,7 @@ export class GLCoreEngine {
     return {
       id: createId("event"),
       type: partial.type,
+      requestedAction: context.actionType,
       at: nowIso(),
       actorId: context.actor.userId,
       actorRole: context.actor.role,
@@ -393,7 +419,8 @@ export class GLCoreEngine {
       newState: partial.newState ?? null,
       device: context.meta.device || "demo-browser",
       reason: partial.reason || "not provided",
-      source: partial.source || SourceTypes.USER
+      source: partial.source || SourceTypes.USER,
+      result: partial.result || "success"
     };
   }
 }

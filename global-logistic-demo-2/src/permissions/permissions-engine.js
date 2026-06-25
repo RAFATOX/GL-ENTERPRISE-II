@@ -1,4 +1,4 @@
-import { ActionTypes, Roles, TransportStatuses } from "../core/constants.js";
+import { ActionTypes, DEMO_MODE, Roles, TransportStatuses } from "../core/constants.js";
 
 const platformActions = Object.values(ActionTypes);
 
@@ -278,6 +278,23 @@ const rolePermissions = {
 
 export class PermissionsEngine {
   can(actionType, context) {
+    return this.canPerformAction(context.actor, actionType, context);
+  }
+
+  canPerformAction(user, actionType, entity = {}) {
+    const context = entity.state ? entity : {
+      actor: user,
+      actionType,
+      payload: entity.payload || {},
+      state: entity.state || {}
+    };
+
+    // DEMO_MODE only: in production the role and user identity must come from backend auth
+    // and be verified by the permissions engine, never from a UI role switcher.
+    if (DEMO_MODE && [ActionTypes.SELECT_ROLE, ActionTypes.RESET_DEMO].includes(actionType)) {
+      return { ok: true, reason: "demo-only action allowed" };
+    }
+
     const allowed = rolePermissions[context.actor.role] || [];
     if (!allowed.includes(actionType)) {
       return {

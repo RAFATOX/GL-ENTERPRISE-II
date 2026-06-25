@@ -1,4 +1,4 @@
-import { STORAGE_KEY } from "./constants.js";
+import { DEMO_DATA_VERSION, STORAGE_KEY } from "./constants.js";
 import { createDemoState } from "./demo-data.js";
 
 export class StateStore {
@@ -16,7 +16,10 @@ export class StateStore {
 
     try {
       const parsed = JSON.parse(saved);
-      if (parsed?.schemaVersion !== 5) return createDemoState();
+      if (parsed?.schemaVersion !== 6 || parsed?.demoDataVersion !== DEMO_DATA_VERSION) {
+        window.localStorage.removeItem(this.storageKey);
+        return createDemoState();
+      }
       return parsed;
     } catch (error) {
       window.localStorage.removeItem(this.storageKey);

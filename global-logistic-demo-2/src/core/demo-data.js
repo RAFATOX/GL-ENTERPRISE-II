@@ -1,6 +1,7 @@
 import {
   AccountStatuses,
   AuthoritySubtypes,
+  DEMO_DATA_VERSION,
   PaymentStatuses,
   Roles,
   SourceTypes,
@@ -11,7 +12,8 @@ const baseTime = "2026-05-27T07:00:00.000Z";
 
 export function createDemoState() {
   const state = {
-    schemaVersion: 5,
+    schemaVersion: 6,
+    demoDataVersion: DEMO_DATA_VERSION,
     revision: 1,
     session: {
       userId: "u-platform",

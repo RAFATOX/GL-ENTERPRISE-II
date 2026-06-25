@@ -1,6 +1,7 @@
 import {
   ActionTypes,
   AllRoles,
+  DEMO_MODE,
   NavItems,
   PaymentStatuses,
   RoleLabels,
@@ -10,6 +11,7 @@ import {
 } from "../core/constants.js";
 
 export function renderApp(state, engine) {
+  state = sanitizeStateForUi(state);
   const selected = selectedTransport(state);
   return localizeHtml(`
     <div class="app-shell">
@@ -50,6 +52,7 @@ function renderTopbar(state) {
         <h1>${viewTitle(state.session.view)}</h1>
       </div>
       <div class="role-strip">
+        <button class="reset-demo" data-reset-demo="true">Reset demo data</button>
         ${AllRoles.map((role) => `
           <button class="${state.session.role === role ? "active" : ""}" data-role="${role}">
             ${RoleLabels[role]}
@@ -65,14 +68,17 @@ function renderLastResult(state) {
   if (!result) {
     return `
       <section class="result ok">
-        <strong>GL Core Engine ready</strong>
-        <span>Stan jest mockowany, ale akcje przechodza przez rdzen, event bus i audit log.</span>
+        <strong>Rdzen GL gotowy</strong>
+        <span>Wybierz akcje. System sprawdzi uprawnienia, walidacje, workflow i audit log.</span>
       </section>
     `;
   }
+  const statusLabel = result.result === "error"
+    ? "Blad akcji"
+    : result.ok ? "Akcja wykonana" : "Akcja zablokowana";
   return `
     <section class="result ${result.ok ? "ok" : "blocked"}">
-      <strong>${result.ok ? "Action accepted" : "Action blocked"}</strong>
+      <strong>${statusLabel}</strong>
       <span>${result.ok ? result.events.join(", ") : result.reasons.join("; ")}</span>
     </section>
   `;
@@ -80,9 +86,11 @@ function renderLastResult(state) {
 
 function renderView(state, engine, selected) {
   const view = state.session.view;
+  if (view === "system_tests") return renderSystemTests(state, engine, selected);
   if (view === "auth") return renderAuth(state, engine);
   if (view === "roles") return renderRoles(state, engine);
   if (view === "transports") return renderTransportList(state);
+  if (!selected && transportScopedView(view)) return renderNoTransport(state, engine);
   if (view === "details") return renderDetails(state, engine, selected);
   if (view === "shipments") return renderShipments(state);
   if (view === "create") return renderCreateLoad(state, engine, selected);
@@ -131,7 +139,7 @@ function renderDashboard(state, engine, selected) {
       ${metric("Escrow holds", state.access?.canViewFinancials ? escrowBlocked : "hidden", paymentBlocked ? `${paymentBlocked} blocked` : "DemoPay")}
     </section>
     <section class="grid two">
-      ${renderTransportCard(state, selected)}
+      ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
       <article class="panel">
         <div class="panel-head">
           <div>
@@ -143,11 +151,11 @@ function renderDashboard(state, engine, selected) {
           ${["USER ACTION", "PERMISSION CHECK", "VALIDATION", "WORKFLOW ENGINE", "EVENT BUS", "AUDIT LOG", "UI UPDATE"].map((step) => `<span>${step}</span>`).join("")}
         </div>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.AI_RUN_CHECK, "Run AI check", { transportId: selected.id })}
-          ${actionButton(engine, ActionTypes.PUBLISH_LOAD, "Publish load", { transportId: selected.id })}
-          ${actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Carrier accept", { transportId: selected.id, carrierCompanyId: "co-carrier-a" })}
-          ${actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Assign driver", { transportId: selected.id, driverId: "u-driver-1", vehicleId: "vh-1" })}
-          ${actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Release payment", { transportId: selected.id })}
+          ${selected ? actionButton(engine, ActionTypes.AI_RUN_CHECK, "Run AI check", { transportId: selected.id }) : disabledAction("Run AI check", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.PUBLISH_LOAD, "Publish load", { transportId: selected.id }) : disabledAction("Publish load", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Carrier accept", { transportId: selected.id, carrierCompanyId: "co-carrier-a" }) : disabledAction("Carrier accept", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Assign driver", { transportId: selected.id, driverId: "u-driver-1", vehicleId: "vh-1" }) : disabledAction("Assign driver", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Release payment", { transportId: selected.id }) : disabledAction("Release payment", "Brak transportow")}
         </div>
       </article>
     </section>
@@ -226,6 +234,7 @@ function renderRoles(state, engine) {
 }
 
 function renderTransportList(state) {
+  if (!state.transports.length) return renderNoTransportTable();
   return `
     <section class="panel">
       <div class="panel-head">
@@ -309,6 +318,7 @@ function renderCreateLoad(state, engine, selected) {
             <h2>Nowy transport przechodzi przez Core Engine</h2>
           </div>
         </div>
+        ${renderCreateTransportForm(state)}
         <div class="actions">
           ${actionButton(engine, ActionTypes.CREATE_LOAD, "Create demo load", {
             clientCompanyId: "co-client-a",
@@ -322,12 +332,12 @@ function renderCreateLoad(state, engine, selected) {
             price: 1600,
             warehouseWorkerId: "u-warehouse"
           })}
-          ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Add pre-publish photo", { transportId: selected.id, type: "pre_publish_load", label: "Zdjecie ladunku przed publikacja" })}
-          ${actionButton(engine, ActionTypes.CONFIRM_GPS, "Confirm GPS", { transportId: selected.id, pickupGps: { lat: 51.1079, lng: 17.0385 }, deliveryGps: { lat: 50.0755, lng: 14.4378 } })}
-          ${actionButton(engine, ActionTypes.PUBLISH_LOAD, "Publish selected load", { transportId: selected.id })}
+          ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Add pre-publish photo", { transportId: selected.id, type: "pre_publish_load", label: "Zdjecie ladunku przed publikacja" }) : disabledAction("Add pre-publish photo", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.CONFIRM_GPS, "Confirm GPS", { transportId: selected.id, pickupGps: { lat: 51.1079, lng: 17.0385 }, deliveryGps: { lat: 50.0755, lng: 14.4378 } }) : disabledAction("Confirm GPS", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.PUBLISH_LOAD, "Publish selected load", { transportId: selected.id }) : disabledAction("Publish selected load", "Brak transportow")}
         </div>
       </article>
-      ${renderTransportCard(state, selected)}
+      ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
     </section>
   `;
 }
@@ -339,6 +349,7 @@ function renderWarehouse(state, engine, selected) {
         <span class="eyebrow">Photo Engine</span>
         <h2>Warehouse photo step</h2>
         <p class="muted">Przed publikacja musi istniec zdjecie ladunku. Zdjecia trafiaja do dokumentacji i audytu.</p>
+        ${renderPhotoForm(selected)}
         <div class="actions">
           ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Photo before publication", { transportId: selected.id, type: "pre_publish_load", label: "Ladunek przed publikacja" })}
           ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Photo at loading", { transportId: selected.id, type: "loading", label: "Zdjecie przy zaladunku" })}
@@ -375,6 +386,7 @@ function renderDriverAssignment(state, engine, selected) {
     <section class="panel">
       <span class="eyebrow">Driver Time Engine</span>
       <h2>Driver assignment</h2>
+      ${renderDriverAssignmentForm(state, selected)}
       <div class="card-grid">
         ${drivers.map((driver) => {
           const vehicle = state.vehicles.find((item) => item.companyId === driver.companyId);
@@ -436,6 +448,7 @@ function renderGps(state, engine, selected) {
           <div><span>Delivery</span><strong>${gpsLabel(selected.delivery.gps)}</strong></div>
           <div><span>Deviation</span><strong>${selected.routeDeviation ? "yes" : "no"}</strong></div>
         </div>
+        ${renderGpsForm(selected)}
         ${actionButton(engine, ActionTypes.CONFIRM_GPS, "Confirm selected GPS", { transportId: selected.id, pickupGps: { lat: 54.352, lng: 18.6466 }, deliveryGps: { lat: 52.52, lng: 13.405 } })}
       </article>
       ${renderTimeline(state, selected)}
@@ -448,6 +461,7 @@ function renderParking(state, engine, selected) {
     <section class="panel">
       <span class="eyebrow">Parking Live Network</span>
       <h2>Reports affect trust score</h2>
+      ${renderParkingReportForm(state)}
       <div class="card-grid">
         ${state.parking.map((parking) => `
           <article class="mini-card">
@@ -806,6 +820,7 @@ function renderCustoms(state, engine, selected) {
           </div>
           <mark class="${tone(transport.status)}">${transport.status}</mark>
         </div>
+        ${renderDocumentForm(selected)}
         <div class="actions">
           ${actionButton(engine, ActionTypes.MARK_CUSTOMS_REQUIRED, "Wymagana odprawa", { transportId: transport.id, agentCompanyId: "co-customs-a", borderPoint: "Rotterdam / DE border" })}
           ${actionButton(engine, ActionTypes.SEND_TO_CUSTOMS, "Przekaż do agencji", { transportId: transport.id, agentCompanyId: "co-customs-a" })}
@@ -1364,14 +1379,48 @@ function renderAudit(state) {
       <h2>Read only, event sourced</h2>
       <div class="audit-table">
         ${state.audit.map((row) => `
-          <div class="audit-row">
-            <span>${formatTime(row.at)}</span>
-            <strong>${row.action}</strong>
-            <span>${row.actorRole}</span>
-            <span>${row.objectType}:${row.objectId}</span>
-            <span>${row.previousState || "-"}</span>
-            <span>${row.newState || "-"}</span>
-            <small>${row.reason}</small>
+        <div class="audit-row">
+          <span>${formatTime(row.at)}</span>
+          <strong>${row.requestedAction || row.action}</strong>
+          <span>${row.actorRole}</span>
+          <span>${row.objectType}:${row.objectId}</span>
+          <span>${row.result || "success"}</span>
+          <span>${row.newState || "-"}</span>
+          <small>${row.reason}</small>
+        </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderSystemTests(state, engine, selected) {
+  const blockedWorkflow = selected
+    ? !engine.explainAction(ActionTypes.RELEASE_PAYMENT, { transportId: selected.id }).ok
+    : true;
+  const tests = [
+    ["localStorage dziala", storageAvailable()],
+    ["reset demo dziala", engine.explainAction(ActionTypes.RESET_DEMO, {}).ok],
+    ["sa dane startowe", state.demoDataVersion && state.users.length > 0 && state.companies.length > 0],
+    ["permissions dzialaja", typeof engine.modules.permissions.canPerformAction === "function"],
+    ["workflow blokuje zle akcje", blockedWorkflow],
+    ["audit log zapisuje zdarzenia", state.audit.length > 0],
+    ["brak transportow nie wysypuje UI", selectedTransport({ transports: [], session: {} }) === null],
+    ["DEMO_MODE aktywny", DEMO_MODE === true]
+  ];
+  return `
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">System Tests</span>
+          <h2>Checklist stabilnosci demo</h2>
+        </div>
+      </div>
+      <div class="test-list">
+        ${tests.map(([label, ok]) => `
+          <div class="test-row ${ok ? "pass" : "fail"}">
+            <strong>${label}</strong>
+            <mark class="${ok ? "good" : "danger"}">${ok ? "PASS" : "FAIL"}</mark>
           </div>
         `).join("")}
       </div>
@@ -1483,6 +1532,7 @@ function renderPhotoList(state, transport) {
 }
 
 function blockerList(engine, transport) {
+  if (!transport) return `<div class="blocker blocked"><strong>Workflow</strong><span>Brak transportow</span></div>`;
   const checks = [
     [ActionTypes.PUBLISH_LOAD, "Publish load"],
     [ActionTypes.ACCEPT_CARRIER, "Carrier accept"],
@@ -1496,13 +1546,14 @@ function blockerList(engine, transport) {
     return `
       <div class="blocker ${result.ok ? "ok" : "blocked"}">
         <strong>${label}</strong>
-        <span>${result.ok ? "ready" : result.reasons.join("; ")}</span>
+        <span>${result.ok ? readinessMessage(action) : result.reasons.join("; ")}</span>
       </div>
     `;
   }).join("");
 }
 
 function defaultPayloadFor(action, transport) {
+  if (!transport) return {};
   if (action === ActionTypes.ACCEPT_CARRIER) return { transportId: transport.id, carrierCompanyId: "co-carrier-a" };
   if (action === ActionTypes.ASSIGN_DRIVER) return { transportId: transport.id, driverId: "u-driver-1", vehicleId: "vh-1" };
   return { transportId: transport.id };
@@ -1513,8 +1564,156 @@ function actionButton(engine, action, label, payload = {}) {
   return `
     <button class="action ${result.ok ? "ready" : "blocked"}" data-action="${action}" data-payload="${encodePayload(payload)}">
       <strong>${label}</strong>
-      <span>${result.ok ? "ready" : result.reasons[0]}</span>
+      <span>${result.ok ? readinessMessage(action) : result.reasons[0]}</span>
     </button>
+  `;
+}
+
+function disabledAction(label, reason) {
+  return `
+    <button class="action blocked" type="button" aria-disabled="true">
+      <strong>${label}</strong>
+      <span>${reason}</span>
+    </button>
+  `;
+}
+
+function readinessMessage(action) {
+  const messages = {
+    [ActionTypes.PUBLISH_LOAD]: "Mozesz opublikowac transport",
+    [ActionTypes.ADD_LOAD_PHOTO]: "Mozesz dodac zdjecie ladunku",
+    [ActionTypes.CONFIRM_GPS]: "Mozesz zapisac GPS",
+    [ActionTypes.ASSIGN_DRIVER]: "Mozesz przypisac kierowce",
+    [ActionTypes.UPLOAD_DOCUMENT]: "Mozesz dodac dokument",
+    [ActionTypes.PARKING_REPORT]: "Mozesz zglosic parking",
+    [ActionTypes.RELEASE_PAYMENT]: "Mozesz zwolnic platnosc"
+  };
+  return messages[action] || "Akcja dostepna";
+}
+
+function renderNoTransport() {
+  return `
+    <section class="panel empty-state">
+      <span class="eyebrow">Transport Engine</span>
+      <h2>Brak transportow</h2>
+      <p class="muted">Lista transportow jest pusta albo ta rola nie ma dostepu do transportow. Akcje zalezne od transportu sa zablokowane.</p>
+      <div class="actions">
+        ${disabledAction("Akcja transportowa", "Brak transportow")}
+      </div>
+    </section>
+  `;
+}
+
+function renderNoTransportTable() {
+  return `
+    <section class="panel empty-state">
+      <span class="eyebrow">Transport Engine</span>
+      <h2>Brak transportow</h2>
+      <p class="muted">Nie ma transportow do wyswietlenia. Mozesz utworzyc nowy transport w widoku Utworz ladunek.</p>
+    </section>
+  `;
+}
+
+function transportScopedView(view) {
+  return new Set([
+    "details",
+    "warehouse",
+    "carrier",
+    "driver_assignment",
+    "driver_mobile",
+    "gps",
+    "parking",
+    "documents",
+    "payments",
+    "insurance",
+    "communication",
+    "security",
+    "customs",
+    "authority",
+    "ferry",
+    "service",
+    "compliance",
+    "ai",
+    "admin"
+  ]).has(view);
+}
+
+function renderCreateTransportForm(state) {
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.CREATE_LOAD}">
+      <label>Opis ladunku<input name="description" value="Transport testowy GL" /></label>
+      <label>Odbior<input name="pickupAddress" value="Gdansk terminal" /></label>
+      <label>Dostawa<input name="deliveryAddress" value="Berlin magazyn" /></label>
+      <label>GPS odbioru lat<input name="pickupGps.lat" value="54.3520" inputmode="decimal" /></label>
+      <label>GPS odbioru lng<input name="pickupGps.lng" value="18.6466" inputmode="decimal" /></label>
+      <label>GPS dostawy lat<input name="deliveryGps.lat" value="52.5200" inputmode="decimal" /></label>
+      <label>GPS dostawy lng<input name="deliveryGps.lng" value="13.4050" inputmode="decimal" /></label>
+      <label>Waga kg<input name="weightKg" value="1200" inputmode="numeric" /></label>
+      <label>Cena demo<input name="price" value="1500" inputmode="numeric" /></label>
+      <input type="hidden" name="clientCompanyId" value="${state.session.companyId || "co-client-a"}" />
+      <button class="action ready" type="submit"><strong>Utworz transport z formularza</strong><span>Przejdzie przez Core Engine</span></button>
+    </form>
+  `;
+}
+
+function renderPhotoForm(selected) {
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.ADD_LOAD_PHOTO}" data-payload="${encodePayload({ transportId: selected.id })}">
+      <label>Typ zdjecia<input name="type" value="loading" /></label>
+      <label>Opis zdjecia<input name="label" value="Zdjecie ladunku" /></label>
+      <button class="action ready" type="submit"><strong>Dodaj zdjecie z formularza</strong><span>Mozesz dodac zdjecie ladunku</span></button>
+    </form>
+  `;
+}
+
+function renderGpsForm(selected) {
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.CONFIRM_GPS}" data-payload="${encodePayload({ transportId: selected.id })}">
+      <label>Pickup lat<input name="pickupGps.lat" value="${selected.pickup.gps?.lat ?? 54.3520}" inputmode="decimal" /></label>
+      <label>Pickup lng<input name="pickupGps.lng" value="${selected.pickup.gps?.lng ?? 18.6466}" inputmode="decimal" /></label>
+      <label>Delivery lat<input name="deliveryGps.lat" value="${selected.delivery.gps?.lat ?? 52.5200}" inputmode="decimal" /></label>
+      <label>Delivery lng<input name="deliveryGps.lng" value="${selected.delivery.gps?.lng ?? 13.4050}" inputmode="decimal" /></label>
+      <button class="action ready" type="submit"><strong>Zapisz GPS z formularza</strong><span>Mozesz zapisac GPS</span></button>
+    </form>
+  `;
+}
+
+function renderDriverAssignmentForm(state, selected) {
+  const drivers = state.users.filter((user) => user.roles.includes(Roles.DRIVER));
+  const vehicles = state.vehicles.filter((vehicle) => !selected.carrierCompanyId || vehicle.companyId === selected.carrierCompanyId);
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.ASSIGN_DRIVER}" data-payload="${encodePayload({ transportId: selected.id })}">
+      <label>Kierowca<select name="driverId">${drivers.map((driver) => `<option value="${driver.id}">${driver.name}</option>`).join("")}</select></label>
+      <label>Pojazd<select name="vehicleId">${vehicles.map((vehicle) => `<option value="${vehicle.id}">${vehicle.plate}</option>`).join("")}</select></label>
+      <button class="action ready" type="submit"><strong>Przypisz kierowce z formularza</strong><span>Mozesz przypisac kierowce</span></button>
+    </form>
+  `;
+}
+
+function renderDocumentForm(selected) {
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.UPLOAD_DOCUMENT}" data-payload="${encodePayload({ transportId: selected.id })}">
+      <label>Typ dokumentu<select name="type">
+        <option value="cmr">CMR</option>
+        <option value="pickup_confirmation">Potwierdzenie zaladunku</option>
+        <option value="delivery_confirmation">Potwierdzenie rozladunku</option>
+        <option value="mrn">MRN</option>
+      </select></label>
+      <label>Nazwa dokumentu<input name="label" value="Dokument CMR" /></label>
+      <button class="action ready" type="submit"><strong>Dodaj dokument z formularza</strong><span>Mozesz dodac dokument</span></button>
+    </form>
+  `;
+}
+
+function renderParkingReportForm(state) {
+  const parking = state.parking[0];
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.PARKING_REPORT}">
+      <label>Parking<select name="parkingId">${state.parking.map((item) => `<option value="${item.id}">${item.name}</option>`).join("")}</select></label>
+      <label>Wolne miejsca<input name="freePlaces" value="${parking?.freePlaces ?? 4}" inputmode="numeric" /></label>
+      <input type="hidden" name="credible" value="true" />
+      <button class="action ready" type="submit"><strong>Zglos parking z formularza</strong><span>Mozesz zglosic parking</span></button>
+    </form>
   `;
 }
 
@@ -1538,8 +1737,9 @@ function renderAccessDenied(title, message) {
   `;
 }
 
-function selectedTransport(state) {
-  return state.transports.find((transport) => transport.id === state.session.selectedTransportId) || state.transports[0];
+export function selectedTransport(state) {
+  if (!state?.transports?.length) return null;
+  return state.transports.find((transport) => transport.id === state.session?.selectedTransportId) || state.transports[0] || null;
 }
 
 function companyName(state, companyId) {
@@ -1591,6 +1791,50 @@ function formatTime(value) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function sanitizeStateForUi(value, key = "") {
+  const textKeys = new Set([
+    "address",
+    "body",
+    "comment",
+    "description",
+    "dimensions",
+    "label",
+    "name",
+    "phone",
+    "reason"
+  ]);
+  if (Array.isArray(value)) return value.map((item) => sanitizeStateForUi(item, key));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => [entryKey, sanitizeStateForUi(entryValue, entryKey)])
+    );
+  }
+  if (typeof value === "string" && textKeys.has(key)) return escapeHtml(value);
+  return value;
+}
+
+export function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function storageAvailable() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return true;
+    const key = "__gl_storage_test__";
+    window.localStorage.setItem(key, "1");
+    const ok = window.localStorage.getItem(key) === "1";
+    window.localStorage.removeItem(key);
+    return ok;
+  } catch (error) {
+    return false;
+  }
 }
 
 function encodePayload(payload) {

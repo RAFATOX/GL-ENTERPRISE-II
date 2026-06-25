@@ -584,6 +584,72 @@ mark.danger {
   background: #f5f8f6;
 }
 
+.reset-demo {
+  border-color: #b45309;
+  color: #7c2d12;
+  background: #fffbeb;
+}
+
+.demo-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.demo-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.demo-form input,
+.demo-form select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: #ffffff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.demo-form button {
+  grid-column: 1 / -1;
+}
+
+.empty-state {
+  min-height: 220px;
+  align-content: center;
+}
+
+.test-list {
+  display: grid;
+  gap: 8px;
+}
+
+.test-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.test-row.fail {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
 @media (max-width: 1220px) {
   .metrics,
   .module-grid,
@@ -640,6 +706,7 @@ mark.danger {
   .role-grid,
   .trust-grid,
   .actions,
+  .demo-form,
   .detail-grid {
     grid-template-columns: 1fr;
   }
