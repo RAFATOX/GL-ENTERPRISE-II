@@ -1,0 +1,14 @@
+{
+  "name": "global-logistic-demo-2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Global Logistic GL 2 investor operations demo",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "lan": "node server.js 4288 0.0.0.0",
+    "build": "node scripts/build-static.js",
+    "preview": "npm run build && node server.js 4289 127.0.0.1 dist"
+  }
+}

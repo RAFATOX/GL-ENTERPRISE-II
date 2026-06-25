@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" role="img" aria-labelledby="title desc">
+  <title id="title">Global Logistic route network</title>
+  <desc id="desc">Operational route map for shipments between European hubs.</desc>
+  <rect width="960" height="620" fill="#10201f"/>
+  <path d="M139 64h683c34 0 61 27 61 61v370c0 34-27 61-61 61H139c-34 0-61-27-61-61V125c0-34 27-61 61-61Z" fill="#172f2f" stroke="#d8b35a" stroke-opacity=".34" stroke-width="2"/>
+  <path d="M112 157h739M112 240h739M112 323h739M112 406h739M112 489h739M203 90v435M309 90v435M415 90v435M521 90v435M627 90v435M733 90v435" stroke="#ffffff" stroke-opacity=".07" stroke-width="1"/>
+  <path d="M194 183c47 5 72 29 105 54 54 41 121 34 182 25 74-10 118 5 162 43 35 29 76 47 126 40" fill="none" stroke="#80c7bb" stroke-opacity=".35" stroke-width="18" stroke-linecap="round"/>
+  <path d="M198 183c39 0 76 31 112 61 57 47 119 39 178 28 79-15 118 0 165 39 37 31 74 48 116 35" fill="none" stroke="#f1c75b" stroke-width="5" stroke-linecap="round" stroke-dasharray="20 16"/>
+  <path d="M287 410c55-70 122-91 207-88 83 2 130-36 172-102" fill="none" stroke="#e6f1ee" stroke-opacity=".22" stroke-width="16" stroke-linecap="round"/>
+  <path d="M288 410c54-69 121-90 205-87 86 2 131-37 174-103" fill="none" stroke="#d76c52" stroke-width="4" stroke-linecap="round" stroke-dasharray="14 13"/>
+  <g fill="#f8f4e8" stroke="#d8b35a" stroke-width="2">
+    <rect x="164" y="154" width="76" height="58" rx="8"/>
+    <rect x="451" y="236" width="82" height="58" rx="8"/>
+    <rect x="727" y="315" width="84" height="58" rx="8"/>
+    <rect x="247" y="381" width="82" height="58" rx="8"/>
+    <rect x="628" y="183" width="80" height="58" rx="8"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="800" text-anchor="middle" fill="#142423">
+    <text x="202" y="190">NL</text>
+    <text x="492" y="272">DE</text>
+    <text x="769" y="351">PL</text>
+    <text x="288" y="417">CH</text>
+    <text x="668" y="219">CZ</text>
+  </g>
+  <g fill="#ffffff" font-family="Segoe UI, Arial, sans-serif">
+    <text x="126" y="122" font-size="18" font-weight="800">GL 2 live corridors</text>
+    <text x="126" y="145" font-size="13" fill="#c5d4d0">carrier fit, risk, escrow and evidence mapped to one transport spine</text>
+  </g>
+  <g transform="translate(652 441)">
+    <rect width="176" height="64" rx="8" fill="#f8f4e8" stroke="#d8b35a" stroke-width="2"/>
+    <circle cx="31" cy="32" r="11" fill="#155e5a"/>
+    <rect x="56" y="19" width="86" height="9" rx="4" fill="#193331"/>
+    <rect x="56" y="36" width="55" height="8" rx="4" fill="#5d736e"/>
+  </g>
+</svg>
