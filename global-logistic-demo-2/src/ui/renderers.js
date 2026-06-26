@@ -137,6 +137,12 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "gps") return renderGps(state, engine, selected);
   if (view === "parking") return renderParking(state, engine, selected);
   if (view === "documents") return renderDocuments(state, engine, selected);
+  if (view === "platform_wallet") return renderPlatformWallet(state, engine, selected);
+  if (view === "billing") return renderBillingModule(state, "billing");
+  if (view === "invoices") return renderBillingModule(state, "invoices");
+  if (view === "payment_status") return renderBillingModule(state, "payment_status");
+  if (view === "payouts") return renderBillingModule(state, "payouts");
+  if (view === "transport_escrow") return renderBillingModule(state, "transport_escrow");
   if (view === "payments") return renderPayments(state, engine, selected);
   if (view === "wallets") return renderWallets(state);
   if (view === "escrow") return renderEscrow(state);
@@ -899,24 +905,255 @@ function renderAcademy(state) {
 }
 
 function renderPayments(state, engine, selected) {
-  if (!state.access?.canViewFinancials) {
-    return renderAccessDenied("Payment Engine", "Financial ledger hidden for this role.");
+  return renderPlatformWallet(state, engine, selected);
+}
+
+function renderPlatformWallet(state, engine, selected) {
+  if (!state.access?.canViewPlatformWallet) {
+    return renderAccessDenied("PlatformWallet", "Pelny GL Wallet jest dostepny tylko dla operatora platformy GL i finansow platformy.");
   }
   return renderFintechModule(state, engine, selected, "dashboard");
 }
 
 function renderWallets(state) {
-  if (!state.access?.canViewFinancials) {
-    return renderAccessDenied("Wallet Engine", "Wallet balances are not exposed to this role.");
+  if (!state.access?.canViewPlatformWallet) {
+    return renderAccessDenied("PlatformWallet", "Salda portfela platformy nie sa udostepniane tej roli.");
   }
   return renderFintechModule(state, null, selectedTransport(state), "accounts");
 }
 
 function renderEscrow(state) {
-  if (!state.access?.canViewFinancials) {
+  if (!state.access?.canViewPlatformWallet) {
     return renderAccessDenied("Escrow Engine", "Escrow details are restricted for this role.");
   }
   return renderFintechModule(state, null, selectedTransport(state), "escrow");
+}
+
+function renderBillingModule(state, mode) {
+  if (!state.access?.canViewFinancials || state.access?.canViewPlatformWallet) {
+    return renderAccessDenied("Rozliczenia", "Ten widok pokazuje wylacznie rozliczenia wlasne, nie PlatformWallet.");
+  }
+  const scope = state.access.financialScope;
+  const copy = billingCopy(scope, mode);
+  const payments = state.payments || [];
+  const escrows = state.escrows || [];
+  const transactions = state.walletTransactions || [];
+  const servicePayments = state.servicePayments || [];
+  const policies = state.insurancePolicies || [];
+  const totals = financialTotals(state);
+  return `
+    <section class="finance-shell own-finance-shell">
+      <div class="finance-hero">
+        <div>
+          <span class="finance-demo">DEMO MODE</span>
+          <h2>${copy.title}</h2>
+          <p>${copy.description}</p>
+        </div>
+        <div class="finance-hero-balance">
+          <span>${copy.balanceLabel}</span>
+          <strong>${formatMoney(copy.balanceValue(state, totals), "EUR")}</strong>
+          <small>saldo informacyjne / dane symulowane</small>
+        </div>
+      </div>
+
+      <div class="finance-metrics">
+        ${financeMetric(copy.metricA, copy.metricAValue(state, totals), "EUR", "info")}
+        ${financeMetric(copy.metricB, copy.metricBValue(state, totals), "EUR", "warning")}
+        ${financeMetric(copy.metricC, copy.metricCValue(state, totals), "EUR", "success")}
+        ${financeMetric(copy.metricD, copy.metricDValue(state, totals), "EUR", "info")}
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">${copy.tableEyebrow}</span>
+              <h2>${copy.tableTitle}</h2>
+            </div>
+            <span class="finance-pill">${copy.scopeLabel}</span>
+          </div>
+          ${renderOwnFinanceRows(state, mode, payments, servicePayments, policies, transactions)}
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Permission Engine</span>
+              <h2>Zakres dostepu</h2>
+            </div>
+          </div>
+          <div class="finance-list">
+            ${copy.allowed.map((item) => `<div><strong>${item}</strong><span>dane wlasne</span></div>`).join("")}
+            <div><strong>Brak dostepu</strong><span>saldo platformy, prowizje systemowe, GL Wallet ID, cudze rozliczenia</span></div>
+          </div>
+        </article>
+      </div>
+
+      ${mode === "transport_escrow" ? `
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Escrow transportu</span>
+              <h2>Depozyty przypisane do wlasnych transportow</h2>
+            </div>
+          </div>
+          ${renderEscrowRows({ ...state, escrows })}
+        </article>
+      ` : ""}
+    </section>
+  `;
+}
+
+function billingCopy(scope, mode) {
+  const defaults = {
+    title: "Moje rozliczenia",
+    description: "Widok pokazuje wylacznie wlasne faktury, statusy platnosci i naleznosci. To nie jest GL Wallet platformy.",
+    balanceLabel: "Saldo informacyjne",
+    balanceValue: (_state, totals) => totals.available + totals.pending + totals.inTransit,
+    metricA: "Naleznosci",
+    metricAValue: (_state, totals) => totals.pending + totals.inTransit,
+    metricB: "Escrow transportu",
+    metricBValue: (_state, totals) => totals.escrow,
+    metricC: "Zapisy platnosci",
+    metricCValue: (state) => (state.payments || []).length,
+    metricD: "Historia",
+    metricDValue: (state) => (state.walletTransactions || []).length,
+    tableEyebrow: "Billing",
+    tableTitle: "Historia rozliczen",
+    scopeLabel: "dane wlasne",
+    allowed: ["faktury", "status platnosci", "historia rozliczen"]
+  };
+  const byScope = {
+    client: {
+      title: mode === "transport_escrow" ? "Escrow transportu" : mode === "invoices" ? "Faktury klienta" : "Platnosci za transporty",
+      description: "Klient widzi faktury, platnosci za wlasne transporty, depozyty escrow i status oplacenia. Nie widzi portfela ani salda platformy.",
+      metricA: "Platnosci za transporty",
+      metricB: "Depozyty escrow",
+      metricC: "Faktury",
+      metricD: "Historia platnosci",
+      tableTitle: "Faktury i platnosci klienta",
+      allowed: ["faktury", "platnosci za transporty", "depozyty escrow", "status oplacenia"]
+    },
+    carrier: {
+      title: mode === "payouts" ? "Status wyplaty" : "Moje rozliczenia",
+      description: "Przewoznik widzi naleznosci za wykonane transporty, faktury, status wyplat, historie rozliczen i potracone prowizje GL.",
+      metricA: "Naleznosci za transporty",
+      metricB: "Potracone prowizje GL",
+      metricC: "Statusy wyplat",
+      metricD: "Historia rozliczen",
+      tableTitle: "Naleznosci i faktury przewoznika",
+      allowed: ["naleznosci", "faktury", "status wyplat", "potracone prowizje GL"]
+    },
+    insurance: {
+      title: "Rozliczenia polis",
+      description: "Partner ubezpieczeniowy widzi skladki przypisane do polis, prowizje GL, status platnosci polis, wyplaty szkod i rozliczenia z GL.",
+      metricA: "Skladki polis",
+      metricAValue: (state) => sumMoney(state.insurancePolicies || [], (policy) => policy.cost),
+      metricB: "Prowizje GL",
+      metricBValue: (state) => Math.round(sumMoney(state.insurancePolicies || [], (policy) => policy.cost) * 0.08),
+      metricC: "Polisy",
+      metricCValue: (state) => (state.insurancePolicies || []).length,
+      metricD: "Wyplaty szkod",
+      metricDValue: (state) => (state.claims || []).length,
+      tableTitle: "Skladki, prowizje i status polis",
+      allowed: ["skladki polis", "prowizje GL", "status platnosci polis", "wyplaty szkod"]
+    },
+    service: {
+      title: "Rozliczenia serwisu",
+      description: "Warsztat i serwis mobilny widza zlecenia serwisowe, faktury, naleznosci, status platnosci i historie uslug.",
+      metricA: "Naleznosci serwisowe",
+      metricAValue: (state) => sumMoney(state.servicePayments || [], (payment) => payment.amount),
+      metricB: "Faktury serwisowe",
+      metricBValue: (state) => (state.servicePayments || []).length,
+      metricC: "Zlecenia serwisowe",
+      metricCValue: (state) => (state.serviceRequests || []).length,
+      metricD: "Historia uslug",
+      metricDValue: (state) => (state.serviceRequests || []).length,
+      tableTitle: "Zlecenia serwisowe i faktury",
+      allowed: ["zlecenia serwisowe", "faktury", "naleznosci", "status platnosci"]
+    },
+    payment_status: {
+      title: "Statusy platnosci",
+      description: "Widok operacyjny platnosci bez salda platformy i bez portfeli firm.",
+      tableTitle: "Platnosci w toku",
+      allowed: ["status platnosci", "blokady", "historia operacyjna"]
+    }
+  };
+  return { ...defaults, ...(byScope[scope] || {}) };
+}
+
+function renderOwnFinanceRows(state, mode, payments, servicePayments, policies, transactions) {
+  if (state.access.financialScope === "insurance") {
+    return `
+      <div class="finance-table transactions">
+        <div class="finance-row finance-head-row">
+          <span>Polisa</span><span>Transport</span><span>Skladka</span><span>Status</span><span>Prowizja GL</span><span>Zakres</span>
+        </div>
+        ${policies.map((policy) => `
+          <div class="finance-row">
+            <span>${policy.number}</span>
+            <span>${transportNumber(state, policy.transportId)}</span>
+            <strong>${formatMoney(policy.cost, "EUR")}</strong>
+            <span><mark class="${financeTone(policy.status)}">${policy.status}</mark></span>
+            <span>${formatMoney(Math.round(policy.cost * 0.08), "EUR")}</span>
+            <small>${policy.scope}</small>
+          </div>
+        `).join("") || `<p class="finance-muted">Brak rozliczen polis.</p>`}
+      </div>
+    `;
+  }
+  if (state.access.financialScope === "service") {
+    return `
+      <div class="finance-table transactions">
+        <div class="finance-row finance-head-row">
+          <span>Zlecenie</span><span>Transport</span><span>Kwota</span><span>Status</span><span>Usluga</span><span>Historia</span>
+        </div>
+        ${servicePayments.map((payment) => {
+          const request = (state.serviceRequests || []).find((item) => item.id === payment.serviceRequestId);
+          return `
+            <div class="finance-row">
+              <span>${payment.id}</span>
+              <span>${transportNumber(state, payment.transportId)}</span>
+              <strong>${formatMoney(payment.amount, payment.currency)}</strong>
+              <span><mark class="${financeTone(payment.status)}">${payment.status}</mark></span>
+              <span>${request?.faultType || "serwis"}</span>
+              <small>${request?.status || "historia uslugi"}</small>
+            </div>
+          `;
+        }).join("") || `<p class="finance-muted">Brak faktur serwisowych.</p>`}
+      </div>
+    `;
+  }
+  return `
+    <div class="finance-table transactions">
+      <div class="finance-row finance-head-row">
+        <span>ID</span><span>Transport</span><span>Kwota</span><span>Status</span><span>Rozliczenie</span><span>Audit ID</span>
+      </div>
+      ${payments.map((payment) => {
+        const transaction = transactions.find((entry) => entry.transportId === payment.transportId);
+        const fee = calculateGlFee({ price: payment.amount, currency: payment.currency });
+        const settlementLabel = mode === "payouts"
+          ? `do wyplaty: ${formatMoney(fee.carrierAmount, payment.currency)}`
+          : mode === "transport_escrow"
+          ? "escrow transportu"
+          : "faktura / status";
+        return `
+          <div class="finance-row">
+            <span>${payment.id}</span>
+            <span>${transportNumber(state, payment.transportId)}</span>
+            <strong>${formatMoney(payment.amount, payment.currency)}</strong>
+            <span><mark class="${financeTone(payment.status)}">${payment.status}</mark></span>
+            <span>${settlementLabel}</span>
+            <small>${transaction?.auditId || "audit-demo"}</small>
+          </div>
+        `;
+      }).join("") || `<p class="finance-muted">Brak wlasnych rozliczen.</p>`}
+    </div>
+  `;
+}
+
+function sumMoney(items, selector) {
+  return items.reduce((total, item) => total + Number(selector(item) || 0), 0);
 }
 
 function renderFintechModule(state, engine, selected, mode) {
@@ -1265,7 +1502,7 @@ function renderLargestTransactions(state, transactions) {
 }
 
 function renderRevenue(state) {
-  if (!state.access?.canViewFinancials) {
+  if (!state.access?.canViewPlatformWallet) {
     return renderAccessDenied("Revenue Engine", "Platform revenue is restricted for this role.");
   }
   return `

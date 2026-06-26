@@ -12,7 +12,7 @@ const baseTime = "2026-05-27T07:00:00.000Z";
 
 export function createDemoState() {
   const state = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     demoDataVersion: DEMO_DATA_VERSION,
     revision: 1,
     session: {
@@ -25,6 +25,8 @@ export function createDemoState() {
     },
     users: [
       user("u-platform", "Ewa Core", "+48500100100", Roles.PLATFORM_OWNER, null, AccountStatuses.VERIFIED),
+      user("u-gl-operator", "Grzegorz Operator GL", "+48500100130", Roles.GL_OPERATOR, null, AccountStatuses.VERIFIED),
+      user("u-admin-finance", "Fin Marta", "+48500100131", Roles.ADMIN_FINANCE, null, AccountStatuses.VERIFIED),
       user("u-super", "Adam Super", "+48500100101", Roles.SUPER_ADMIN, null, AccountStatuses.VERIFIED),
       user("u-admin", "Marta Admin", "+48500100102", Roles.ADMIN, null, AccountStatuses.VERIFIED),
       user("u-client-owner", "Jan Client", "+48500100103", Roles.CLIENT_OWNER, "co-client-a", AccountStatuses.VERIFIED),
@@ -493,10 +495,12 @@ export function createDemoState() {
       serviceProvider("srvprov-3", "co-roadside-a", "RoadHelp 24", "roadside_assistance", 52.03, 18.97, 35, 420)
     ],
     serviceRequests: [
-      serviceRequest("srv-1", "tr-1001", "vh-1", "u-driver-1", "co-carrier-a", "co-mobile-service-a", "mobile_service", "awaria opony", "accepted", 25, 280, "2026-05-27T13:40:00.000Z")
+      serviceRequest("srv-1", "tr-1001", "vh-1", "u-driver-1", "co-carrier-a", "co-mobile-service-a", "mobile_service", "awaria opony", "accepted", 25, 280, "2026-05-27T13:40:00.000Z"),
+      serviceRequest("srv-2", "tr-1006", "vh-7", "u-driver-1", "co-carrier-a", "co-workshop-a", "workshop", "diagnostyka naczepy", "completed", 45, 320, "2026-05-28T16:00:00.000Z")
     ],
     servicePayments: [
-      servicePayment("spay-1", "srv-1", "tr-1001", "co-mobile-service-a", 280, "simulated_paid")
+      servicePayment("spay-1", "srv-1", "tr-1001", "co-mobile-service-a", 280, "simulated_paid"),
+      servicePayment("spay-2", "srv-2", "tr-1006", "co-workshop-a", 320, "simulated_paid")
     ],
     apiClients: [
       apiClient("api-erp-nord", "Nord Market ERP", "co-client-a", ["CREATE_LOAD", "UPLOAD_DOCUMENT"], 1200, "active"),

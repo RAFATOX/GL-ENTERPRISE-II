@@ -1,5 +1,16 @@
 import { Roles } from "./constants.js";
 
+export const FinancePermissions = Object.freeze({
+  WALLET_PLATFORM_READ: "wallet.platform.read",
+  WALLET_PLATFORM_MANAGE: "wallet.platform.manage",
+  BILLING_OWN_READ: "billing.own.read",
+  INVOICES_OWN_READ: "invoices.own.read",
+  SETTLEMENTS_OWN_READ: "settlements.own.read",
+  ESCROW_OWN_READ: "escrow.own.read",
+  PAYOUTS_OWN_READ: "payouts.own.read",
+  PAYOUTS_MANAGE: "payouts.manage"
+});
+
 export const ModulePermissions = Object.freeze({
   DASHBOARD: "module.dashboard",
   TRANSPORTS: "module.transports",
@@ -14,7 +25,12 @@ export const ModulePermissions = Object.freeze({
   JOBS: "module.jobs",
   ACADEMY: "module.academy",
   TRUST: "module.trust",
-  WALLET: "module.wallet",
+  WALLET: FinancePermissions.WALLET_PLATFORM_READ,
+  BILLING: FinancePermissions.BILLING_OWN_READ,
+  INVOICES: FinancePermissions.INVOICES_OWN_READ,
+  PAYMENT_STATUS: FinancePermissions.SETTLEMENTS_OWN_READ,
+  TRANSPORT_ESCROW: FinancePermissions.ESCROW_OWN_READ,
+  PAYOUTS: FinancePermissions.PAYOUTS_OWN_READ,
   INSURANCE: "module.insurance",
   REPORTS: "module.reports",
   COMPANY: "module.company",
@@ -30,28 +46,48 @@ export const ModulePermissions = Object.freeze({
   SYSTEM: "module.system"
 });
 
-const adminRoles = [Roles.PLATFORM_OWNER, Roles.SUPER_ADMIN, Roles.ADMIN];
+export const platformWalletRoles = Object.freeze([
+  Roles.PLATFORM_OWNER,
+  Roles.GL_OPERATOR,
+  Roles.ADMIN_FINANCE
+]);
+
+const platformControlRoles = [Roles.PLATFORM_OWNER, Roles.SUPER_ADMIN, Roles.ADMIN];
 const clientRoles = [Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER];
 const carrierRoles = [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER];
 const dispatcherRoles = [Roles.CLIENT_DISPATCHER, Roles.CARRIER_DISPATCHER];
 const serviceRoles = [Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE];
 const academyRoles = [Roles.ACADEMY_TEACHER, Roles.ACADEMY_STUDENT];
 const complianceRoles = [Roles.COMPLIANCE, Roles.READONLY_AUDITOR];
+const billingRoles = [Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles];
+const invoiceRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles];
+const paymentStatusRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles, Roles.PAYMENT_OPERATOR];
+const payoutRoles = [Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles, Roles.PAYMENT_OPERATOR];
+const escrowOwnRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER];
 const allRoles = [...new Set(Object.values(Roles))];
 
-function withAdmin(roles = []) {
-  return [...new Set([...adminRoles, ...roles])];
+function withPlatformControl(roles = []) {
+  return [...new Set([...platformControlRoles, ...roles])];
 }
 
-function moduleItem(id, label, icon, route, view, permission, roles, description) {
+function unique(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function moduleItem(id, label, icon, route, view, permission, roles, description, options = {}) {
+  const requiredPermissions = Array.isArray(permission) ? permission : [permission];
+  const allowedRoles = options.includePlatformControl === false
+    ? unique(roles)
+    : withPlatformControl(roles);
   return Object.freeze({
     id,
     label,
     icon,
     route,
     view,
-    requiredPermissions: [permission],
-    allowedRoles: withAdmin(roles),
+    requiredPermissions,
+    allowedRoles,
+    allowPermissionOverride: Boolean(options.allowPermissionOverride),
     description
   });
 }
@@ -61,7 +97,7 @@ export const modulesConfig = Object.freeze([
   moduleItem("transports", "Transporty", "TR", "/transporty", "transports", ModulePermissions.TRANSPORTS, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER,
     Roles.PAYMENT_OPERATOR, Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR,
-    Roles.RAIL_OPERATOR, ...serviceRoles, Roles.SUPPORT_AGENT, ...complianceRoles
+    Roles.RAIL_OPERATOR, ...serviceRoles, Roles.SUPPORT_AGENT, ...complianceRoles, ...platformWalletRoles
   ], "Lista transportow dostepnych dla roli."),
   moduleItem("loads", "Ladunki", "LD", "/ladunki", "create", ModulePermissions.LOADS, [
     ...clientRoles, ...dispatcherRoles
@@ -101,14 +137,29 @@ export const modulesConfig = Object.freeze([
     ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER, Roles.SECURITY,
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, ...serviceRoles, ...complianceRoles
   ], "Reputacja firm, kierowcow i partnerow."),
-  moduleItem("wallet", "GL Wallet", "WL", "/wallet", "payments", ModulePermissions.WALLET, [
-    Roles.PAYMENT_OPERATOR, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER
-  ], "Portfele, escrow, prowizje i historia demo."),
+  moduleItem("wallet", "GL Wallet", "WL", "/wallet", "platform_wallet", ModulePermissions.WALLET, platformWalletRoles, "Pelny PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.", {
+    includePlatformControl: false
+  }),
+  moduleItem("billing", "Moje rozliczenia", "BR", "/rozliczenia", "billing", ModulePermissions.BILLING, billingRoles, "Rozliczenia wlasne bez dostepu do salda platformy.", {
+    allowPermissionOverride: true
+  }),
+  moduleItem("invoices", "Faktury", "FV", "/faktury", "invoices", ModulePermissions.INVOICES, invoiceRoles, "Faktury przypisane do wlasnych transportow, polis lub uslug.", {
+    allowPermissionOverride: true
+  }),
+  moduleItem("payment-status", "Platnosci", "PY", "/platnosci", "payment_status", ModulePermissions.PAYMENT_STATUS, paymentStatusRoles, "Statusy platnosci i historia wlasnych operacji.", {
+    allowPermissionOverride: true
+  }),
+  moduleItem("payout-status", "Status wyplaty", "PO", "/wyplaty", "payouts", ModulePermissions.PAYOUTS, payoutRoles, "Wlasne wyplaty, naleznosci i potracone prowizje GL.", {
+    allowPermissionOverride: true
+  }),
+  moduleItem("transport-escrow", "Escrow transportu", "ES", "/escrow-transportu", "transport_escrow", ModulePermissions.TRANSPORT_ESCROW, escrowOwnRoles, "Depozyty escrow przypisane do wlasnych transportow.", {
+    allowPermissionOverride: true
+  }),
   moduleItem("insurance", "Ubezpieczenia", "IN", "/ubezpieczenia", "insurance", ModulePermissions.INSURANCE, [
     Roles.INSURANCE_PARTNER, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER
   ], "Polisy, roszczenia i ryzyko."),
   moduleItem("reports", "Raporty i analizy", "RP", "/raporty", "statistics", ModulePermissions.REPORTS, [
-    Roles.PAYMENT_OPERATOR, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...complianceRoles
+    Roles.PAYMENT_OPERATOR, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...platformWalletRoles, ...complianceRoles
   ], "Statystyki, raporty i eksport demo."),
   moduleItem("company", "Moja firma", "CO", "/moja-firma", "companies", ModulePermissions.COMPANY, [
     ...clientRoles, ...carrierRoles, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER, Roles.PAYMENT_OPERATOR,
@@ -122,12 +173,16 @@ export const modulesConfig = Object.freeze([
   moduleItem("intermodal", "Prom / kolej", "IM", "/intermodal", "ferry", ModulePermissions.INTERMODAL, [Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...carrierRoles, Roles.DRIVER], "Prom, kolej i terminal."),
   moduleItem("service", "Serwis techniczny", "SV", "/serwis", "service", ModulePermissions.SERVICE, [...serviceRoles, ...carrierRoles, Roles.DRIVER], "Warsztat, serwis mobilny i pomoc drogowa."),
   moduleItem("ai", "AI Control", "AI", "/ai", "ai", ModulePermissions.AI, [Roles.SUPPORT_AGENT, ...complianceRoles], "Alerty AI i kontrola ryzyka."),
-  moduleItem("audit", "Audit Log", "AL", "/audit", "audit", ModulePermissions.AUDIT, [Roles.PAYMENT_OPERATOR, ...complianceRoles], "Historia zdarzen i decyzji."),
+  moduleItem("audit", "Audit Log", "AL", "/audit", "audit", ModulePermissions.AUDIT, [Roles.PAYMENT_OPERATOR, ...platformWalletRoles, ...complianceRoles], "Historia zdarzen i decyzji."),
   moduleItem("system", "System", "SY", "/system", "system", ModulePermissions.SYSTEM, [], "Stan systemu i konfiguracja platformy."),
-  moduleItem("system-tests", "System Tests", "QA", "/system-tests", "system_tests", ModulePermissions.SYSTEM, [], "Testy odporności demo.")
+  moduleItem("system-tests", "System Tests", "QA", "/system-tests", "system_tests", ModulePermissions.SYSTEM, [], "Testy odpornosci demo.")
 ]);
 
 const explicitPermissionsByRole = {
+  [Roles.PLATFORM_OWNER]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
+  [Roles.GL_OPERATOR]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
+  [Roles.ADMIN_FINANCE]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
+  [Roles.PAYMENT_OPERATOR]: [FinancePermissions.PAYOUTS_MANAGE],
   [Roles.ACADEMY_STUDENT]: [ModulePermissions.DASHBOARD, ModulePermissions.ACADEMY, ModulePermissions.PROFILE],
   [Roles.ACADEMY_TEACHER]: [ModulePermissions.DASHBOARD, ModulePermissions.ACADEMY, ModulePermissions.PROFILE, ModulePermissions.REPORTS],
   [Roles.COMPLIANCE]: [
@@ -144,9 +199,6 @@ const explicitPermissionsByRole = {
 };
 
 export function permissionsForRole(role, user = {}) {
-  if (adminRoles.includes(role)) {
-    return [...new Set(modulesConfig.flatMap((module) => module.requiredPermissions))];
-  }
   const configured = modulesConfig
     .filter((module) => module.allowedRoles.includes(role))
     .flatMap((module) => module.requiredPermissions);
@@ -195,6 +247,6 @@ export function normalizeRoute(route = "") {
 }
 
 function moduleIsAllowed(module, role, permissions) {
-  return module.allowedRoles.includes(role)
-    && module.requiredPermissions.every((permission) => permissions.includes(permission));
+  const hasPermissions = module.requiredPermissions.every((permission) => permissions.includes(permission));
+  return hasPermissions && (module.allowedRoles.includes(role) || module.allowPermissionOverride);
 }

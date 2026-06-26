@@ -1,10 +1,28 @@
 import { ActionTypes, DEMO_MODE, Roles, TransportStatuses } from "../core/constants.js";
-import { canAccessModuleView } from "../core/modules-config.js";
+import { canAccessModuleView, platformWalletRoles } from "../core/modules-config.js";
 
 const platformActions = Object.values(ActionTypes);
 
 const rolePermissions = {
   [Roles.PLATFORM_OWNER]: platformActions,
+  [Roles.GL_OPERATOR]: [
+    ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_VIEW,
+    ActionTypes.SELECT_TRANSPORT,
+    ActionTypes.RELEASE_PAYMENT,
+    ActionTypes.ADMIN_RESOLVE_DISPUTE,
+    ActionTypes.RUN_COMPLIANCE_CHECK,
+    ActionTypes.AI_RUN_CHECK
+  ],
+  [Roles.ADMIN_FINANCE]: [
+    ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_VIEW,
+    ActionTypes.SELECT_TRANSPORT,
+    ActionTypes.RELEASE_PAYMENT,
+    ActionTypes.ADMIN_RESOLVE_DISPUTE,
+    ActionTypes.RUN_COMPLIANCE_CHECK,
+    ActionTypes.AI_RUN_CHECK
+  ],
   [Roles.SUPER_ADMIN]: platformActions.filter((action) => action !== ActionTypes.RESET_DEMO),
   [Roles.ADMIN]: [
     ActionTypes.SELECT_ROLE,
@@ -480,6 +498,7 @@ export class PermissionsEngine {
     const scope = financialScope(actor);
     snapshot.access = {
       canViewFinancials: scope !== "none",
+      canViewPlatformWallet: scope === "platform",
       financialScope: scope,
       privateContactsVisible: privileged(actor)
     };
@@ -495,21 +514,26 @@ export class PermissionsEngine {
       snapshot.exchangeRates = [];
       snapshot.escrows = [];
       snapshot.revenueLedger = [];
-    } else if (scope !== "all") {
+    } else if (scope !== "platform") {
       const companyId = actor.companyId;
-      const financialTransportIds = new Set(snapshot.transports
-        .filter((transport) => transport.clientCompanyId === companyId || transport.carrierCompanyId === companyId)
-        .map((transport) => transport.id));
+      const financialTransportIds = financialTransportIdsForScope(snapshot, actor, scope, visibleTransportIds);
       snapshot.payments = snapshot.payments.filter((payment) => financialTransportIds.has(payment.transportId));
-      snapshot.escrows = snapshot.escrows.filter((escrow) => (
+      snapshot.escrows = ["client", "carrier"].includes(scope) ? snapshot.escrows.filter((escrow) => (
         escrow.payerCompanyId === companyId || escrow.payeeCompanyId === companyId
-      ));
-      snapshot.wallets = snapshot.wallets.filter((wallet) => wallet.ownerCompanyId === companyId);
+      )) : [];
+      snapshot.wallets = ["client", "carrier"].includes(scope)
+        ? snapshot.wallets.filter((wallet) => wallet.ownerCompanyId === companyId)
+        : [];
       const walletIds = new Set(snapshot.wallets.map((wallet) => wallet.id));
       snapshot.walletLedger = snapshot.walletLedger.filter((entry) => walletIds.has(entry.walletId));
       snapshot.walletTransactions = (snapshot.walletTransactions || []).filter((entry) => financialTransportIds.has(entry.transportId));
       const transactionIds = new Set(snapshot.walletTransactions.map((entry) => entry.id));
-      snapshot.walletRiskAlerts = (snapshot.walletRiskAlerts || []).filter((alert) => transactionIds.has(alert.transactionId));
+      snapshot.walletRiskAlerts = scope === "payment_status"
+        ? (snapshot.walletRiskAlerts || []).filter((alert) => transactionIds.has(alert.transactionId))
+        : [];
+      snapshot.walletReports = [];
+      snapshot.walletApiEndpoints = [];
+      snapshot.exchangeRates = [];
       snapshot.revenueLedger = [];
     }
 
@@ -570,7 +594,7 @@ function serviceScoped(actor, request) {
 }
 
 function canViewTransport(actor, transport, state) {
-  if (privileged(actor)) return true;
+  if (privileged(actor) || platformFinanceRole(actor)) return true;
   if ([Roles.SUPPORT_AGENT, Roles.READONLY_AUDITOR, Roles.PAYMENT_OPERATOR, Roles.SECURITY_GUARD].includes(actor.role)) return true;
   if (actor.role === Roles.AUTHORITY_USER) {
     return ![TransportStatuses.COMPLETED, TransportStatuses.CANCELLED].includes(transport.status);
@@ -624,9 +648,49 @@ function canViewTransport(actor, transport, state) {
 }
 
 function financialScope(actor) {
-  if ([Roles.PLATFORM_OWNER, Roles.SUPER_ADMIN, Roles.ADMIN, Roles.PAYMENT_OPERATOR].includes(actor.role)) return "all";
-  if ([Roles.CLIENT_OWNER, Roles.CARRIER_OWNER].includes(actor.role)) return "company";
+  if (platformFinanceRole(actor)) return "platform";
+  if (actor.role === Roles.CLIENT_OWNER) return "client";
+  if (actor.role === Roles.CARRIER_OWNER) return "carrier";
+  if (actor.role === Roles.INSURANCE_PARTNER) return "insurance";
+  if (serviceRole(actor.role)) return "service";
+  if (actor.role === Roles.PAYMENT_OPERATOR) return "payment_status";
   return "none";
+}
+
+function platformFinanceRole(actor) {
+  return platformWalletRoles.includes(actor.role);
+}
+
+function financialTransportIdsForScope(snapshot, actor, scope, visibleTransportIds) {
+  if (scope === "client") {
+    return new Set(snapshot.transports
+      .filter((transport) => transport.clientCompanyId === actor.companyId)
+      .map((transport) => transport.id));
+  }
+  if (scope === "carrier") {
+    return new Set(snapshot.transports
+      .filter((transport) => transport.carrierCompanyId === actor.companyId)
+      .map((transport) => transport.id));
+  }
+  if (scope === "insurance") {
+    return new Set((snapshot.insurancePolicies || [])
+      .map((policy) => policy.transportId)
+      .filter((transportId) => visibleTransportIds.has(transportId)));
+  }
+  if (scope === "service") {
+    return new Set([
+      ...(snapshot.servicePayments || [])
+        .filter((payment) => payment.providerCompanyId === actor.companyId)
+        .map((payment) => payment.transportId),
+      ...(snapshot.serviceRequests || [])
+        .filter((request) => request.providerCompanyId === actor.companyId)
+        .map((request) => request.transportId)
+    ].filter((transportId) => visibleTransportIds.has(transportId)));
+  }
+  if (scope === "payment_status") {
+    return new Set([...visibleTransportIds]);
+  }
+  return new Set();
 }
 
 function sanitizeAuthorityTransport(transport) {

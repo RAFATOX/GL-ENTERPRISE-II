@@ -16,7 +16,7 @@ const roleConfig = {
   [Roles.CLIENT_OWNER]: {
     workspace: "Klient",
     dashboard: "client",
-    widgets: ["loads", "payments", "carriers", "messages"],
+    widgets: ["loads", "invoices", "paymentStatus", "carriers", "messages"],
     actions: [ActionTypes.CREATE_LOAD, ActionTypes.ADD_LOAD_PHOTO, ActionTypes.CONFIRM_GPS, ActionTypes.PUBLISH_LOAD]
   },
   [Roles.CLIENT_DISPATCHER]: {
@@ -34,8 +34,20 @@ const roleConfig = {
   [Roles.PAYMENT_OPERATOR]: {
     workspace: "Platnosci",
     dashboard: "payments",
-    widgets: ["escrow", "payments", "blocks"],
+    widgets: ["paymentStatus", "payouts", "blocks"],
     actions: [ActionTypes.RELEASE_PAYMENT]
+  },
+  [Roles.GL_OPERATOR]: {
+    workspace: "Operator GL",
+    dashboard: "payments",
+    widgets: ["platformWallet", "escrow", "fees", "audit"],
+    actions: [ActionTypes.RELEASE_PAYMENT, ActionTypes.ADMIN_RESOLVE_DISPUTE, ActionTypes.AI_RUN_CHECK]
+  },
+  [Roles.ADMIN_FINANCE]: {
+    workspace: "Finanse GL",
+    dashboard: "payments",
+    widgets: ["platformWallet", "settlements", "payouts", "audit"],
+    actions: [ActionTypes.RELEASE_PAYMENT, ActionTypes.ADMIN_RESOLVE_DISPUTE]
   },
   [Roles.ADMIN]: {
     workspace: "Administrator",
@@ -58,7 +70,7 @@ const roleConfig = {
   [Roles.CARRIER_OWNER]: {
     workspace: "Przewoznik",
     dashboard: "carrier",
-    widgets: ["fleet", "drivers", "transportStatus", "messages"],
+    widgets: ["fleet", "drivers", "settlements", "payouts", "messages"],
     actions: [ActionTypes.ACCEPT_CARRIER, ActionTypes.ASSIGN_DRIVER, ActionTypes.REQUEST_TECHNICAL_SERVICE]
   },
   [Roles.CARRIER_DISPATCHER]: {
@@ -100,25 +112,25 @@ const roleConfig = {
   [Roles.WORKSHOP]: {
     workspace: "Warsztat",
     dashboard: "service",
-    widgets: ["service", "eta", "transportStatus"],
+    widgets: ["service", "invoices", "paymentStatus"],
     actions: [ActionTypes.ACCEPT_SERVICE_JOB, ActionTypes.COMPLETE_SERVICE_JOB]
   },
   [Roles.MOBILE_SERVICE]: {
     workspace: "Serwis mobilny",
     dashboard: "service",
-    widgets: ["service", "eta", "transportStatus"],
+    widgets: ["service", "invoices", "paymentStatus"],
     actions: [ActionTypes.ACCEPT_SERVICE_JOB, ActionTypes.COMPLETE_SERVICE_JOB]
   },
   [Roles.ROADSIDE_ASSISTANCE]: {
     workspace: "Pomoc drogowa",
     dashboard: "service",
-    widgets: ["service", "eta", "transportStatus"],
+    widgets: ["service", "invoices", "paymentStatus"],
     actions: [ActionTypes.ACCEPT_SERVICE_JOB, ActionTypes.COMPLETE_SERVICE_JOB]
   },
   [Roles.INSURANCE_PARTNER]: {
     workspace: "Ubezpieczenia",
     dashboard: "insurance",
-    widgets: ["risk", "documents", "transportStatus"],
+    widgets: ["risk", "policies", "settlements", "paymentStatus"],
     actions: [ActionTypes.OPEN_CLAIM, ActionTypes.UPLOAD_DOCUMENT]
   },
   [Roles.ACADEMY_TEACHER]: {

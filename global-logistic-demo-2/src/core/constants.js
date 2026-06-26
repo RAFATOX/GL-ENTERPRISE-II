@@ -1,9 +1,11 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 7;
-export const STORAGE_KEY = "global-logistic-gl2-core-engine-v5";
+export const DEMO_DATA_VERSION = 8;
+export const STORAGE_KEY = "global-logistic-gl2-core-engine-v6";
 
 export const Roles = Object.freeze({
   PLATFORM_OWNER: "platform_owner",
+  GL_OPERATOR: "gl_operator",
+  ADMIN_FINANCE: "admin_finance",
   SUPER_ADMIN: "super_admin",
   ADMIN: "admin",
   CLIENT_OWNER: "client_owner",
@@ -32,6 +34,8 @@ export const Roles = Object.freeze({
 
 export const RoleLabels = Object.freeze({
   [Roles.PLATFORM_OWNER]: "Właściciel platformy",
+  [Roles.GL_OPERATOR]: "Operator GL",
+  [Roles.ADMIN_FINANCE]: "Administrator finansowy",
   [Roles.SUPER_ADMIN]: "Super Admin",
   [Roles.ADMIN]: "Admin",
   [Roles.CLIENT_OWNER]: "Właściciel klienta",
