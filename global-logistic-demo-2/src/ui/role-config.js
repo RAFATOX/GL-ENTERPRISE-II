@@ -48,7 +48,7 @@ const roleConfig = {
     actions: [ActionTypes.ADMIN_BLOCK_TRANSPORT, ActionTypes.AI_RUN_CHECK, ActionTypes.RUN_RESILIENCE_CHECK]
   },
   [Roles.SUPER_ADMIN]: {
-    workspace: "Super Admin",
+    workspace: "Superadministrator",
     widgets: ["platform", "risk", "finance", "audit"],
     actions: [ActionTypes.AI_RUN_CHECK, ActionTypes.RUN_RESILIENCE_CHECK]
   },
@@ -113,17 +113,17 @@ const roleConfig = {
     actions: [ActionTypes.OPEN_CLAIM, ActionTypes.UPLOAD_DOCUMENT]
   },
   [Roles.ACADEMY_TEACHER]: {
-    workspace: "GL Academy",
+    workspace: "Akademia GL",
     widgets: ["courses", "students", "certificates"],
     actions: []
   },
   [Roles.ACADEMY_STUDENT]: {
-    workspace: "GL Academy",
+    workspace: "Akademia GL",
     widgets: ["courses", "profile"],
     actions: []
   },
   [Roles.COMPLIANCE]: {
-    workspace: "Compliance",
+    workspace: "Zgodnosc",
     widgets: ["audit", "risk", "documents"],
     actions: [ActionTypes.RUN_COMPLIANCE_CHECK, ActionTypes.AI_RUN_CHECK]
   },

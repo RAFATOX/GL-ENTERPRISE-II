@@ -36,8 +36,8 @@ export const RoleLabels = Object.freeze({
   [Roles.PLATFORM_OWNER]: "Właściciel platformy",
   [Roles.GL_OPERATOR]: "Operator GL",
   [Roles.ADMIN_FINANCE]: "Administrator finansowy",
-  [Roles.SUPER_ADMIN]: "Super Admin",
-  [Roles.ADMIN]: "Admin",
+  [Roles.SUPER_ADMIN]: "Superadministrator",
+  [Roles.ADMIN]: "Administrator",
   [Roles.CLIENT_OWNER]: "Właściciel klienta",
   [Roles.CLIENT_DISPATCHER]: "Dyspozytor klienta",
   [Roles.WAREHOUSE_WORKER]: "Pracownik magazynu",
@@ -46,7 +46,7 @@ export const RoleLabels = Object.freeze({
   [Roles.DRIVER]: "Kierowca",
   [Roles.INSURANCE_PARTNER]: "Partner ubezpieczeniowy",
   [Roles.PAYMENT_OPERATOR]: "Operator płatności",
-  [Roles.SECURITY]: "Security / ochrona",
+  [Roles.SECURITY]: "Ochrona / brama",
   [Roles.CUSTOMS_AGENT]: "Agent celny",
   [Roles.AUTHORITY_USER]: "Organ kontrolny",
   [Roles.FERRY_OPERATOR]: "Operator promowy",
@@ -54,9 +54,9 @@ export const RoleLabels = Object.freeze({
   [Roles.WORKSHOP]: "Warsztat",
   [Roles.MOBILE_SERVICE]: "Serwis mobilny",
   [Roles.ROADSIDE_ASSISTANCE]: "Pomoc drogowa",
-  [Roles.ACADEMY_TEACHER]: "Nauczyciel GL Academy",
-  [Roles.ACADEMY_STUDENT]: "Student GL Academy",
-  [Roles.COMPLIANCE]: "Compliance",
+  [Roles.ACADEMY_TEACHER]: "Nauczyciel Akademii GL",
+  [Roles.ACADEMY_STUDENT]: "Student Akademii GL",
+  [Roles.COMPLIANCE]: "Zgodnosc",
   [Roles.SUPPORT_AGENT]: "Wsparcie",
   [Roles.READONLY_AUDITOR]: "Audytor tylko do odczytu"
 });
@@ -446,7 +446,7 @@ export const NavItems = Object.freeze([
   { id: "trust", label: "Reputacja" },
   { id: "ai", label: "Kontrola AI" },
   { id: "audit", label: "Dziennik audytu" },
-  { id: "system_tests", label: "System Tests" },
+  { id: "system_tests", label: "Testy systemu" },
   { id: "admin", label: "Panel admina" }
 ]);
 

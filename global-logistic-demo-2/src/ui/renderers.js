@@ -12,6 +12,7 @@ import {
   menuForRole,
   viewAllowedForRole
 } from "./role-config.js";
+import { localizeHtml } from "../translation/ui-translation-engine.js";
 
 export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
@@ -35,7 +36,7 @@ export function renderApp(state, engine) {
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>Aktywna przestrzen</span>
-          <strong>${roleConfig.workspace}: moduly wynikaja z Permission Engine i modulesConfig.</strong>
+          <strong>${roleConfig.workspace}: moduly wynikaja z silnika uprawnien i konfiguracji modulow.</strong>
         </div>
       </aside>
       <main class="main">
@@ -45,7 +46,7 @@ export function renderApp(state, engine) {
       </main>
       ${renderContextRail(state, engine, selected, roleConfig)}
     </div>
-  `);
+  `, state.session.language);
 }
 
 function renderAppNavigation(state, activeView) {
@@ -83,7 +84,7 @@ function renderTopbar(state, activeView, roleConfig) {
             `).join("")}
           </select>
         </label>
-        <button class="reset-demo" data-reset-demo="true">Reset demo data</button>
+        <button class="reset-demo" data-reset-demo="true">Przywroc dane demo</button>
       </div>
     </header>
   `;
@@ -181,13 +182,13 @@ function renderDashboard(state, engine, selected) {
       <article class="panel">
         <div class="panel-head">
           <div>
-            <span class="eyebrow">Dashboard</span>
+            <span class="eyebrow">Pulpit</span>
             <h2>Jedna aplikacja modulowa</h2>
           </div>
         </div>
-        <p class="muted">Ten sam Dashboard jest uzywany przez kazda role. Rola zmienia tylko widoczne moduly i dozwolone akcje przez Permission Engine.</p>
+        <p class="muted">Ten sam pulpit jest uzywany przez kazda role. Rola zmienia tylko widoczne moduly i dozwolone akcje przez silnik uprawnien.</p>
         <div class="pipeline">
-          ${["MENU MODULOW", "PERMISSION ENGINE", "ROUTE GUARD", "ENGINE", "DATABASE", "EVENTS", "AUDIT LOG"].map((step) => `<span>${step}</span>`).join("")}
+          ${["MENU MODULOW", "SILNIK UPRAWNIEN", "STRAZNIK TRAS", "SILNIK", "BAZA DANYCH", "ZDARZENIA", "DZIENNIK AUDYTU"].map((step) => `<span>${step}</span>`).join("")}
         </div>
       </article>
       ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
@@ -202,7 +203,7 @@ function renderModuleMenuPanel(state) {
     <section class="panel module-menu-panel">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">AppNavigation / Permission Guard</span>
+          <span class="eyebrow">Nawigacja aplikacji / strażnik uprawnień</span>
           <h2>Menu modulow</h2>
         </div>
       </div>
@@ -211,7 +212,7 @@ function renderModuleMenuPanel(state) {
           <button class="module-tile" data-module-route="${module.route}" data-view="${module.id}">
             <span class="module-icon">${module.icon}</span>
             <strong>${module.label}</strong>
-            <small>${module.requiredPermissions.join(", ")}</small>
+            <small>Dostep wedlug roli</small>
           </button>
         `).join("")}
       </div>
@@ -222,9 +223,9 @@ function renderModuleMenuPanel(state) {
 function renderModuleAccessDenied(state) {
   return `
     <section class="panel access-panel">
-      <span class="eyebrow">AccessDenied / Permission Guard</span>
+      <span class="eyebrow">Brak dostępu / strażnik uprawnień</span>
       <h2>Brak dostepu do modulu</h2>
-      <p class="muted">Rola ${RoleLabels[state.session.role] || state.session.role} nie ma dostepu do trasy ${state.session.deniedRoute || state.session.deniedView}. Wejscie zostalo zablokowane przez Permission Engine.</p>
+      <p class="muted">Rola ${RoleLabels[state.session.role] || state.session.role} nie ma dostepu do trasy ${state.session.deniedRoute || state.session.deniedView}. Wejscie zostalo zablokowane przez silnik uprawnien.</p>
     </section>
   `;
 }
@@ -241,9 +242,9 @@ function renderAuth(state, engine) {
           </div>
         </div>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.REGISTER_USER, "Register by phone", { phone: "+48500777111", role: Roles.CLIENT_DISPATCHER, language: "pl", companyId: "co-client-a", name: "Phone Demo User" })}
-          ${actionButton(engine, ActionTypes.VERIFY_ACCOUNT, "Verify document + face", { userId: pending.id })}
-          ${actionButton(engine, ActionTypes.CHANGE_PHONE, "Change phone safely", { userId: pending.id, phone: "+48500777222" })}
+          ${actionButton(engine, ActionTypes.REGISTER_USER, "Zarejestruj przez telefon", { phone: "+48500777111", role: Roles.CLIENT_DISPATCHER, language: "pl", companyId: "co-client-a", name: "Uzytkownik demo telefonu" })}
+          ${actionButton(engine, ActionTypes.VERIFY_ACCOUNT, "Zweryfikuj dokument i twarz", { userId: pending.id })}
+          ${actionButton(engine, ActionTypes.CHANGE_PHONE, "Bezpiecznie zmien telefon", { userId: pending.id, phone: "+48500777222" })}
         </div>
       </article>
       <article class="panel">
@@ -295,7 +296,7 @@ function renderTransportList(state) {
       </div>
       <div class="transport-table">
         <div class="table-row table-head">
-          <span>ID</span><span>Client</span><span>Carrier</span><span>Status</span><span>GPS</span><span>Payment</span>
+          <span>ID</span><span>Klient</span><span>Przewoznik</span><span>Status</span><span>GPS</span><span>Platnosc</span>
         </div>
         ${state.transports.map((transport) => `
           <button class="table-row ${state.session.selectedTransportId === transport.id ? "selected" : ""}" data-transport="${transport.id}">
@@ -370,7 +371,7 @@ function renderCreateLoad(state, engine, selected) {
         </div>
         ${renderCreateTransportForm(state)}
         <div class="actions">
-          ${actionButton(engine, ActionTypes.CREATE_LOAD, "Create demo load", {
+          ${actionButton(engine, ActionTypes.CREATE_LOAD, "Utworz ladunek demo", {
             clientCompanyId: "co-client-a",
             pickupAddress: "Wroclaw demo pickup",
             deliveryAddress: "Prague demo delivery",
@@ -382,9 +383,9 @@ function renderCreateLoad(state, engine, selected) {
             price: 1600,
             warehouseWorkerId: "u-warehouse"
           })}
-          ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Add pre-publish photo", { transportId: selected.id, type: "pre_publish_load", label: "Zdjecie ladunku przed publikacja" }) : disabledAction("Add pre-publish photo", "Brak transportow")}
-          ${selected ? actionButton(engine, ActionTypes.CONFIRM_GPS, "Confirm GPS", { transportId: selected.id, pickupGps: { lat: 51.1079, lng: 17.0385 }, deliveryGps: { lat: 50.0755, lng: 14.4378 } }) : disabledAction("Confirm GPS", "Brak transportow")}
-          ${selected ? actionButton(engine, ActionTypes.PUBLISH_LOAD, "Publish selected load", { transportId: selected.id }) : disabledAction("Publish selected load", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Dodaj zdjecie przed publikacja", { transportId: selected.id, type: "pre_publish_load", label: "Zdjecie ladunku przed publikacja" }) : disabledAction("Dodaj zdjecie przed publikacja", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.CONFIRM_GPS, "Potwierdz GPS", { transportId: selected.id, pickupGps: { lat: 51.1079, lng: 17.0385 }, deliveryGps: { lat: 50.0755, lng: 14.4378 } }) : disabledAction("Potwierdz GPS", "Brak transportow")}
+          ${selected ? actionButton(engine, ActionTypes.PUBLISH_LOAD, "Opublikuj wybrany ladunek", { transportId: selected.id }) : disabledAction("Opublikuj wybrany ladunek", "Brak transportow")}
         </div>
       </article>
       ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
@@ -401,9 +402,9 @@ function renderWarehouse(state, engine, selected) {
         <p class="muted">Przed publikacja musi istniec zdjecie ladunku. Zdjecia trafiaja do dokumentacji i audytu.</p>
         ${renderPhotoForm(selected)}
         <div class="actions">
-          ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Photo before publication", { transportId: selected.id, type: "pre_publish_load", label: "Ladunek przed publikacja" })}
-          ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Photo at loading", { transportId: selected.id, type: "loading", label: "Zdjecie przy zaladunku" })}
-          ${actionButton(engine, ActionTypes.CONFIRM_LOADING, "Confirm loading", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Zdjecie przed publikacja", { transportId: selected.id, type: "pre_publish_load", label: "Ladunek przed publikacja" })}
+          ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Zdjecie przy zaladunku", { transportId: selected.id, type: "loading", label: "Zdjecie przy zaladunku" })}
+          ${actionButton(engine, ActionTypes.CONFIRM_LOADING, "Potwierdz zaladunek", { transportId: selected.id })}
         </div>
       </article>
       ${renderPhotoList(state, selected)}
@@ -422,7 +423,7 @@ function renderCarrier(state, engine, selected) {
           <article class="mini-card">
             <strong>${carrier.name}</strong>
             <span>Trust ${carrier.trustScore}</span>
-            ${actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Accept carrier", { transportId: selected.id, carrierCompanyId: carrier.id })}
+            ${actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Akceptuj przewoznika", { transportId: selected.id, carrierCompanyId: carrier.id })}
           </article>
         `).join("")}
       </div>
@@ -445,7 +446,7 @@ function renderDriverAssignment(state, engine, selected) {
               <strong>${driver.name}</strong>
               <span>${companyName(state, driver.companyId)} / docs ${driver.documentsValid ? "valid" : "invalid"}</span>
               <span>${driverTimeLabel(state, driver.id)}</span>
-              ${actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Assign", { transportId: selected.id, driverId: driver.id, vehicleId: vehicle?.id })}
+              ${actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Przypisz", { transportId: selected.id, driverId: driver.id, vehicleId: vehicle?.id })}
             </article>
           `;
         }).join("")}
@@ -467,7 +468,7 @@ function renderGps(state, engine, selected) {
           <div><span>Deviation</span><strong>${selected.routeDeviation ? "yes" : "no"}</strong></div>
         </div>
         ${renderGpsForm(selected)}
-        ${actionButton(engine, ActionTypes.CONFIRM_GPS, "Confirm selected GPS", { transportId: selected.id, pickupGps: { lat: 54.352, lng: 18.6466 }, deliveryGps: { lat: 52.52, lng: 13.405 } })}
+        ${actionButton(engine, ActionTypes.CONFIRM_GPS, "Potwierdz wybrany GPS", { transportId: selected.id, pickupGps: { lat: 54.352, lng: 18.6466 }, deliveryGps: { lat: 52.52, lng: 13.405 } })}
       </article>
       ${renderTimeline(state, selected)}
     </section>
@@ -486,9 +487,9 @@ function renderParking(state, engine, selected) {
             <strong>${parking.name}</strong>
             <span>${parking.freePlaces} free / trust ${parking.trustScore}</span>
             <span>${parking.amenities.join(", ")}</span>
-            ${actionButton(engine, ActionTypes.SELECT_PARKING, "Select", { transportId: selected.id, parkingId: parking.id })}
-            ${actionButton(engine, ActionTypes.PARKING_REPORT, "Report free places", { parkingId: parking.id, freePlaces: parking.freePlaces + 2, photoAdded: true, credible: true })}
-            ${actionButton(engine, ActionTypes.PARKING_REPORT, "False report demo", { parkingId: parking.id, freePlaces: 99, photoAdded: false, credible: false })}
+            ${actionButton(engine, ActionTypes.SELECT_PARKING, "Wybierz", { transportId: selected.id, parkingId: parking.id })}
+            ${actionButton(engine, ActionTypes.PARKING_REPORT, "Zglos wolne miejsca", { parkingId: parking.id, freePlaces: parking.freePlaces + 2, photoAdded: true, credible: true })}
+            ${actionButton(engine, ActionTypes.PARKING_REPORT, "Falszywe zgloszenie demo", { parkingId: parking.id, freePlaces: 99, photoAdded: false, credible: false })}
           </article>
         `).join("")}
       </div>
@@ -505,10 +506,10 @@ function renderDocuments(state, engine, selected) {
         <span class="eyebrow">Document Engine</span>
         <h2>Encrypted docs and integrity hashes</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Upload CMR", { transportId: selected.id, type: "cmr", label: "CMR transportu" })}
-          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Upload pickup confirmation", { transportId: selected.id, type: "pickup_confirmation", label: "Potwierdzenie zaladunku" })}
-          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Upload delivery confirmation", { transportId: selected.id, type: "delivery_confirmation", label: "Potwierdzenie rozladunku" })}
-          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Upload damage photo doc", { transportId: selected.id, type: "damage_report", label: "Dokument szkody" })}
+          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj CMR", { transportId: selected.id, type: "cmr", label: "CMR transportu" })}
+          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj potwierdzenie zaladunku", { transportId: selected.id, type: "pickup_confirmation", label: "Potwierdzenie zaladunku" })}
+          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj potwierdzenie rozladunku", { transportId: selected.id, type: "delivery_confirmation", label: "Potwierdzenie rozladunku" })}
+          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj dokument szkody", { transportId: selected.id, type: "damage_report", label: "Dokument szkody" })}
         </div>
       </article>
       <article class="panel">
@@ -538,7 +539,7 @@ function renderPhotos(state, engine, selected) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">GL Photos</span>
+        <span class="eyebrow">Zdjecia GL</span>
         <h2>Dowody zdjeciowe transportu</h2>
         <p class="muted">Zdjecia sa przypisane do transportu, dokumentow i audytu. Modul dziala w trybie demo.</p>
         <div class="actions">
@@ -555,7 +556,7 @@ function renderAcademy(state) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">GL Academy</span>
+        <span class="eyebrow">Akademia GL</span>
         <h2>${isStudent ? "Panel studenta" : "Panel szkolen"}</h2>
         <p class="muted">Modul szkoleniowy demo dla kierowcow, przewoznikow, compliance i akademii.</p>
         <div class="detail-grid">
@@ -582,14 +583,14 @@ function renderPayments(state, engine, selected) {
 
 function renderPlatformWallet(state, engine, selected) {
   if (!state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("PlatformWallet", "Pelny GL Wallet jest dostepny tylko dla operatora platformy GL i finansow platformy.");
+    return renderAccessDenied("Portfel platformy", "Pelny portfel GL jest dostepny tylko dla operatora platformy GL i finansow platformy.");
   }
   return renderFintechModule(state, engine, selected, "dashboard");
 }
 
 function renderWallets(state) {
   if (!state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("PlatformWallet", "Salda portfela platformy nie sa udostepniane tej roli.");
+    return renderAccessDenied("Portfel platformy", "Salda portfela platformy nie sa udostepniane tej roli.");
   }
   return renderFintechModule(state, null, selectedTransport(state), "accounts");
 }
@@ -603,7 +604,7 @@ function renderEscrow(state) {
 
 function renderBillingModule(state, mode) {
   if (!state.access?.canViewFinancials || state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("Rozliczenia", "Ten widok pokazuje wylacznie rozliczenia wlasne, nie PlatformWallet.");
+    return renderAccessDenied("Rozliczenia", "Ten widok pokazuje wylacznie rozliczenia wlasne, nie portfel platformy.");
   }
   const scope = state.access.financialScope;
   const copy = billingCopy(scope, mode);
@@ -650,13 +651,13 @@ function renderBillingModule(state, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Permission Engine</span>
+              <span class="eyebrow">Silnik uprawnien</span>
               <h2>Zakres dostepu</h2>
             </div>
           </div>
           <div class="finance-list">
             ${copy.allowed.map((item) => `<div><strong>${item}</strong><span>dane wlasne</span></div>`).join("")}
-            <div><strong>Brak dostepu</strong><span>saldo platformy, prowizje systemowe, GL Wallet ID, cudze rozliczenia</span></div>
+            <div><strong>Brak dostepu</strong><span>saldo platformy, prowizje systemowe, ID portfela GL, cudze rozliczenia</span></div>
           </div>
         </article>
       </div>
@@ -679,7 +680,7 @@ function renderBillingModule(state, mode) {
 function billingCopy(scope, mode) {
   const defaults = {
     title: "Moje rozliczenia",
-    description: "Widok pokazuje wylacznie wlasne faktury, statusy platnosci i naleznosci. To nie jest GL Wallet platformy.",
+    description: "Widok pokazuje wylacznie wlasne faktury, statusy platnosci i naleznosci. To nie jest portfel platformy GL.",
     balanceLabel: "Saldo informacyjne",
     balanceValue: (_state, totals) => totals.available + totals.pending + totals.inTransit,
     metricA: "Naleznosci",
@@ -690,7 +691,7 @@ function billingCopy(scope, mode) {
     metricCValue: (state) => (state.payments || []).length,
     metricD: "Historia",
     metricDValue: (state) => (state.walletTransactions || []).length,
-    tableEyebrow: "Billing",
+    tableEyebrow: "Rozliczenia",
     tableTitle: "Historia rozliczen",
     scopeLabel: "dane wlasne",
     allowed: ["faktury", "status platnosci", "historia rozliczen"]
@@ -834,7 +835,7 @@ function renderFintechModule(state, engine, selected, mode) {
   const policy = selected ? state.insurancePolicies.find((item) => item.id === selected.insuranceId) : null;
   const activeTransactions = (state.walletTransactions || []).slice(0, 8);
   const sortedTransactions = [...(state.walletTransactions || [])].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-  const sectionTitle = mode === "accounts" ? "Konta GL Wallet" : mode === "escrow" ? "Escrow i spory" : "Dashboard Wallet";
+  const sectionTitle = mode === "accounts" ? "Konta portfela GL" : mode === "escrow" ? "Escrow i spory" : "Pulpit portfela";
 
   return `
     <section class="finance-shell">
@@ -847,7 +848,7 @@ function renderFintechModule(state, engine, selected, mode) {
         <div class="finance-hero-balance">
           <span>Saldo systemu</span>
           <strong>${formatMoney(totals.totalSystem, "EUR")}</strong>
-          <small>symulowany GL Wallet</small>
+          <small>symulowany portfel GL</small>
         </div>
       </div>
 
@@ -864,7 +865,7 @@ function renderFintechModule(state, engine, selected, mode) {
           <div class="finance-head">
             <div>
               <span class="eyebrow">Historia transakcji</span>
-              <h2>Immutable demo ledger</h2>
+              <h2>Niezmienna ksiega demo</h2>
             </div>
             <span class="finance-pill">hash + audit id</span>
           </div>
@@ -897,7 +898,7 @@ function renderFintechModule(state, engine, selected, mode) {
               <span class="eyebrow">Konta</span>
               <h2>Portfele uzytkownikow i firm</h2>
             </div>
-            <span class="finance-pill">${(state.wallets || []).length} GL Wallet ID</span>
+            <span class="finance-pill">${(state.wallets || []).length} ID portfela GL</span>
           </div>
           <div class="wallet-card-grid">
             ${(state.wallets || []).map((wallet) => renderWalletAccount(state, wallet)).join("") || `<p class="finance-muted">Brak widocznych portfeli.</p>`}
@@ -929,7 +930,7 @@ function renderFintechModule(state, engine, selected, mode) {
               <span class="eyebrow">Escrow Engine</span>
               <h2>Blokada, dowody, zwolnienie</h2>
             </div>
-            ${engine && selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Release payment", { transportId: selected.id }) : ""}
+            ${engine && selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Zwolnij platnosc", { transportId: selected.id }) : ""}
           </div>
           ${renderEscrowFlow()}
           ${renderEscrowRows(state)}
@@ -986,7 +987,7 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Dashboard administratora</span>
+              <span class="eyebrow">Pulpit administratora</span>
               <h2>Ryzyko, naduzycia i najwieksze transakcje</h2>
             </div>
           </div>
@@ -1004,8 +1005,8 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">AI Risk Engine</span>
-              <h2>AML / Fraud demo</h2>
+              <span class="eyebrow">Silnik ryzyka AI</span>
+              <h2>AML / naduzycia demo</h2>
             </div>
           </div>
           <div class="finance-list">
@@ -1041,7 +1042,7 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">API Architecture</span>
+              <span class="eyebrow">Architektura API</span>
               <h2>Endpointy przygotowane pod integracje</h2>
             </div>
             <span class="finance-pill">backend nieaktywny w demo</span>
@@ -1149,9 +1150,9 @@ function renderDisputeFinance(state) {
           <span>Status: ${dispute.status} / escrow zamrozone</span>
           <small>AI analizuje historie, dokumenty, GPS i zdjecia.</small>
           <div class="decision-row">
-            <button type="button">Release</button>
-            <button type="button">Refund</button>
-            <button type="button">Split Payment</button>
+            <button type="button">Zwolnij</button>
+            <button type="button">Zwrot</button>
+            <button type="button">Platnosc dzielona</button>
           </div>
         </div>
       `).join("")}
@@ -1183,7 +1184,7 @@ function renderRevenue(state) {
       <h2>Platform fees recorded by events</h2>
       <div class="transport-table compact-table">
         <div class="table-row table-head">
-          <span>ID</span><span>Transport</span><span>Type</span><span>Amount</span><span>Currency</span><span>Reason</span>
+        <span>ID</span><span>Transport</span><span>Typ</span><span>Kwota</span><span>Waluta</span><span>Powod</span>
         </div>
         ${state.revenueLedger.map((entry) => `
           <div class="table-row">
@@ -1289,7 +1290,7 @@ function renderInsurance(state, engine, selected) {
       <article class="panel">
         <span class="eyebrow">Insurance Engine</span>
         <h2>Claim binds photos, GPS, docs and liability</h2>
-        ${actionButton(engine, ActionTypes.OPEN_CLAIM, "Open insurance claim", { transportId: selected.id, reason: "damage claim from demo" })}
+        ${actionButton(engine, ActionTypes.OPEN_CLAIM, "Otworz roszczenie ubezpieczeniowe", { transportId: selected.id, reason: "roszczenie demo za szkode" })}
       </article>
       <article class="panel">
         <h2>Policies</h2>
@@ -1346,8 +1347,8 @@ function renderCommunication(state, engine, selected) {
         <span class="eyebrow">Communication Engine</span>
         <h2>Transport thread creates message_id and audit</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Send PL update", { transportId: selected.id, body: "Prosze potwierdzic odprawe na bramie przed zaladunkiem.", language: "pl" })}
-          ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Send EN update", { transportId: selected.id, body: "Please confirm gate clearance before loading.", language: "en" })}
+          ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Wyslij aktualizacje PL", { transportId: selected.id, body: "Prosze potwierdzic odprawe na bramie przed zaladunkiem.", language: "pl" })}
+          ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Wyslij aktualizacje EN", { transportId: selected.id, body: "Please confirm gate clearance before loading.", language: "en" })}
         </div>
       </article>
       <article class="panel">
@@ -1377,7 +1378,7 @@ function renderTranslations(state, engine) {
             <div class="row">
               <strong>${transportNumber(state, message.transportId)}</strong>
               <span>${message.language}: ${message.body}</span>
-              ${actionButton(engine, ActionTypes.REQUEST_TRANSLATION, "Translate to PL", { transportId: message.transportId, messageId: message.id, targetLanguage: "pl" })}
+              ${actionButton(engine, ActionTypes.REQUEST_TRANSLATION, "Przetlumacz na PL", { transportId: message.transportId, messageId: message.id, targetLanguage: "pl" })}
             </div>
           `).join("") || `<p class="muted">No messages visible.</p>`}
         </div>
@@ -1407,11 +1408,11 @@ function renderSecurity(state, engine, selected) {
         <span class="eyebrow">Security Engine</span>
         <h2>Gate clearance controls loading and unloading</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.SCAN_LICENSE_PLATE, "Scan selected plate", { licensePlate: vehiclePlate(state, selected.vehicleId), reason: "gate arrival check" })}
-          ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Clear pickup gate", { transportId: selected.id, checkpoint: "pickup", status: "cleared", reason: "Gate cleared. Driver may start loading." })}
-          ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Block pickup gate", { transportId: selected.id, checkpoint: "pickup", status: "blocked", reason: "seal mismatch at pickup gate" })}
-          ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Clear delivery gate", { transportId: selected.id, checkpoint: "delivery", status: "cleared", reason: "delivery gate cleared" })}
-          ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Notify thread", { transportId: selected.id, body: "Gate cleared. Driver may start loading.", language: "en" })}
+          ${actionButton(engine, ActionTypes.SCAN_LICENSE_PLATE, "Skanuj wybrana tablice", { licensePlate: vehiclePlate(state, selected.vehicleId), reason: "kontrola wjazdu na brame" })}
+          ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Zatwierdz brame zaladunku", { transportId: selected.id, checkpoint: "pickup", status: "cleared", reason: "Brama zatwierdzona. Kierowca moze rozpoczac zaladunek." })}
+          ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Zablokuj brame zaladunku", { transportId: selected.id, checkpoint: "pickup", status: "blocked", reason: "niezgodnosc plomby przy bramie zaladunku" })}
+          ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Zatwierdz brame dostawy", { transportId: selected.id, checkpoint: "delivery", status: "cleared", reason: "brama dostawy zatwierdzona" })}
+          ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Powiadom watek", { transportId: selected.id, body: "Brama zatwierdzona. Kierowca moze rozpoczac zaladunek.", language: "pl" })}
         </div>
       </article>
       <article class="panel">
@@ -1800,21 +1801,21 @@ function renderService(state, engine, selected) {
 
 function renderApi(state, engine) {
   if (!state.apiClients.length) {
-    return renderAccessDenied("GL API Engine", "API clients and audit are restricted to platform control roles.");
+    return renderAccessDenied("Silnik API GL", "Klienci API i audyt sa dostepne tylko dla rol kontrolnych platformy.");
   }
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">GL API Engine</span>
+        <span class="eyebrow">Silnik API GL</span>
         <h2>External systems need api_client_id and scopes</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.SIMULATE_API_CALL, "ERP create load", { apiClientId: "api-erp-nord", apiAction: "CREATE_LOAD" })}
-          ${actionButton(engine, ActionTypes.SIMULATE_API_CALL, "ERP forbidden finance", { apiClientId: "api-erp-nord", apiAction: "RELEASE_PAYMENT" })}
-          ${actionButton(engine, ActionTypes.SIMULATE_API_CALL, "GPS update", { apiClientId: "api-gps-baltic", apiAction: "GPS_UPDATE" })}
+          ${actionButton(engine, ActionTypes.SIMULATE_API_CALL, "ERP tworzy ladunek", { apiClientId: "api-erp-nord", apiAction: "CREATE_LOAD" })}
+          ${actionButton(engine, ActionTypes.SIMULATE_API_CALL, "ERP: zablokowana akcja finansowa", { apiClientId: "api-erp-nord", apiAction: "RELEASE_PAYMENT" })}
+          ${actionButton(engine, ActionTypes.SIMULATE_API_CALL, "Aktualizacja GPS", { apiClientId: "api-gps-baltic", apiAction: "GPS_UPDATE" })}
         </div>
       </article>
       <article class="panel">
-        <h2>API clients</h2>
+        <h2>Klienci API</h2>
         <div class="list">
           ${state.apiClients.map((client) => `
             <div class="row">
@@ -1827,7 +1828,7 @@ function renderApi(state, engine) {
       </article>
     </section>
     <section class="panel">
-      <span class="eyebrow">API audit</span>
+      <span class="eyebrow">Audyt API</span>
       <h2>Every integration call leaves a row</h2>
       <div class="list">
         ${state.apiAudit.slice(0, 10).map((row) => `
@@ -1844,17 +1845,17 @@ function renderApi(state, engine) {
 
 function renderIntegrations(state, engine) {
   if (!state.integrations.length) {
-    return renderAccessDenied("External Integration Engine", "Integration controls are hidden for this role.");
+    return renderAccessDenied("Silnik integracji zewnetrznych", "Kontrola integracji jest ukryta dla tej roli.");
   }
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">External Integration Engine</span>
+        <span class="eyebrow">Silnik integracji zewnetrznych</span>
         <h2>ERP, GPS, insurance and payment bridges</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.RUN_INTEGRATION_SYNC, "Sync ERP", { integrationId: "int-erp-1" })}
-          ${actionButton(engine, ActionTypes.RUN_INTEGRATION_SYNC, "Sync GPS", { integrationId: "int-gps-1" })}
-          ${actionButton(engine, ActionTypes.RUN_INTEGRATION_SYNC, "Sync insurance", { integrationId: "int-ins-1" })}
+          ${actionButton(engine, ActionTypes.RUN_INTEGRATION_SYNC, "Synchronizuj ERP", { integrationId: "int-erp-1" })}
+          ${actionButton(engine, ActionTypes.RUN_INTEGRATION_SYNC, "Synchronizuj GPS", { integrationId: "int-gps-1" })}
+          ${actionButton(engine, ActionTypes.RUN_INTEGRATION_SYNC, "Synchronizuj ubezpieczenia", { integrationId: "int-ins-1" })}
         </div>
       </article>
       <article class="panel">
@@ -1871,7 +1872,7 @@ function renderIntegrations(state, engine) {
       </article>
     </section>
     <section class="panel">
-      <h2>Integration status</h2>
+      <h2>Status integracji</h2>
       <div class="card-grid">
         ${state.integrations.map((integration) => `
           <article class="mini-card">
@@ -1894,7 +1895,7 @@ function renderCompliance(state, engine, selected) {
         <span class="eyebrow">Tachograph / Crew Compliance</span>
         <h2>Driver time is checked before risky steps</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.RUN_COMPLIANCE_CHECK, "Run compliance check", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.RUN_COMPLIANCE_CHECK, "Uruchom kontrole zgodnosci", { transportId: selected.id })}
         </div>
         <div class="detail-grid">
           <div><span>Driver</span><strong>${userName(state, selected.driverId) || "not assigned"}</strong></div>
@@ -1939,9 +1940,9 @@ function renderResilience(state, engine) {
     <section class="grid two">
       <article class="panel">
         <span class="eyebrow">Anti Failure Engine</span>
-        <h2>Service health, backups and emergency mode</h2>
+        <h2>Stan uslug, kopie zapasowe i tryb awaryjny</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.RUN_RESILIENCE_CHECK, "Run resilience check", {})}
+          ${actionButton(engine, ActionTypes.RUN_RESILIENCE_CHECK, "Uruchom kontrole odpornosci", {})}
         </div>
         <div class="detail-grid">
           <div><span>Emergency</span><strong>${state.emergencyMode.enabled ? "enabled" : "ready"}</strong></div>
@@ -1950,7 +1951,7 @@ function renderResilience(state, engine) {
         </div>
       </article>
       <article class="panel">
-        <h2>Service health</h2>
+        <h2>Stan uslug</h2>
         <div class="list">
           ${state.serviceHealth.map((service) => `
             <div class="row">
@@ -1963,7 +1964,7 @@ function renderResilience(state, engine) {
       </article>
     </section>
     <section class="panel">
-      <h2>Resilience checks</h2>
+      <h2>Kontrole odpornosci</h2>
       <div class="list">
         ${checks.map((check) => `
           <div class="row">
@@ -2003,7 +2004,7 @@ function renderAi(state, engine, selected) {
         <span class="eyebrow">AI Control Agent</span>
         <h2>Agent kontrolny, nie cichy decydent</h2>
         <p class="muted">AI moze tworzyc alerty, blokowac kolejny krok i przekazac sprawe adminowi. Nie usuwa danych i nie wyplaca pieniedzy.</p>
-        ${actionButton(engine, ActionTypes.AI_RUN_CHECK, "Run AI inspection", { transportId: selected.id })}
+        ${actionButton(engine, ActionTypes.AI_RUN_CHECK, "Uruchom inspekcje AI", { transportId: selected.id })}
       </article>
       <article class="panel">
         <h2>AI alerts</h2>
@@ -2061,7 +2062,7 @@ function renderSystemTests(state, engine, selected) {
     <section class="panel">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">System Tests</span>
+          <span class="eyebrow">Testy systemu</span>
           <h2>Checklist stabilnosci demo</h2>
         </div>
       </div>
@@ -2203,8 +2204,8 @@ function renderSystem(state, engine) {
         <span class="eyebrow">System</span>
         <h2>Operacje demo</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.RUN_RESILIENCE_CHECK, "Run resilience check", {})}
-          ${actionButton(engine, ActionTypes.RESET_DEMO, "Reset demo data", {})}
+          ${actionButton(engine, ActionTypes.RUN_RESILIENCE_CHECK, "Uruchom kontrole odpornosci", {})}
+          ${actionButton(engine, ActionTypes.RESET_DEMO, "Przywroc dane demo", {})}
         </div>
       </article>
       <article class="panel">
@@ -2270,10 +2271,10 @@ function renderAdmin(state, engine, selected) {
         <span class="eyebrow">Admin Panel</span>
         <h2>Manual controls still go through Core Engine</h2>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.ADMIN_BLOCK_TRANSPORT, "Block transport", { transportId: selected.id, reason: "manual demo block" })}
-          ${actionButton(engine, ActionTypes.ADMIN_RESOLVE_DISPUTE, "Resolve dispute", { transportId: selected.id, reason: "admin evidence decision" })}
-          ${actionButton(engine, ActionTypes.ADMIN_BLOCK_ACCOUNT, "Block account", { userId: targetUser.id, reason: "demo account risk" })}
-          ${actionButton(engine, ActionTypes.RESET_DEMO, "Reset demo", {})}
+          ${actionButton(engine, ActionTypes.ADMIN_BLOCK_TRANSPORT, "Zablokuj transport", { transportId: selected.id, reason: "reczna blokada demo" })}
+          ${actionButton(engine, ActionTypes.ADMIN_RESOLVE_DISPUTE, "Rozwiaz spor", { transportId: selected.id, reason: "decyzja administratora na podstawie dowodow" })}
+          ${actionButton(engine, ActionTypes.ADMIN_BLOCK_ACCOUNT, "Zablokuj konto", { userId: targetUser.id, reason: "ryzyko konta demo" })}
+          ${actionButton(engine, ActionTypes.RESET_DEMO, "Przywroc demo", {})}
         </div>
       </article>
       ${renderAuditSlice(state, selected)}
@@ -2300,7 +2301,7 @@ function renderTransportCard(state, transport) {
         <div><span>Pickup GPS</span><strong>${gpsLabel(transport.pickup.gps)}</strong></div>
         <div><span>Delivery GPS</span><strong>${gpsLabel(transport.delivery.gps)}</strong></div>
         <div><span>ETA</span><strong>${transport.eta ? formatTime(transport.eta) : "brak"}</strong></div>
-        <div><span>Payment</span><strong>${state.access?.canViewFinancials ? transport.paymentStatus : "restricted"}</strong></div>
+        <div><span>Platnosc</span><strong>${state.access?.canViewFinancials ? transport.paymentStatus : "restricted"}</strong></div>
       </div>
       <div class="progress">
         <span style="width:${progress}%"></span>
@@ -2368,11 +2369,11 @@ function renderPhotoList(state, transport) {
 function blockerList(engine, transport) {
   if (!transport) return `<div class="blocker blocked"><strong>Workflow</strong><span>Brak transportow</span></div>`;
   const checks = [
-    [ActionTypes.PUBLISH_LOAD, "Publish load"],
-    [ActionTypes.ACCEPT_CARRIER, "Carrier accept"],
-    [ActionTypes.ASSIGN_DRIVER, "Assign driver"],
-    [ActionTypes.START_TRANSIT, "Start transit"],
-    [ActionTypes.RELEASE_PAYMENT, "Release payment"]
+    [ActionTypes.PUBLISH_LOAD, "Opublikuj ladunek"],
+    [ActionTypes.ACCEPT_CARRIER, "Akceptuj przewoznika"],
+    [ActionTypes.ASSIGN_DRIVER, "Przypisz kierowce"],
+    [ActionTypes.START_TRANSIT, "Rozpocznij trase"],
+    [ActionTypes.RELEASE_PAYMENT, "Zwolnij platnosc"]
   ];
   return checks.map(([action, label]) => {
     const payload = defaultPayloadFor(action, transport);
@@ -2566,7 +2567,7 @@ function metric(label, value, sub) {
 function renderAccessDenied(title, message) {
   return `
     <section class="panel access-panel">
-      <span class="eyebrow">Permission Engine</span>
+      <span class="eyebrow">Silnik uprawnien</span>
       <h2>${title}</h2>
       <p class="muted">${message}</p>
     </section>
@@ -2757,574 +2758,6 @@ function storageAvailable() {
 
 function encodePayload(payload) {
   return encodeURIComponent(JSON.stringify(payload));
-}
-
-function localizeHtml(html) {
-  return html
-    .split(/(<[^>]+>)/g)
-    .map((part) => part.startsWith("<") ? part : localizeText(part))
-    .join("");
-}
-
-const ExactText = Object.freeze({
-  "GL Core Engine": "Rdzeń GL",
-  "Core rule": "Reguła rdzenia",
-  "User action -> permission -> validation -> workflow -> event -> audit -> UI": "Akcja użytkownika -> uprawnienia -> walidacja -> przepływ pracy -> zdarzenie -> audyt -> interfejs",
-  "DEMO 2 / stable core": "DEMO 2 / stabilny rdzeń",
-  "GL Core Engine ready": "Rdzeń GL gotowy",
-  "Action accepted": "Akcja przyjęta",
-  "Action blocked": "Akcja zablokowana",
-  "Transports": "Transporty",
-  "Shipments": "Ładunki",
-  "Events": "Zdarzenia",
-  "Audit rows": "Wiersze audytu",
-  "AI alerts": "Alerty AI",
-  "Escrow holds": "Blokady escrow",
-  "Core pipeline": "Ścieżka rdzenia",
-  "USER ACTION": "AKCJA UŻYTKOWNIKA",
-  "PERMISSION CHECK": "SPRAWDZENIE UPRAWNIEŃ",
-  "VALIDATION": "WALIDACJA",
-  "WORKFLOW ENGINE": "SILNIK PRZEPŁYWU",
-  "EVENT BUS": "MAGISTRALA ZDARZEŃ",
-  "AUDIT LOG": "DZIENNIK AUDYTU",
-  "UI UPDATE": "AKTUALIZACJA INTERFEJSU",
-  "Modules": "Moduły",
-  "Business engines": "Silniki biznesowe",
-  "Auth system": "System logowania",
-  "Phone login, register, verify, recover": "Telefon do logowania, rejestracji, weryfikacji i odzyskiwania",
-  "Accounts": "Konta",
-  "Permissions engine": "Silnik uprawnień",
-  "Transport Engine": "Silnik transportu",
-  "Shipment Engine": "Silnik ładunków",
-  "Workflow blockers": "Blokady przepływu",
-  "Create load": "Utwórz ładunek",
-  "Warehouse photo step": "Etap zdjęcia magazynowego",
-  "Photo Engine": "Silnik dowodów zdjęciowych",
-  "Carrier acceptance": "Akceptacja przewoźnika",
-  "Driver Time Engine": "Silnik czasu pracy kierowcy",
-  "Driver assignment": "Przypisanie kierowcy",
-  "Driver mobile": "Modul kierowcy",
-  "GPS pipeline": "Ścieżka GPS",
-  "Parking Live Network": "Sieć parkingów live",
-  "Document Engine": "Silnik dokumentów",
-  "Transport documents": "Dokumenty transportu",
-  "Payment Engine": "Silnik płatności",
-  "Payment ledger": "Księga płatności",
-  "Wallet Engine": "Silnik portfeli",
-  "Wallet ledger": "Księga portfela",
-  "Escrow Engine": "Silnik escrow",
-  "GL Revenue Engine": "Silnik przychodów GL",
-  "Insurance Engine": "Silnik ubezpieczeń",
-  "Dispute Evidence Engine": "Silnik paczek dowodowych",
-  "Jobs Engine": "Silnik zleceń pracy",
-  "Communication Engine": "Silnik komunikacji",
-  "Translation Engine": "Silnik tłumaczeń",
-  "Security Engine": "Silnik ochrony",
-  "Plate-to-driver": "Kontakt tablica-kierowca",
-  "GL API Engine": "Silnik API GL",
-  "API clients": "Klienci API",
-  "API audit": "Audyt API",
-  "External Integration Engine": "Silnik integracji zewnętrznych",
-  "Region rules": "Reguły regionów",
-  "Integration status": "Status integracji",
-  "Tachograph / Crew Compliance": "Tachograf / zgodność załogi",
-  "Tachograph imports": "Importy tachografu",
-  "Compliance checks": "Kontrole zgodności",
-  "Anti Failure Engine": "Silnik odporności",
-  "Service health": "Stan usług",
-  "Resilience checks": "Kontrole odporności",
-  "Trust Score Engine": "Silnik reputacji",
-  "AI Control Agent": "Agent kontroli AI",
-  "Audit Log": "Dziennik audytu",
-  "Admin Panel": "Panel admina",
-  "Permission Engine": "Silnik uprawnień",
-  "Workflow history": "Historia przepływu",
-  "Status history": "Historia statusów",
-  "Transport audit": "Audyt transportu",
-  "Photos in documentation": "Zdjęcia w dokumentacji",
-  "ID": "ID",
-  "Client": "Klient",
-  "Carrier": "Przewoźnik",
-  "Status": "Status",
-  "Payment": "Płatność",
-  "Photos": "Zdjęcia",
-  "Docs": "Dokumenty",
-  "Pickup": "Odbiór",
-  "Delivery": "Dostawa",
-  "Deviation": "Odchylenie trasy",
-  "Driver": "Kierowca",
-  "Pickup GPS": "GPS odbioru",
-  "Delivery GPS": "GPS dostawy",
-  "Double crew": "Podwójna obsada",
-  "Ferry/Rail": "Prom/Kolej",
-  "Emergency": "Tryb awaryjny",
-  "Critical": "Krytyczne usługi",
-  "Backups": "Kopie zapasowe",
-  "No visible shipments for this role.": "Brak widocznych ładunków dla tej roli.",
-  "No documents for selected transport.": "Brak dokumentów dla wybranego transportu.",
-  "No visible wallets.": "Brak widocznych portfeli.",
-  "No ledger rows visible.": "Brak widocznych wpisów księgi.",
-  "No escrow rows visible.": "Brak widocznych rekordów escrow.",
-  "No evidence pack for selected transport.": "Brak paczki dowodowej dla wybranego transportu.",
-  "No jobs visible for this role.": "Brak widocznych zleceń pracy dla tej roli.",
-  "No messages for selected transport.": "Brak wiadomości dla wybranego transportu.",
-  "No messages visible.": "Brak widocznych wiadomości.",
-  "No translations yet.": "Brak tłumaczeń.",
-  "No checks for selected transport.": "Brak kontroli dla wybranego transportu.",
-  "No plate lookups yet.": "Brak skanów tablic.",
-  "No compliance checks for selected transport.": "Brak kontroli zgodności dla wybranego transportu.",
-  "No resilience checks yet.": "Brak kontroli odporności.",
-  "No audit records yet.": "Brak wpisów audytu.",
-  "No photos yet.": "Brak zdjęć.",
-  "not assigned": "nie przypisano",
-  "confirmed": "potwierdzone",
-  "missing": "brak",
-  "restricted": "ograniczone",
-  "ready": "gotowe",
-  "blocked": "zablokowane",
-  "hidden": "ukryte",
-  "open": "otwarte",
-  "read only": "tylko odczyt",
-  "single source": "jedno źródło prawdy",
-  "event bus": "magistrala zdarzeń",
-  "yes": "tak",
-  "no": "nie",
-  "allowed": "dozwolone",
-  "none": "brak",
-  "enabled": "włączony",
-  "backup ok": "kopie OK",
-  "backup risk": "ryzyko kopii",
-  "all healthy": "wszystko działa",
-  "no violations": "brak naruszeń",
-  "valid": "ważne",
-  "invalid": "nieważne",
-  "legal": "legalnie",
-  "ok": "OK",
-  "good": "dobry",
-  "risk": "ryzyko",
-  "high": "wysoki",
-  "medium": "średni",
-  "low": "niski",
-  "draft": "szkic",
-  "pending": "oczekuje",
-  "verified": "zweryfikowane",
-  "suspended": "zawieszone",
-  "completed": "zakończone",
-  "cancelled": "anulowane",
-  "released": "zwolnione",
-  "reserved": "zarezerwowane",
-  "refunded": "zwrócone",
-  "failed": "nieudane",
-  "matched": "dopasowano",
-  "not_found": "nie znaleziono",
-  "healthy": "sprawne",
-  "degraded": "pogorszone",
-  "passed": "zaliczone",
-  "violation": "naruszenie"
-});
-
-const PhraseTranslations = [
-  ["Stan jest mockowany, ale akcje przechodza przez rdzen, event bus i audit log.", "Stan jest demonstracyjny, ale akcje przechodzą przez rdzeń, magistralę zdarzeń i dziennik audytu."],
-  ["Nie ma logiki w przyciskach", "Nie ma logiki w przyciskach"],
-  ["Run AI check", "Uruchom kontrolę AI"],
-  ["Publish load", "Opublikuj ładunek"],
-  ["Carrier accept", "Akceptacja przewoźnika"],
-  ["Assign driver", "Przypisz kierowcę"],
-  ["Release payment", "Zwolnij płatność"],
-  ["Register by phone", "Zarejestruj przez telefon"],
-  ["Verify document + face", "Zweryfikuj dokument i twarz"],
-  ["Change phone safely", "Bezpiecznie zmień telefon"],
-  ["Centralny obiekt systemu", "Centralny obiekt systemu"],
-  ["Oddzielne shipment_id dla kazdego ladunku", "Oddzielne shipment_id dla każdego ładunku"],
-  ["Nowy transport przechodzi przez Core Engine", "Nowy transport przechodzi przez rdzeń GL"],
-  ["Create demo load", "Utwórz ładunek demo"],
-  ["Add pre-publish photo", "Dodaj zdjęcie przed publikacją"],
-  ["Confirm GPS", "Potwierdź GPS"],
-  ["Publish selected load", "Opublikuj wybrany ładunek"],
-  ["Przed publikacja musi istniec zdjecie ladunku. Zdjecia trafiaja do dokumentacji i audytu.", "Przed publikacją musi istnieć zdjęcie ładunku. Zdjęcia trafiają do dokumentacji i audytu."],
-  ["Photo before publication", "Zdjęcie przed publikacją"],
-  ["Photo at loading", "Zdjęcie przy załadunku"],
-  ["Confirm loading", "Potwierdź załadunek"],
-  ["Trust score blokuje ryzykownych przewoznikow", "Reputacja blokuje ryzykownych przewoźników"],
-  ["Trust ", "Reputacja "],
-  ["Accept carrier", "Akceptuj przewoźnika"],
-  ["Assign", "Przypisz"],
-  ["Start GPS", "Start GPS"],
-  ["Arrive pickup", "Przyjazd na załadunek"],
-  ["Start loading", "Rozpocznij załadunek"],
-  ["Pickup doc", "Dokument załadunku"],
-  ["In transit", "W trasie"],
-  ["Select parking", "Wybierz parking"],
-  ["Start break", "Rozpocznij pauzę"],
-  ["Finish break", "Zakończ pauzę"],
-  ["Arrive delivery", "Przyjazd na dostawę"],
-  ["Start unloading", "Rozpocznij rozładunek"],
-  ["Confirm delivery", "Potwierdź dostawę"],
-  ["Delivery doc", "Dokument dostawy"],
-  ["Koordynaty sa wymagane", "Koordynaty są wymagane"],
-  ["Confirm selected GPS", "Potwierdź wybrany GPS"],
-  ["Reports affect trust score", "Zgłoszenia wpływają na reputację"],
-  [" free / trust ", " wolnych / reputacja "],
-  ["Select", "Wybierz"],
-  ["Report free places", "Zgłoś wolne miejsca"],
-  ["False report demo", "Fałszywe zgłoszenie demo"],
-  ["Encrypted docs and integrity hashes", "Szyfrowane dokumenty i hashe integralności"],
-  ["Upload CMR", "Dodaj CMR"],
-  ["Upload pickup confirmation", "Dodaj potwierdzenie załadunku"],
-  ["Upload delivery confirmation", "Dodaj potwierdzenie dostawy"],
-  ["Upload damage photo doc", "Dodaj dokument szkody"],
-  ["Payment follows transport proof", "Płatność podąża za dowodami transportu"],
-  ["Company wallets and held balance", "Portfele firm i środki zablokowane"],
-  ["Immutable demo movements", "Niezmienialne ruchy demo"],
-  ["Funds are reserved, blocked or released by events", "Środki są rezerwowane, blokowane albo zwalniane przez zdarzenia"],
-  ["Platform fees recorded by events", "Opłaty platformy zapisywane przez zdarzenia"],
-  ["Claim binds photos, GPS, docs and liability", "Roszczenie łączy zdjęcia, GPS, dokumenty i odpowiedzialność"],
-  ["Open insurance claim", "Otwórz roszczenie ubezpieczeniowe"],
-  ["Evidence packs", "Paczki dowodowe"],
-  ["Driver work created from transport events", "Praca kierowcy tworzona ze zdarzeń transportu"],
-  ["Transport thread creates message_id and audit", "Wątek transportu tworzy message_id i audyt"],
-  ["Send PL update", "Wyślij aktualizację PL"],
-  ["Send EN update", "Wyślij aktualizację EN"],
-  ["Thread messages", "Wiadomości wątku"],
-  ["Message translations are separate records", "Tłumaczenia wiadomości są osobnymi rekordami"],
-  ["Translate to PL", "Przetłumacz na PL"],
-  ["Gate clearance controls loading and unloading", "Odprawa na bramie kontroluje załadunek i rozładunek"],
-  ["Scan selected plate", "Skanuj wybraną tablicę"],
-  ["Clear pickup gate", "Zatwierdź bramę załadunku"],
-  ["Block pickup gate", "Zablokuj bramę załadunku"],
-  ["Clear delivery gate", "Zatwierdź bramę dostawy"],
-  ["Notify thread", "Powiadom wątek"],
-  ["Security checks", "Kontrole ochrony"],
-  ["Recent plate lookups", "Ostatnie skany tablic"],
-  ["External systems need api_client_id and scopes", "Systemy zewnętrzne potrzebują api_client_id i zakresów dostępu"],
-  ["ERP create load", "ERP tworzy ładunek"],
-  ["ERP forbidden finance", "ERP: zabroniona akcja finansowa"],
-  ["GPS update", "Aktualizacja GPS"],
-  ["Every integration call leaves a row", "Każde wywołanie integracji zostawia wpis"],
-  ["ERP, GPS, insurance and payment bridges", "Mosty ERP, GPS, ubezpieczeń i płatności"],
-  ["Sync ERP", "Synchronizuj ERP"],
-  ["Sync GPS", "Synchronizuj GPS"],
-  ["Sync insurance", "Synchronizuj ubezpieczenia"],
-  ["Driver time is checked before risky steps", "Czas pracy kierowcy jest sprawdzany przed ryzykownymi krokami"],
-  ["Run compliance check", "Uruchom kontrolę zgodności"],
-  ["h drive / ", "h jazdy / "],
-  ["h break", "h pauzy"],
-  ["Service health, backups and emergency mode", "Stan usług, kopie zapasowe i tryb awaryjny"],
-  ["Run resilience check", "Uruchom kontrolę odporności"],
-  ["Reputation for companies, drivers, warehouses and parking", "Reputacja firm, kierowców, magazynów i parkingów"],
-  ["Agent kontrolny, nie cichy decydent", "Agent kontrolny, nie cichy decydent"],
-  ["AI moze tworzyc alerty, blokowac kolejny krok i przekazac sprawe adminowi. Nie usuwa danych i nie wyplaca pieniedzy.", "AI może tworzyć alerty, blokować kolejny krok i przekazać sprawę adminowi. Nie usuwa danych i nie wypłaca pieniędzy."],
-  ["Run AI inspection", "Uruchom inspekcję AI"],
-  ["Read only, event sourced", "Tylko do odczytu, oparte o zdarzenia"],
-  ["Manual controls still go through Core Engine", "Kontrole ręczne nadal przechodzą przez rdzeń GL"],
-  ["Block transport", "Zablokuj transport"],
-  ["Resolve dispute", "Rozwiąż spór"],
-  ["Block account", "Zablokuj konto"],
-  ["Reset demo", "Reset demo"],
-  ["Publish load", "Opublikuj ładunek"],
-  ["Start transit", "Rozpocznij trasę"],
-  ["driver time missing", "brak profilu czasu pracy kierowcy"],
-  ["legal left", "h legalnej jazdy"],
-  ["Financial ledger hidden for this role.", "Księga finansowa jest ukryta dla tej roli."],
-  ["Wallet balances are not exposed to this role.", "Salda portfeli nie są udostępniane tej roli."],
-  ["Escrow details are restricted for this role.", "Szczegóły escrow są ograniczone dla tej roli."],
-  ["Platform revenue is restricted for this role.", "Przychody platformy są ograniczone dla tej roli."],
-  ["API clients and audit are restricted to platform control roles.", "Klienci API i audyt API są dostępni tylko dla ról kontrolnych platformy."],
-  ["Integration controls are hidden for this role.", "Kontrola integracji jest ukryta dla tej roli."],
-  ["Resilience controls are restricted to platform control roles.", "Kontrole odporności są ograniczone do ról kontrolnych platformy."]
-];
-
-const CodeLabels = Object.freeze({
-  pending_warehouse_photo: "oczekuje na zdjęcie magazynu",
-  ready_to_publish: "gotowe do publikacji",
-  published: "opublikowane",
-  carrier_offer_received: "otrzymano ofertę przewoźnika",
-  carrier_accepted: "przewoźnik zaakceptowany",
-  driver_assigned: "kierowca przypisany",
-  pickup_navigation_started: "nawigacja do odbioru rozpoczęta",
-  arrived_at_pickup: "przyjazd na załadunek",
-  loading_started: "załadunek rozpoczęty",
-  loading_confirmed: "załadunek potwierdzony",
-  pickup_documents_uploaded: "dokumenty załadunku dodane",
-  in_transit: "w trasie",
-  parking_break: "pauza parkingowa",
-  customs_required: "wymagane cło",
-  waiting_for_customs: "oczekuje na cło",
-  customs_in_progress: "odprawa celna w toku",
-  customs_cleared: "odprawa celna zakończona",
-  customs_hold: "zatrzymanie celne",
-  control_started: "kontrola rozpoczęta",
-  document_check: "sprawdzenie dokumentów",
-  road_inspection: "kontrola drogowa",
-  control_passed: "kontrola pozytywna",
-  control_issue_found: "problem w kontroli",
-  ferry_required: "wymagany prom",
-  ferry_booked: "prom zarezerwowany",
-  going_to_port: "jedzie do portu",
-  waiting_for_ferry: "oczekuje na prom",
-  checked_in_ferry: "odprawa promowa potwierdzona",
-  boarding: "wjazd na prom",
-  on_ferry: "na promie",
-  leaving_ferry: "zjazd z promu",
-  ferry_completed: "prom zakończony",
-  continue_road_transport: "kontynuacja drogowa",
-  arrived_at_delivery: "przyjazd na dostawę",
-  unloading_started: "rozładunek rozpoczęty",
-  delivery_confirmed: "dostawa potwierdzona",
-  delivery_documents_uploaded: "dokumenty dostawy dodane",
-  invoice_pending: "oczekuje na fakturę",
-  payment_pending: "oczekuje na płatność",
-  payment_not_required: "płatność niewymagana",
-  payment_reserved: "płatność zarezerwowana",
-  payment_blocked: "płatność zablokowana",
-  payment_released: "płatność zwolniona",
-  payment_failed: "płatność nieudana",
-  payment_refunded: "płatność zwrócona",
-  dispute_opened: "spór otwarty",
-  claim_opened: "roszczenie otwarte",
-  awaiting_photo: "oczekuje na zdjęcie",
-  disputed: "sporne",
-  locked: "zablokowane",
-  cleared: "zatwierdzone",
-  availability_confirmed: "dostępność potwierdzona",
-  transport_fee: "opłata za transport",
-  insurance_commission: "prowizja ubezpieczeniowa",
-  ferry_service_fee: "opłata za usługę promową",
-  ferry_ticket: "bilet promowy",
-  booking_confirmation: "potwierdzenie rezerwacji",
-  boarding_confirmation: "potwierdzenie wejścia na prom",
-  sad: "SAD",
-  t1: "T1",
-  ex: "EX",
-  mrn: "MRN",
-  commercial_invoice: "faktura handlowa",
-  packing_list: "lista pakowa",
-  certificate_of_origin: "certyfikat pochodzenia",
-  transport_license: "licencja przewozowa",
-  road_permit: "pozwolenie drogowe",
-  certificate: "certyfikat",
-  legal_required_document: "dokument prawnie wymagany",
-  insurance_policy: "polisa ubezpieczeniowa",
-  service_report: "raport serwisowy",
-  simulated_paid: "płatność demo zapisana",
-  breakdown_reported: "awaria zgłoszona",
-  provider_selected: "serwis wybrany",
-  accepted: "przyjęte",
-  service: "serwis",
-  customs: "cło",
-  control: "kontrola",
-  workshop: "warsztat",
-  mobile_service: "serwis mobilny",
-  roadside_assistance: "pomoc drogowa",
-  police: "policja",
-  transport_inspection: "inspekcja transportu",
-  customs_authority: "organ celny",
-  road_authority: "zarządca drogi",
-  ROAD: "DROGA",
-  FERRY: "PROM",
-  TRAIN: "KOLEJ",
-  INTERMODAL: "INTERMODAL",
-  FERRY_REQUIRED: "WYMAGANY_PROM",
-  FERRY_BOOKED: "PROM_ZAREZERWOWANY",
-  GOING_TO_PORT: "JEDZIE_DO_PORTU",
-  WAITING_FOR_FERRY: "OCZEKUJE_NA_PROM",
-  CHECKED_IN_FERRY: "ODPRAWA_PROMOWA",
-  BOARDING: "WJAZD_NA_PROM",
-  ON_FERRY: "NA_PROMIE",
-  LEAVING_FERRY: "ZJAZD_Z_PROMU",
-  CONTINUE_ROAD_TRANSPORT: "KONTYNUACJA_DROGOWA",
-  MARK_FERRY_REQUIRED: "OZNACZ_WYMOG_PROMU",
-  BOOK_FERRY: "ZAREZERWUJ_PROM",
-  START_PORT_NAVIGATION: "NAWIGUJ_DO_PORTU",
-  CHECK_IN_FERRY: "ODPRAWA_PROMOWA",
-  BOARD_FERRY: "WEJSCIE_NA_PROM",
-  COMPLETE_FERRY: "ZAKONCZ_PROM",
-  MARK_CUSTOMS_REQUIRED: "OZNACZ_WYMOG_CŁA",
-  SEND_TO_CUSTOMS: "PRZEKAZ_DO_CŁA",
-  START_CUSTOMS: "ROZPOCZNIJ_ODPRAWE",
-  CLEAR_CUSTOMS: "ZWOLNIJ_CELNIE",
-  HOLD_CUSTOMS: "ZATRZYMAJ_CELNIE",
-  START_AUTHORITY_CONTROL: "ROZPOCZNIJ_KONTROLE",
-  RECORD_DOCUMENT_CHECK: "SPRAWDZ_DOKUMENTY",
-  RECORD_ROAD_INSPECTION: "KONTROLA_DROGOWA",
-  PASS_AUTHORITY_CONTROL: "KONTROLA_POZYTYWNA",
-  REPORT_AUTHORITY_ISSUE: "PROBLEM_KONTROLI",
-  REPORT_BREAKDOWN: "ZGLOS_AWARIE",
-  REQUEST_TECHNICAL_SERVICE: "WYBIERZ_SERWIS",
-  ACCEPT_SERVICE_JOB: "SERWIS_PRZYJMUJE",
-  COMPLETE_SERVICE_JOB: "ZAKONCZ_SERWIS",
-  hold: "blokada",
-  hold_release: "zwolnienie blokady",
-  credit: "uznanie",
-  completed: "zakończone",
-  created: "utworzone",
-  assigned: "przypisane",
-  open: "otwarte",
-  resolved: "rozwiązane",
-  blocked: "zablokowane",
-  active: "aktywne",
-  completed: "zakończone",
-  ACTION_BLOCKED: "AKCJA_ZABLOKOWANA",
-  SESSION_ROLE_CHANGED: "ZMIANA_ROLI_SESJI",
-  UI_VIEW_CHANGED: "ZMIANA_WIDOKU",
-  USER_REGISTERED: "UŻYTKOWNIK_ZAREJESTROWANY",
-  ACCOUNT_VERIFIED: "KONTO_ZWERYFIKOWANE",
-  PHONE_CHANGED: "TELEFON_ZMIENIONY",
-  ACCOUNT_BLOCKED: "KONTO_ZABLOKOWANE",
-  LOAD_CREATED: "ŁADUNEK_UTWORZONY",
-  LOAD_PHOTO_ADDED: "ZDJĘCIE_ŁADUNKU_DODANE",
-  LOAD_PUBLISHED: "ŁADUNEK_OPUBLIKOWANY",
-  CARRIER_ACCEPTED: "PRZEWOŹNIK_ZAAKCEPTOWANY",
-  DRIVER_ASSIGNED: "KIEROWCA_PRZYPISANY",
-  GPS_COORDINATES_CONFIRMED: "GPS_POTWIERDZONY",
-  DRIVER_ARRIVED_PICKUP: "KIEROWCA_NA_ZAŁADUNKU",
-  LOADING_STARTED: "ZAŁADUNEK_ROZPOCZĘTY",
-  LOADING_CONFIRMED: "ZAŁADUNEK_POTWIERDZONY",
-  DOCUMENT_UPLOADED: "DOKUMENT_DODANY",
-  TRANSPORT_IN_TRANSIT: "TRANSPORT_W_TRASIE",
-  PARKING_SELECTED: "PARKING_WYBRANY",
-  BREAK_STARTED: "PAUZA_ROZPOCZĘTA",
-  BREAK_FINISHED: "PAUZA_ZAKOŃCZONA",
-  DELIVERY_CONFIRMED: "DOSTAWA_POTWIERDZONA",
-  PAYMENT_RELEASED: "PŁATNOŚĆ_ZWOLNIONA",
-  TRANSPORT_COMPLETED: "TRANSPORT_ZAKOŃCZONY",
-  DISPUTE_OPENED: "SPÓR_OTWARTY",
-  DISPUTE_RESOLVED: "SPÓR_ROZWIĄZANY",
-  CLAIM_OPENED: "ROSZCZENIE_OTWARTE",
-  TRUST_SCORE_CHANGED: "REPUTACJA_ZMIENIONA",
-  AI_ALERT_CREATED: "ALERT_AI_UTWORZONY",
-  TRANSPORT_BLOCKED: "TRANSPORT_ZABLOKOWANY",
-  SHIPMENT_CREATED: "ŁADUNEK_SHIPMENT_UTWORZONY",
-  SHIPMENT_UPDATED: "ŁADUNEK_SHIPMENT_ZAKTUALIZOWANY",
-  WALLET_HOLD_CREATED: "BLOKADA_PORTFELA_UTWORZONA",
-  WALLET_HOLD_RELEASED: "BLOKADA_PORTFELA_ZWOLNIONA",
-  WALLET_CREDITED: "PORTFEL_UZNANY",
-  ESCROW_RESERVED: "ESCROW_ZAREZERWOWANE",
-  ESCROW_BLOCKED: "ESCROW_ZABLOKOWANE",
-  ESCROW_RELEASED: "ESCROW_ZWOLNIONE",
-  PLATFORM_FEE_RECORDED: "OPŁATA_PLATFORMY_ZAPISANA",
-  JOB_CREATED: "ZLECENIE_PRACY_UTWORZONE",
-  JOB_COMPLETED: "ZLECENIE_PRACY_ZAKOŃCZONE",
-  MESSAGE_SENT: "WIADOMOŚĆ_WYSŁANA",
-  MESSAGE_TRANSLATED: "WIADOMOŚĆ_PRZETŁUMACZONA",
-  LICENSE_PLATE_IDENTIFIED: "TABLICA_ZIDENTYFIKOWANA",
-  PLATE_CHAT_CREATED: "CZAT_TABLICA_KIEROWCA_UTWORZONY",
-  SECURITY_CHECK_RECORDED: "KONTROLA_OCHRONY_ZAPISANA",
-  SECURITY_GATE_DENIED: "BRAMA_ZABLOKOWANA",
-  CUSTOMS_REQUIRED_RECORDED: "WYMOG_CŁA_ZAPISANY",
-  CUSTOMS_WAITING: "OCZEKIWANIE_NA_CŁO",
-  CUSTOMS_STARTED: "ODPRAWA_CELNA_ROZPOCZĘTA",
-  CUSTOMS_CLEARED: "ODPRAWA_CELNA_ZAKOŃCZONA",
-  CUSTOMS_HOLD_PLACED: "ZATRZYMANIE_CELNE",
-  CUSTOMS_PAYMENT_SIMULATED: "PŁATNOŚĆ_CELNA_DEMO",
-  CUSTOMS_DOCUMENT_RECEIVED: "DOKUMENT_CELNY_PRZYJĘTY",
-  AUTHORITY_CONTROL_STARTED: "KONTROLA_ORGANU_ROZPOCZĘTA",
-  AUTHORITY_DOCUMENT_CHECKED: "DOKUMENTY_SPRAWDZONE",
-  AUTHORITY_ROAD_INSPECTION_DONE: "KONTROLA_DROGOWA_WYKONANA",
-  AUTHORITY_CONTROL_PASSED: "KONTROLA_POZYTYWNA",
-  AUTHORITY_ISSUE_FOUND: "PROBLEM_KONTROLI",
-  AUTHORITY_ACCESS_RECORDED: "DOSTĘP_ORGANU_ZAPISANY",
-  FERRY_REQUIRED_RECORDED: "WYMOG_PROMU_ZAPISANY",
-  FERRY_BOOKED: "PROM_ZAREZERWOWANY",
-  FERRY_GOING_TO_PORT: "JAZDA_DO_PORTU",
-  FERRY_CHECKED_IN: "ODPRAWA_PROMOWA_ZAPISANA",
-  FERRY_BOARDING: "WJAZD_NA_PROM",
-  FERRY_ONBOARD: "POJAZD_NA_PROMIE",
-  FERRY_COMPLETED: "PROM_ZAKONCZONY",
-  FERRY_ETA_UPDATED: "ETA_PROMU_ZAKTUALIZOWANA",
-  FERRY_PAYMENT_SIMULATED: "PLATNOSC_PROMOWA_DEMO",
-  SERVICE_BREAKDOWN_REPORTED: "AWARIA_ZGŁOSZONA",
-  SERVICE_PROVIDER_SELECTED: "SERWIS_WYBRANY",
-  SERVICE_ACCEPTED: "SERWIS_PRZYJĘTY",
-  SERVICE_COMPLETED: "SERWIS_ZAKOŃCZONY",
-  SERVICE_ETA_UPDATED: "ETA_SERWISU_ZAKTUALIZOWANA",
-  SERVICE_PAYMENT_SIMULATED: "PŁATNOŚĆ_SERWISOWA_DEMO",
-  API_CALL_RECORDED: "WYWOŁANIE_API_ZAPISANE",
-  API_RATE_LIMIT_FLAGGED: "LIMIT_API_OZNACZONY",
-  INTEGRATION_SYNC_COMPLETED: "SYNCHRONIZACJA_INTEGRACJI_ZAKOŃCZONA",
-  INTEGRATION_SYNC_BLOCKED: "SYNCHRONIZACJA_INTEGRACJI_ZABLOKOWANA",
-  RESILIENCE_CHECK_COMPLETED: "KONTROLA_ODPORNOŚCI_ZAKOŃCZONA",
-  EMERGENCY_MODE_READY: "TRYB_AWARYJNY_GOTOWY",
-  COMPLIANCE_CHECK_COMPLETED: "KONTROLA_ZGODNOŚCI_ZAKOŃCZONA",
-  COMPLIANCE_CHECK_BLOCKED: "KONTROLA_ZGODNOŚCI_ZABLOKOWANA",
-  DOCUMENT_CONFIRMED: "DOKUMENTY_POTWIERDZONE",
-  DIGITAL_CMR_CREATED: "CYFROWY_CMR_UTWORZONY",
-  DIGITAL_CMR_LOCKED: "CYFROWY_CMR_ZABLOKOWANY",
-  DISPUTE_EVIDENCE_PACK_CREATED: "PACZKA_DOWODOWA_SPORU_UTWORZONA",
-  INSURANCE_RISK_CLOSED: "RYZYKO_UBEZPIECZENIOWE_ZAMKNIĘTE"
-});
-
-function localizeText(input) {
-  let output = input;
-  PhraseTranslations
-    .slice()
-    .sort((a, b) => b[0].length - a[0].length)
-    .forEach(([from, to]) => {
-      output = output.replaceAll(from, to);
-    });
-  Object.entries(ExactText)
-    .sort((a, b) => b[0].length - a[0].length)
-    .forEach(([from, to]) => {
-      output = replaceWholeToken(output, from, to);
-    });
-  Object.entries(CodeLabels)
-    .sort((a, b) => b[0].length - a[0].length)
-    .forEach(([from, to]) => {
-      output = replaceWholeToken(output, from, to);
-    });
-  output = output
-    .replaceAll("has no permission for", "nie ma uprawnienia do")
-    .replaceAll("transport status must be", "status transportu musi być")
-    .replaceAll("transport must be", "transport musi mieć status")
-    .replaceAll("before carrier acceptance", "przed akceptacją przewoźnika")
-    .replaceAll("before driver assignment", "przed przypisaniem kierowcy")
-    .replaceAll("delivery documents and", "dokumenty dostawy oraz")
-    .replaceAll("status are required", "są wymagane")
-    .replaceAll("pickup confirmation document is required before transit", "potwierdzenie załadunku jest wymagane przed trasą")
-    .replaceAll("carrier company is required", "firma przewoźnika jest wymagana")
-    .replaceAll("driver is required", "kierowca jest wymagany")
-    .replaceAll("vehicle is required", "pojazd jest wymagany")
-    .replaceAll("customs can start only in active transport", "odprawa celna może zacząć się tylko w aktywnym transporcie")
-    .replaceAll("MRN document is required before customs clearance", "dokument MRN jest wymagany przed zwolnieniem celnym")
-    .replaceAll("authority control cannot start from", "kontrola organu nie może zacząć się ze statusu")
-    .replaceAll("vehicle is required before service request", "pojazd jest wymagany przed zgłoszeniem serwisu")
-    .replaceAll("driver is required before service request", "kierowca jest wymagany przed zgłoszeniem serwisu")
-    .replaceAll("breakdown report is required before service selection", "zgłoszenie awarii jest wymagane przed wyborem serwisu")
-    .replaceAll("service request not found", "nie znaleziono zgłoszenia serwisowego")
-    .replaceAll("expected service status", "oczekiwany status serwisu")
-    .replaceAll("has no access to transport", "nie ma dostępu do transportu")
-    .replaceAll("expected status", "oczekiwany status")
-    .replaceAll("current:", "obecny:")
-    .replaceAll("driver and vehicle are required before ferry step", "przed etapem promowym wymagany jest kierowca i pojazd")
-    .replaceAll("ferry cannot be required from", "nie można wymagać promu ze statusu")
-    .replaceAll("transport wymaga przeprawy promowej", "transport wymaga przeprawy promowej")
-    .replaceAll("shipment connected to ferry booking", "ładunek powiązany z rezerwacją promową")
-    .replaceAll("shipment is on ferry leg", "ładunek jest na odcinku promowym")
-    .replaceAll("shipment continues after ferry", "ładunek kontynuuje trasę po promie")
-    .replaceAll("ferry leg completed", "odcinek promowy zakończony")
-    .replaceAll("ferry rest completed", "odpoczynek promowy zakończony")
-    .replaceAll("transport not found", "nie znaleziono transportu")
-    .replaceAll("missing target role", "brak wybranej roli")
-    .replaceAll("missing target view", "brak wybranego widoku")
-    .replaceAll("message body is required", "treść wiadomości jest wymagana")
-    .replaceAll("license plate is required", "tablica rejestracyjna jest wymagana")
-    .replaceAll("document and face verification completed", "weryfikacja dokumentu i twarzy zakończona")
-    .replaceAll("phone registration created", "rejestracja przez telefon utworzona")
-    .replaceAll("permission:", "uprawnienia:")
-    .replaceAll("validation:", "walidacja:")
-    .replaceAll("not provided", "nie podano")
-    .replaceAll("demo", "demo");
-  return output;
-}
-
-function replaceWholeToken(input, from, to) {
-  const escaped = escapeRegExp(from);
-  const pattern = new RegExp(`(^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, "gu");
-  return input.replace(pattern, `$1${to}`);
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function viewTitle(role, view) {

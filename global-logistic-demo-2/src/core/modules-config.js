@@ -89,7 +89,7 @@ function moduleItem(id, label, icon, route, view, permission, roles, description
 }
 
 export const modulesConfig = Object.freeze([
-  moduleItem("dashboard", "Dashboard", "DB", "/dashboard", "dashboard", ModulePermissions.DASHBOARD, allRoles, "Jedno glowne wejscie do aplikacji modulowej."),
+  moduleItem("dashboard", "Pulpit", "DB", "/dashboard", "dashboard", ModulePermissions.DASHBOARD, allRoles, "Jedno glowne wejscie do aplikacji modulowej."),
   moduleItem("transports", "Transporty", "TR", "/transports", "transports", ModulePermissions.TRANSPORTS, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER,
     Roles.PAYMENT_OPERATOR, Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR,
@@ -106,31 +106,31 @@ export const modulesConfig = Object.freeze([
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.SECURITY,
     Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR
   ], "Punkty GPS i ETA transportu."),
-  moduleItem("photos", "GL Photos", "PH", "/photos", "photos", ModulePermissions.PHOTOS, [
+  moduleItem("photos", "Zdjecia GL", "PH", "/photos", "photos", ModulePermissions.PHOTOS, [
     ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER
   ], "Dowody zdjeciowe przypisane do transportu."),
   moduleItem("documents", "Dokumenty", "DC", "/documents", "documents", ModulePermissions.DOCUMENTS, [
     ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, ...insurerRoles, Roles.CUSTOMS_AGENT,
     Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR, ...complianceRoles
   ], "CMR, dokumenty transportowe i dokumenty spraw."),
-  moduleItem("parking", "GL Live Parking", "PK", "/parking", "parking", ModulePermissions.PARKING, [
+  moduleItem("parking", "Parkingi na zywo", "PK", "/parking", "parking", ModulePermissions.PARKING, [
     ...carrierRoles, ...dispatcherRoles, Roles.DRIVER
   ], "Parkingi, wolne miejsca i raporty kierowcow."),
-  moduleItem("chat", "GL Chat", "CH", "/chat", "communication", ModulePermissions.CHAT, [
+  moduleItem("chat", "Czat GL", "CH", "/chat", "communication", ModulePermissions.CHAT, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER,
     Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, Roles.SUPPORT_AGENT
   ], "Komunikacja operacyjna i tlumaczenia."),
-  moduleItem("jobs", "GL Jobs", "JB", "/jobs", "jobs", ModulePermissions.JOBS, [
+  moduleItem("jobs", "Zlecenia GL", "JB", "/jobs", "jobs", ModulePermissions.JOBS, [
     ...carrierRoles, ...dispatcherRoles, Roles.DRIVER
   ], "Zadania kierowcow i czas pracy."),
-  moduleItem("academy", "GL Academy", "AC", "/academy", "academy", ModulePermissions.ACADEMY, [
+  moduleItem("academy", "Akademia GL", "AC", "/academy", "academy", ModulePermissions.ACADEMY, [
     ...academyRoles
   ], "Szkolenia, materialy i role akademii."),
-  moduleItem("trust", "GL Trust", "TS", "/trust", "trust", ModulePermissions.TRUST, [
+  moduleItem("trust", "Reputacja GL", "TS", "/trust", "trust", ModulePermissions.TRUST, [
     ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.SECURITY,
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, ...complianceRoles
   ], "Reputacja firm, kierowcow i partnerow."),
-  moduleItem("wallet", "GL Wallet", "WL", "/wallet", "platform_wallet", ModulePermissions.WALLET, platformWalletRoles, "PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.", {
+  moduleItem("wallet", "Portfel GL", "WL", "/wallet", "platform_wallet", ModulePermissions.WALLET, platformWalletRoles, "Portfel platformy: saldo GL, escrow, prowizje, wyplaty i audit finansowy.", {
     includePlatformControl: false
   }),
   moduleItem("billing", "Rozliczenia", "BR", "/billing", "billing", ModulePermissions.BILLING, billingRoles, "Rozliczenia wlasne bez osobnego panelu roli.", {
@@ -160,14 +160,14 @@ export const modulesConfig = Object.freeze([
   ], "Profil firmy i uczestnicy ekosystemu."),
   moduleItem("profile", "Profil", "PR", "/profile", "profile", ModulePermissions.PROFILE, allRoles, "Profil aktywnego uzytkownika."),
   moduleItem("settings", "Ustawienia", "ST", "/settings", "admin", ModulePermissions.SETTINGS, [], "Ustawienia systemowe dla administracji."),
-  moduleItem("security", "Security / brama", "SE", "/security", "security", ModulePermissions.SECURITY, [Roles.SECURITY], "Kontrola bramy i skan tablic."),
+  moduleItem("security", "Ochrona / brama", "SE", "/security", "security", ModulePermissions.SECURITY, [Roles.SECURITY], "Kontrola bramy i skan tablic."),
   moduleItem("customs", "Odprawy celne", "CU", "/customs", "customs", ModulePermissions.CUSTOMS, [Roles.CUSTOMS_AGENT], "Odprawa, MRN i komunikacja celna."),
   moduleItem("authority", "Kontrole drogowe", "AU", "/authority", "authority", ModulePermissions.AUTHORITY, [Roles.AUTHORITY_USER, ...complianceRoles], "Dostep organow kontrolnych."),
   moduleItem("intermodal", "Prom / kolej", "IM", "/intermodal", "ferry", ModulePermissions.INTERMODAL, [Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...carrierRoles, Roles.DRIVER], "Prom, kolej i terminal."),
-  moduleItem("ai", "AI Control", "AI", "/ai", "ai", ModulePermissions.AI, [Roles.SUPPORT_AGENT, ...complianceRoles], "Alerty AI i kontrola ryzyka."),
+  moduleItem("ai", "Kontrola AI", "AI", "/ai", "ai", ModulePermissions.AI, [Roles.SUPPORT_AGENT, ...complianceRoles], "Alerty AI i kontrola ryzyka."),
   moduleItem("audit", "Audit Log", "AL", "/audit", "audit", ModulePermissions.AUDIT, [Roles.PAYMENT_OPERATOR, ...platformWalletRoles, ...complianceRoles], "Historia zdarzen i decyzji."),
   moduleItem("system", "System", "SY", "/system", "system", ModulePermissions.SYSTEM, [], "Stan systemu i konfiguracja platformy."),
-  moduleItem("system-tests", "System Tests", "QA", "/system-tests", "system_tests", ModulePermissions.SYSTEM, [], "Testy odpornosci demo.")
+  moduleItem("system-tests", "Testy systemu", "QA", "/system-tests", "system_tests", ModulePermissions.SYSTEM, [], "Testy odpornosci demo.")
 ]);
 
 const explicitPermissionsByRole = {

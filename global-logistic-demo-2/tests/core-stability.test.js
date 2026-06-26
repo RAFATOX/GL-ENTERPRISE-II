@@ -181,7 +181,7 @@ test("permission guard blocks direct route access", () => {
 
   assert.equal(result.ok, false);
   assert.equal(engine.state.session.deniedView, "platform_wallet");
-  assert.ok(html.includes("AccessDenied"));
+  assert.ok(html.includes("Brak dostępu"));
   assert.ok(html.includes("Brak dostepu do modulu"));
 });
 
@@ -192,7 +192,7 @@ test("legacy role panel routes are blocked by PermissionGuard", () => {
   const html = renderApp(engine.getSnapshot(), engine);
 
   assert.equal(result.ok, false);
-  assert.ok(html.includes("AccessDenied"));
+  assert.ok(html.includes("Brak dostępu"));
 });
 
 test("changing active role changes visible modules without changing dashboard structure", () => {
@@ -216,7 +216,7 @@ test("platform owner sees full GL Wallet with platform permissions", () => {
   assert.ok(modules.includes("wallet"));
   assert.ok(permissions.includes(FinancePermissions.WALLET_PLATFORM_READ));
   assert.ok(permissions.includes(FinancePermissions.WALLET_PLATFORM_MANAGE));
-  assert.ok(html.includes("Dashboard Wallet"));
+  assert.ok(html.includes("Pulpit portfela"));
   assert.ok(html.includes("Saldo systemu"));
   assert.ok(html.includes("GLW-SYSTEM"));
 });
@@ -308,4 +308,27 @@ test("module routes stay flat without role dashboard routes", () => {
     "/wyplaty",
     "/escrow-transportu"
   ].forEach((route) => assert.equal(routes.includes(route), false, route));
+});
+
+test("UI labels are localized through Translation Engine", () => {
+  const walletHtml = renderRoleView(Roles.PLATFORM_OWNER, "platform_wallet", "/wallet");
+  const driverHtml = renderRoleView(Roles.DRIVER, "dashboard", "/dashboard");
+
+  [
+    "Reset demo data",
+    "Permission Engine",
+    "AppNavigation / Permission Guard",
+    "module.dashboard",
+    "Dashboard Wallet",
+    "Dashboard administratora",
+    "Client Wallet",
+    "Carrier Wallet",
+    "Immutable demo ledger hash + audit id"
+  ].forEach((text) => {
+    assert.equal(walletHtml.includes(text) || driverHtml.includes(text), false, text);
+  });
+
+  assert.ok(walletHtml.includes("Portfel GL"));
+  assert.ok(walletHtml.includes("Pulpit portfela"));
+  assert.ok(driverHtml.includes("Nawigacja aplikacji / strażnik uprawnień"));
 });
