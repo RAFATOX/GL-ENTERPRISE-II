@@ -142,12 +142,10 @@ test("insurer sees policy, claim, risk, document and policy billing modules", ()
   const modules = moduleIdsFor(Roles.INSURANCE_PARTNER);
   const html = renderRoleView(Roles.INSURANCE_PARTNER);
 
-  assert.ok(modules.includes("policies"));
-  assert.ok(modules.includes("claims"));
-  assert.ok(modules.includes("risk"));
-  assert.ok(modules.includes("documents"));
-  assert.ok(modules.includes("billing"));
-  assert.equal(modules.includes("wallet"), false);
+  assert.deepEqual(modules, ["dashboard", "documents", "billing", "invoices", "policies", "claims", "risk", "profile"]);
+  ["transports", "photos", "chat", "trust", "company", "wallet"].forEach((moduleId) => {
+    assert.equal(modules.includes(moduleId), false, moduleId);
+  });
   assert.equal(html.includes("Panel ubezpieczen"), false);
 });
 
@@ -155,17 +153,18 @@ test("workshop sees service orders, invoices and billing without a separate pane
   const modules = moduleIdsFor(Roles.WORKSHOP);
   const html = renderRoleView(Roles.WORKSHOP);
 
-  assert.ok(modules.includes("service-orders"));
-  assert.ok(modules.includes("invoices"));
-  assert.ok(modules.includes("billing"));
-  assert.equal(modules.includes("wallet"), false);
+  assert.deepEqual(modules, ["dashboard", "billing", "invoices", "service-orders", "profile"]);
+  ["transports", "map", "gps", "chat", "trust", "company", "wallet"].forEach((moduleId) => {
+    assert.equal(modules.includes(moduleId), false, moduleId);
+  });
   assert.equal(html.includes("Panel warsztatu"), false);
   assert.equal(html.includes("Panel serwisu"), false);
 });
 
-test("admin and platform_owner see every configured module", () => {
+test("platform owner sees every configured module and admin does not see GL Wallet", () => {
   assert.equal(moduleIdsFor(Roles.PLATFORM_OWNER).length, modulesConfig.length);
-  assert.equal(moduleIdsFor(Roles.ADMIN).length, modulesConfig.length);
+  assert.equal(moduleIdsFor(Roles.ADMIN).includes("wallet"), false);
+  assert.equal(moduleIdsFor(Roles.SUPER_ADMIN).includes("wallet"), false);
 });
 
 test("academy student sees academy and profile only with dashboard", () => {
@@ -222,6 +221,27 @@ test("platform owner sees full GL Wallet with platform permissions", () => {
   assert.ok(html.includes("GLW-SYSTEM"));
 });
 
+test("GL Wallet is visible only for platform finance roles", () => {
+  const allowed = [Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.ADMIN_FINANCE];
+  const blocked = [
+    Roles.ADMIN,
+    Roles.SUPER_ADMIN,
+    Roles.PAYMENT_OPERATOR,
+    Roles.CARRIER_OWNER,
+    Roles.CLIENT_OWNER,
+    Roles.INSURANCE_PARTNER,
+    Roles.WORKSHOP,
+    Roles.DRIVER
+  ];
+
+  allowed.forEach((role) => {
+    assert.ok(moduleIdsFor(role).includes("wallet"), role);
+  });
+  blocked.forEach((role) => {
+    assert.equal(moduleIdsFor(role).includes("wallet"), false, role);
+  });
+});
+
 test("carrier and client use billing modules instead of separate panels", () => {
   const carrierModules = moduleIdsFor(Roles.CARRIER_OWNER);
   const clientModules = moduleIdsFor(Roles.CLIENT_OWNER);
@@ -249,4 +269,43 @@ test("main menu is the single entry point for visible functions", () => {
   assert.equal(html.includes("/workshop/dashboard"), false);
   assert.equal(html.includes("/carrier/dashboard"), false);
   assert.equal(html.includes("/client/dashboard"), false);
+});
+
+test("module routes stay flat without role dashboard routes", () => {
+  const routes = modulesConfig.map((module) => module.route);
+  [
+    "/dashboard",
+    "/transports",
+    "/loads",
+    "/map",
+    "/gps",
+    "/photos",
+    "/documents",
+    "/parking",
+    "/chat",
+    "/jobs",
+    "/academy",
+    "/trust",
+    "/billing",
+    "/policies",
+    "/claims",
+    "/risk",
+    "/service-orders",
+    "/invoices",
+    "/settings"
+  ].forEach((route) => assert.ok(routes.includes(route), route));
+
+  [
+    "/insurance/dashboard",
+    "/workshop/dashboard",
+    "/carrier/dashboard",
+    "/client/dashboard",
+    "/driver/dashboard",
+    "/warehouse/dashboard",
+    "/kierowca",
+    "/rozliczenia",
+    "/platnosci",
+    "/wyplaty",
+    "/escrow-transportu"
+  ].forEach((route) => assert.equal(routes.includes(route), false, route));
 });

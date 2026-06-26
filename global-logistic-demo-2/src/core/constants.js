@@ -423,7 +423,6 @@ export const NavItems = Object.freeze([
   { id: "warehouse", label: "Zdjęcie magazynu" },
   { id: "carrier", label: "Akceptacja przewoźnika" },
   { id: "driver_assignment", label: "Przypisanie kierowcy" },
-  { id: "driver_mobile", label: "ModuĹ‚ kierowcy" },
   { id: "gps", label: "Mapa GPS" },
   { id: "parking", label: "Parkingi na żywo" },
   { id: "documents", label: "Dokumenty" },
