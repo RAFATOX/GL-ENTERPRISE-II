@@ -1,4 +1,5 @@
 import { ActionTypes, DEMO_MODE, Roles, TransportStatuses } from "../core/constants.js";
+import { canAccessModuleView } from "../core/modules-config.js";
 
 const platformActions = Object.values(ActionTypes);
 
@@ -259,6 +260,23 @@ const rolePermissions = {
     ActionTypes.SEND_MESSAGE,
     ActionTypes.REQUEST_TRANSLATION
   ],
+  [Roles.ACADEMY_TEACHER]: [
+    ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_VIEW,
+    ActionTypes.SELECT_TRANSPORT
+  ],
+  [Roles.ACADEMY_STUDENT]: [
+    ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_VIEW,
+    ActionTypes.SELECT_TRANSPORT
+  ],
+  [Roles.COMPLIANCE]: [
+    ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_VIEW,
+    ActionTypes.SELECT_TRANSPORT,
+    ActionTypes.RUN_COMPLIANCE_CHECK,
+    ActionTypes.AI_RUN_CHECK
+  ],
   [Roles.SUPPORT_AGENT]: [
     ActionTypes.SELECT_ROLE,
     ActionTypes.SELECT_VIEW,
@@ -301,6 +319,10 @@ export class PermissionsEngine {
         ok: false,
         reason: `${context.actor.role} has no permission for ${actionType}`
       };
+    }
+    if (actionType === ActionTypes.SELECT_VIEW) {
+      const moduleAccess = canAccessModuleView(context.actor, context.actor.role, context.payload.view, context.payload.route);
+      if (!moduleAccess.ok) return moduleAccess;
     }
     const entityAccess = this.checkEntityAccess(actionType, context);
     if (!entityAccess.ok) return entityAccess;

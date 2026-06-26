@@ -23,6 +23,9 @@ export const Roles = Object.freeze({
   WORKSHOP: "workshop",
   MOBILE_SERVICE: "mobile_service",
   ROADSIDE_ASSISTANCE: "roadside_assistance",
+  ACADEMY_TEACHER: "academy_teacher",
+  ACADEMY_STUDENT: "academy_student",
+  COMPLIANCE: "compliance",
   SUPPORT_AGENT: "support_agent",
   READONLY_AUDITOR: "readonly_auditor"
 });
@@ -47,6 +50,9 @@ export const RoleLabels = Object.freeze({
   [Roles.WORKSHOP]: "Warsztat",
   [Roles.MOBILE_SERVICE]: "Serwis mobilny",
   [Roles.ROADSIDE_ASSISTANCE]: "Pomoc drogowa",
+  [Roles.ACADEMY_TEACHER]: "Nauczyciel GL Academy",
+  [Roles.ACADEMY_STUDENT]: "Student GL Academy",
+  [Roles.COMPLIANCE]: "Compliance",
   [Roles.SUPPORT_AGENT]: "Wsparcie",
   [Roles.READONLY_AUDITOR]: "Audytor tylko do odczytu"
 });

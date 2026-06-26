@@ -111,16 +111,38 @@ button {
 }
 
 .nav button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
   padding: 9px 10px;
   background: transparent;
   color: #d7e2df;
   text-align: left;
 }
 
+.module-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(245, 239, 224, 0.12);
+  color: #f5efe0;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .nav button.active,
 .nav button:hover {
   background: #f5efe0;
   color: var(--nav);
+}
+
+.nav button.active .module-icon,
+.nav button:hover .module-icon {
+  background: var(--nav);
+  color: #f5efe0;
 }
 
 .core-seal {
@@ -376,6 +398,7 @@ h2 {
 }
 
 .module-grid,
+.module-tile-grid,
 .card-grid,
 .role-grid,
 .trust-grid {
@@ -385,6 +408,7 @@ h2 {
 }
 
 .module-pill,
+.module-tile,
 .mini-card,
 .role-card,
 .trust-card {
@@ -396,6 +420,39 @@ h2 {
 
 .module-pill {
   font-weight: 900;
+}
+
+.module-menu-panel {
+  margin-top: 14px;
+}
+
+.module-tile {
+  min-height: 118px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  text-align: left;
+  color: var(--ink);
+}
+
+.module-tile .module-icon {
+  background: var(--nav);
+  color: #f5efe0;
+}
+
+.module-tile strong,
+.module-tile small {
+  overflow-wrap: anywhere;
+}
+
+.module-tile small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.module-tile:hover {
+  border-color: var(--teal);
+  background: #eff8f3;
 }
 
 .role-card {
@@ -1033,6 +1090,7 @@ mark.info {
   .finance-metrics,
   .finance-admin-grid,
   .module-grid,
+  .module-tile-grid,
   .card-grid,
   .role-grid,
   .trust-grid {
@@ -1113,6 +1171,7 @@ mark.info {
   .report-grid,
   .api-grid,
   .module-grid,
+  .module-tile-grid,
   .card-grid,
   .role-grid,
   .trust-grid,

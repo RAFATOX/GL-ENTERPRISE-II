@@ -190,6 +190,8 @@ export class WorkflowEngine {
         return this.selectRole(state, modules, payload);
       case ActionTypes.SELECT_VIEW:
         state.session.view = payload.view;
+        state.session.deniedView = null;
+        state.session.deniedRoute = null;
         return {
           events: [sessionEvent(EventTypes.UI_VIEW_CHANGED, payload.view, "demo view selected")]
         };
@@ -385,6 +387,8 @@ export class WorkflowEngine {
     const demoUser = modules.users.findDemoUserForRole(payload.role);
     state.session.role = payload.role;
     state.session.userId = demoUser.id;
+    state.session.deniedView = null;
+    state.session.deniedRoute = null;
     return {
       events: [{
         type: EventTypes.SESSION_ROLE_CHANGED,

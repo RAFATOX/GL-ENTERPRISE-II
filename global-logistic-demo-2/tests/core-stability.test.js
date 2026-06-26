@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { ActionTypes, DEMO_DATA_VERSION, Roles } from "../src/core/constants.js";
 import { GLCoreEngine } from "../src/core/gl-core-engine.js";
+import { getVisibleModules, modulesConfig } from "../src/core/modules-config.js";
 import { StateStore } from "../src/core/state-store.js";
 import { parsePayload } from "../src/ui/action-handler.js";
 import { menuForRole, viewAllowedForRole } from "../src/ui/role-config.js";
@@ -117,4 +118,49 @@ test("wallet demo renders fintech shell only for finance roles", () => {
   const authorityHtml = renderApp(authorityEngine.getSnapshot(), authorityEngine);
 
   assert.equal(authorityHtml.includes("finance-shell"), false);
+});
+
+test("module navigation shows driver modules only", () => {
+  const modules = getVisibleModules({ role: Roles.DRIVER }, Roles.DRIVER).map((module) => module.id);
+
+  assert.ok(modules.includes("dashboard"));
+  assert.ok(modules.includes("gl-gps"));
+  assert.ok(modules.includes("gl-photos"));
+  assert.ok(modules.includes("parking"));
+  assert.equal(modules.includes("wallet"), false);
+  assert.equal(modules.includes("settings"), false);
+  assert.equal(modules.includes("academy"), false);
+});
+
+test("admin sees every configured module", () => {
+  const modules = getVisibleModules({ role: Roles.ADMIN }, Roles.ADMIN).map((module) => module.id);
+
+  assert.equal(modules.length, modulesConfig.length);
+});
+
+test("academy student sees academy and profile only with dashboard", () => {
+  const modules = getVisibleModules({ role: Roles.ACADEMY_STUDENT }, Roles.ACADEMY_STUDENT).map((module) => module.id);
+
+  assert.deepEqual(modules, ["dashboard", "academy", "profile"]);
+});
+
+test("permission guard blocks direct route access", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "payments", route: "/wallet" });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, false);
+  assert.equal(engine.state.session.deniedView, "payments");
+  assert.ok(html.includes("AccessDenied"));
+  assert.ok(html.includes("Brak dostepu do modulu"));
+});
+
+test("changing active role changes visible modules", () => {
+  const driverModules = getVisibleModules({ role: Roles.DRIVER }, Roles.DRIVER).map((module) => module.id);
+  const adminModules = getVisibleModules({ role: Roles.ADMIN }, Roles.ADMIN).map((module) => module.id);
+
+  assert.equal(driverModules.includes("wallet"), false);
+  assert.equal(adminModules.includes("wallet"), true);
+  assert.ok(adminModules.length > driverModules.length);
 });

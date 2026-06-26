@@ -178,6 +178,10 @@ export class GLCoreEngine {
   }
 
   block(context, reasons, stage) {
+    if (context.actionType === ActionTypes.SELECT_VIEW) {
+      this.state.session.deniedView = context.payload.view || "unknown";
+      this.state.session.deniedRoute = context.payload.route || null;
+    }
     const objectType = context.payload.transportId || this.state.session.selectedTransportId
       ? "transport"
       : "system";

@@ -18,7 +18,9 @@ export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
   const selected = selectedTransport(state);
   const roleConfig = getRoleConfig(state.session.role);
-  const activeView = viewAllowedForRole(state.session.role, state.session.view)
+  const activeView = state.session.deniedView
+    ? state.session.deniedView
+    : viewAllowedForRole(state.session.role, state.session.view)
     ? state.session.view
     : "dashboard";
   return localizeHtml(`
@@ -31,10 +33,10 @@ export function renderApp(state, engine) {
             <span>${roleConfig.workspace}</span>
           </div>
         </div>
-        ${renderRoleMenu(state, activeView)}
+        ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>Aktywna przestrzen</span>
-          <strong>${roleConfig.workspace}: menu, dashboard i akcje wynikaja z roleConfig.</strong>
+          <strong>${roleConfig.workspace}: moduly wynikaja z Permission Engine i modulesConfig.</strong>
         </div>
       </aside>
       <main class="main">
@@ -47,11 +49,12 @@ export function renderApp(state, engine) {
   `);
 }
 
-function renderRoleMenu(state, activeView) {
+function renderAppNavigation(state, activeView) {
   const items = menuForRole(state.session.role);
   const buttons = items.map((item) => `
-    <button class="${activeView === item.id ? "active" : ""}" data-view="${item.id}">
-      ${item.label}
+    <button class="module-nav-button ${activeView === item.id ? "active" : ""}" data-module-route="${item.route}" data-view="${item.id}">
+      <span class="module-icon">${item.icon}</span>
+      <span>${item.label}</span>
     </button>
   `).join("");
   return `
@@ -110,6 +113,7 @@ function renderLastResult(state) {
 
 function renderView(state, engine, selected, activeView = state.session.view) {
   const view = activeView;
+  if (state.session.deniedView) return renderModuleAccessDenied(state);
   if (view === "system_tests") return renderSystemTests(state, engine, selected);
   if (view === "profile") return renderProfile(state);
   if (view === "companies") return renderCompanies(state);
@@ -120,6 +124,9 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "roles") return renderRoles(state, engine);
   if (view === "transports") return renderTransportList(state);
   if (!selected && transportScopedView(view)) return renderNoTransport(state, engine);
+  if (view === "live_map") return renderGps(state, engine, selected);
+  if (view === "photos") return renderPhotos(state, engine, selected);
+  if (view === "academy") return renderAcademy(state);
   if (view === "details") return renderDetails(state, engine, selected);
   if (view === "shipments") return renderShipments(state);
   if (view === "create") return renderCreateLoad(state, engine, selected);
@@ -157,7 +164,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
 function renderDashboard(state, engine, selected) {
   const roleConfig = getRoleConfig(state.session.role);
   const roleDashboard = DashboardRenderers[roleConfig.dashboard] || DashboardRenderers.platform;
-  return roleDashboard(state, engine, selected);
+  return `${roleDashboard(state, engine, selected)}${renderModuleMenuPanel(state)}`;
 
   const blocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
   const paymentBlocked = state.payments.filter((payment) => payment.status === PaymentStatuses.BLOCKED).length;
@@ -228,7 +235,8 @@ const DashboardRenderers = {
   service: renderServiceDashboard,
   insurance: renderInsuranceDashboard,
   support: renderSupportDashboard,
-  audit: renderAuditDashboard
+  audit: renderAuditDashboard,
+  academy: renderAcademyDashboard
 };
 
 function dashboardShell(title, metrics, left, right) {
@@ -249,6 +257,54 @@ function dashboardShell(title, metrics, left, right) {
       </article>
     </section>
   `;
+}
+
+function renderModuleMenuPanel(state) {
+  const modules = menuForRole(state.session.role);
+  return `
+    <section class="panel module-menu-panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">AppNavigation / Permission Guard</span>
+          <h2>Menu modulow</h2>
+        </div>
+      </div>
+      <div class="module-tile-grid">
+        ${modules.map((module) => `
+          <button class="module-tile" data-module-route="${module.route}" data-view="${module.id}">
+            <span class="module-icon">${module.icon}</span>
+            <strong>${module.label}</strong>
+            <small>${module.requiredPermissions.join(", ")}</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderModuleAccessDenied(state) {
+  return `
+    <section class="panel access-panel">
+      <span class="eyebrow">AccessDenied / Permission Guard</span>
+      <h2>Brak dostepu do modulu</h2>
+      <p class="muted">Rola ${RoleLabels[state.session.role] || state.session.role} nie ma dostepu do trasy ${state.session.deniedRoute || state.session.deniedView}. Wejscie zostalo zablokowane przez Permission Engine.</p>
+    </section>
+  `;
+}
+
+function renderAcademyDashboard(state) {
+  return dashboardShell("GL Academy", [
+    ["Kursy", 4, "demo"],
+    ["Certyfikaty", 2, "symulowane"],
+    ["Rola", RoleLabels[state.session.role] || state.session.role, "aktywny profil"],
+    ["Moduly", menuForRole(state.session.role).length, "widoczne"],
+    ["Profil", "aktywny", "student / trener"]
+  ], renderAcademy(state), `
+    <div class="list">
+      <div class="row"><strong>Bezpieczny zaladunek</strong><span>kurs demo</span><mark class="good">aktywny</mark></div>
+      <div class="row"><strong>CMR i dokumenty</strong><span>lekcja</span><mark class="warning">w toku</mark></div>
+    </div>
+  `);
 }
 
 function renderDriverDashboard(state, engine, selected) {
@@ -794,6 +850,48 @@ function renderDocuments(state, engine, selected) {
               <small>${doc.integrityHash}</small>
             </div>
           `).join("") || `<p class="muted">No documents for selected transport.</p>`}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderPhotos(state, engine, selected) {
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <span class="eyebrow">GL Photos</span>
+        <h2>Dowody zdjeciowe transportu</h2>
+        <p class="muted">Zdjecia sa przypisane do transportu, dokumentow i audytu. Modul dziala w trybie demo.</p>
+        <div class="actions">
+          ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Dodaj zdjecie", { transportId: selected.id, type: "loading", label: "Zdjecie transportowe" }) : disabledAction("Dodaj zdjecie", "Brak transportow")}
+        </div>
+      </article>
+      ${selected ? renderPhotoList(state, selected) : renderNoTransport(state, engine)}
+    </section>
+  `;
+}
+
+function renderAcademy(state) {
+  const isStudent = state.session.role === Roles.ACADEMY_STUDENT;
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <span class="eyebrow">GL Academy</span>
+        <h2>${isStudent ? "Panel studenta" : "Panel szkolen"}</h2>
+        <p class="muted">Modul szkoleniowy demo dla kierowcow, przewoznikow, compliance i akademii.</p>
+        <div class="detail-grid">
+          <div><span>Kursy</span><strong>4</strong></div>
+          <div><span>Certyfikaty</span><strong>2</strong></div>
+          <div><span>Status</span><strong>${isStudent ? "student" : "trener / uczestnik"}</strong></div>
+        </div>
+      </article>
+      <article class="panel">
+        <h2>Program</h2>
+        <div class="list">
+          <div class="row"><strong>Bezpieczny zaladunek</strong><span>transport</span><mark class="good">gotowe</mark></div>
+          <div class="row"><strong>CMR i dokumenty</strong><span>workflow</span><mark class="warning">w toku</mark></div>
+          <div class="row"><strong>GPS i ETA</strong><span>operacje</span><mark class="good">demo</mark></div>
         </div>
       </article>
     </section>
@@ -2366,7 +2464,9 @@ function transportScopedView(view) {
     "carrier",
     "driver_assignment",
     "driver_mobile",
+    "live_map",
     "gps",
+    "photos",
     "parking",
     "documents",
     "payments",

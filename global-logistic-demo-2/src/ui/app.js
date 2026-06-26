@@ -1,11 +1,13 @@
 import { ActionTypes } from "../core/constants.js";
 import { GLCoreEngine } from "../core/gl-core-engine.js";
+import { moduleForRoute, normalizeRoute } from "../core/modules-config.js";
 import { renderApp } from "./renderers.js";
 import { parsePayload, payloadFromForm } from "./action-handler.js";
-import { firstViewForRole } from "./role-config.js";
+import { firstRouteForRole, firstViewForRole, routeForRoleView } from "./role-config.js";
 
 const engine = new GLCoreEngine();
 const root = document.querySelector("#app");
+let internalRouteChange = false;
 
 function render(snapshot = engine.getSnapshot()) {
   root.innerHTML = renderApp(snapshot, engine);
@@ -13,6 +15,7 @@ function render(snapshot = engine.getSnapshot()) {
 
 engine.subscribe(render);
 render();
+syncRouteFromHash();
 
 root.addEventListener("click", (event) => {
   const resetButton = event.target.closest("[data-reset-demo]");
@@ -27,9 +30,15 @@ root.addEventListener("click", (event) => {
     return;
   }
 
+  const moduleButton = event.target.closest("[data-module-route]");
+  if (moduleButton) {
+    navigateToRoute(moduleButton.dataset.moduleRoute);
+    return;
+  }
+
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) {
-    engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: viewButton.dataset.view });
+    navigateToView(viewButton.dataset.view);
     return;
   }
 
@@ -55,7 +64,10 @@ root.addEventListener("change", (event) => {
   if (!roleSelect) return;
   const role = roleSelect.value;
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
-  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: firstViewForRole(role) });
+  const route = firstRouteForRole(role);
+  const view = firstViewForRole(role);
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
+  if (result.ok) setRouteHash(route);
 });
 
 root.addEventListener("submit", (event) => {
@@ -69,3 +81,43 @@ root.addEventListener("submit", (event) => {
   }
   engine.dispatchAction(parsed.action, parsed.payload, { source: "demo-form" });
 });
+
+window.addEventListener("hashchange", () => {
+  if (internalRouteChange) return;
+  syncRouteFromHash();
+});
+
+function navigateToRoute(route) {
+  const module = moduleForRoute(route);
+  const view = module?.view || normalizeRoute(route).slice(1);
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route: normalizeRoute(route) });
+  if (result.ok) setRouteHash(module.route);
+}
+
+function navigateToView(view) {
+  const route = routeForRoleView(engine.getSnapshot().session.role, view);
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
+  if (result.ok) setRouteHash(route);
+}
+
+function syncRouteFromHash() {
+  const route = normalizeRoute(window.location.hash);
+  const module = moduleForRoute(route);
+  if (!module && !window.location.hash) {
+    const firstRoute = firstRouteForRole(engine.getSnapshot().session.role);
+    setRouteHash(firstRoute);
+    return;
+  }
+  const view = module?.view || route.slice(1);
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
+}
+
+function setRouteHash(route) {
+  const nextHash = `#${normalizeRoute(route)}`;
+  if (window.location.hash === nextHash) return;
+  internalRouteChange = true;
+  window.location.hash = nextHash;
+  setTimeout(() => {
+    internalRouteChange = false;
+  }, 0);
+}

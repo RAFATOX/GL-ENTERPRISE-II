@@ -49,6 +49,9 @@ export function createDemoState() {
       user("u-workshop", "Wiktor Warsztat", "+48500100124", Roles.WORKSHOP, "co-workshop-a", AccountStatuses.VERIFIED),
       user("u-mobile-service", "Mila Mobile", "+48500100125", Roles.MOBILE_SERVICE, "co-mobile-service-a", AccountStatuses.VERIFIED),
       user("u-roadside", "Roman Holownik", "+48500100126", Roles.ROADSIDE_ASSISTANCE, "co-roadside-a", AccountStatuses.VERIFIED),
+      user("u-academy-teacher", "Tomasz Academy", "+48500100127", Roles.ACADEMY_TEACHER, null, AccountStatuses.VERIFIED),
+      user("u-academy-student", "Kasia Student", "+48500100128", Roles.ACADEMY_STUDENT, null, AccountStatuses.VERIFIED),
+      user("u-compliance", "Monika Compliance", "+48500100129", Roles.COMPLIANCE, null, AccountStatuses.VERIFIED),
       user("u-support", "Sara Support", "+48500100116", Roles.SUPPORT_AGENT, null, AccountStatuses.VERIFIED),
       user("u-auditor", "Igor Auditor", "+48500100117", Roles.READONLY_AUDITOR, null, AccountStatuses.VERIFIED),
       user("u-demo-pending", "New Pending", "+48500100999", Roles.CLIENT_DISPATCHER, "co-client-c", AccountStatuses.PENDING, { documentVerified: false, faceVerified: false })
