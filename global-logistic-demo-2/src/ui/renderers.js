@@ -133,16 +133,15 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "warehouse") return renderWarehouse(state, engine, selected);
   if (view === "carrier") return renderCarrier(state, engine, selected);
   if (view === "driver_assignment") return renderDriverAssignment(state, engine, selected);
-  if (view === "driver_mobile") return renderDriverMobile(state, engine, selected);
   if (view === "gps") return renderGps(state, engine, selected);
   if (view === "parking") return renderParking(state, engine, selected);
   if (view === "documents") return renderDocuments(state, engine, selected);
   if (view === "platform_wallet") return renderPlatformWallet(state, engine, selected);
   if (view === "billing") return renderBillingModule(state, "billing");
   if (view === "invoices") return renderBillingModule(state, "invoices");
-  if (view === "payment_status") return renderBillingModule(state, "payment_status");
-  if (view === "payouts") return renderBillingModule(state, "payouts");
-  if (view === "transport_escrow") return renderBillingModule(state, "transport_escrow");
+  if (view === "policies") return renderPolicies(state);
+  if (view === "claims") return renderClaims(state, engine, selected);
+  if (view === "risk") return renderRisk(state);
   if (view === "payments") return renderPayments(state, engine, selected);
   if (view === "wallets") return renderWallets(state);
   if (view === "escrow") return renderEscrow(state);
@@ -155,6 +154,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "customs") return renderCustoms(state, engine, selected);
   if (view === "authority") return renderAuthority(state, engine, selected);
   if (view === "ferry") return renderFerry(state, engine, selected);
+  if (view === "service_orders") return renderService(state, engine, selected);
   if (view === "service") return renderService(state, engine, selected);
   if (view === "api") return renderApi(state, engine);
   if (view === "integrations") return renderIntegrations(state, engine);
@@ -168,9 +168,33 @@ function renderView(state, engine, selected, activeView = state.session.view) {
 }
 
 function renderDashboard(state, engine, selected) {
-  const roleConfig = getRoleConfig(state.session.role);
-  const roleDashboard = DashboardRenderers[roleConfig.dashboard] || DashboardRenderers.platform;
-  return `${roleDashboard(state, engine, selected)}${renderModuleMenuPanel(state)}`;
+  const dashboardBlocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
+  const dashboardModules = menuForRole(state.session.role);
+  return `
+    <section class="metrics">
+      ${metric("Moduly", dashboardModules.length, "widoczne dla roli")}
+      ${metric("Transporty", state.transports.length, `${dashboardBlocked} blokad/ryzyk`)}
+      ${metric("Dokumenty", state.documents.length, "w dostepnym zakresie")}
+      ${metric("Zdarzenia", state.events.length, "event bus")}
+      ${metric("Audit", state.audit.length, "read only")}
+    </section>
+    <section class="grid two">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Dashboard</span>
+            <h2>Jedna aplikacja modulowa</h2>
+          </div>
+        </div>
+        <p class="muted">Ten sam Dashboard jest uzywany przez kazda role. Rola zmienia tylko widoczne moduly i dozwolone akcje przez Permission Engine.</p>
+        <div class="pipeline">
+          ${["MENU MODULOW", "PERMISSION ENGINE", "ROUTE GUARD", "ENGINE", "DATABASE", "EVENTS", "AUDIT LOG"].map((step) => `<span>${step}</span>`).join("")}
+        </div>
+      </article>
+      ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
+    </section>
+    ${renderModuleMenuPanel(state)}
+  `;
 
   const blocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
   const paymentBlocked = state.payments.filter((payment) => payment.status === PaymentStatuses.BLOCKED).length;
@@ -315,7 +339,7 @@ function renderAcademyDashboard(state) {
 
 function renderDriverDashboard(state, engine, selected) {
   const driverTime = state.driverTime.find((item) => item.driverId === state.session.userId);
-  return dashboardShell("Panel kierowcy", [
+  return dashboardShell("Moduly kierowcy", [
     ["Dzisiejsze transporty", state.transports.length, selected?.status || "brak aktywnego"],
     ["Punkty aktywnosci", state.events.filter((event) => event.actorId === state.session.userId).length, "dzisiaj"],
     ["Status", selected?.status || "brak", selected?.number || "bez transportu"],
@@ -388,7 +412,7 @@ function renderPlatformDashboard(state, engine, selected) {
 }
 
 function renderCarrierDashboard(state, engine, selected) {
-  return dashboardShell("Panel przewoznika", [
+  return dashboardShell("Moduly przewoznika", [
     ["Transporty", state.transports.length, "widoczne"],
     ["Kierowcy", state.users.filter((user) => user.roles.includes(Roles.DRIVER)).length, "flota"],
     ["Pojazdy", state.vehicles.length, "dostepne"],
@@ -453,7 +477,7 @@ function renderServiceDashboard(state, engine, selected) {
 }
 
 function renderInsuranceDashboard(state, engine, selected) {
-  return dashboardShell("Panel ubezpieczen", [
+  return dashboardShell("Moduly ubezpieczen", [
     ["Polisy", state.insurancePolicies.length, "aktywne"],
     ["Roszczenia", state.claims.length, "sprawy"],
     ["Ryzyka", state.aiAlerts.filter((alert) => alert.status === "open").length, "alerty"],
@@ -1524,6 +1548,88 @@ function renderRevenue(state) {
           </div>
         `).join("") || `<p class="muted">No revenue rows visible.</p>`}
       </div>
+    </section>
+  `;
+}
+
+function renderPolicies(state) {
+  return `
+    <section class="panel">
+      <span class="eyebrow">Polisy</span>
+      <h2>Polisy transportowe</h2>
+      <div class="list">
+        ${(state.insurancePolicies || []).map((policy) => `
+          <div class="row">
+            <strong>${policy.number}</strong>
+            <span>${transportNumber(state, policy.transportId)} / ${policy.partner}</span>
+            <mark class="${tone(policy.status)}">${policy.status}</mark>
+            <small>${policy.scope} / ${formatMoney(policy.cost, "EUR")}</small>
+          </div>
+        `).join("") || `<p class="muted">Brak polis widocznych dla tej roli.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderClaims(state, engine, selected) {
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <span class="eyebrow">Zgloszenia szkod</span>
+        <h2>Szkody i roszczenia</h2>
+        ${selected ? actionButton(engine, ActionTypes.OPEN_CLAIM, "Otworz roszczenie", { transportId: selected.id, reason: "damage claim from demo" }) : disabledAction("Otworz roszczenie", "Brak transportu")}
+      </article>
+      <article class="panel">
+        <h2>Sprawy</h2>
+        <div class="list">
+          ${(state.claims || []).map((claim) => `
+            <div class="row">
+              <strong>${claim.id}</strong>
+              <span>${transportNumber(state, claim.transportId)}</span>
+              <mark class="${tone(claim.status)}">${claim.status}</mark>
+            </div>
+          `).join("") || `<p class="muted">Brak aktywnych roszczen.</p>`}
+          ${(state.disputeEvidencePacks || []).map((pack) => `
+            <div class="row">
+              <strong>${pack.id}</strong>
+              <span>${transportNumber(state, pack.transportId)}</span>
+              <small>${pack.photoIds.length} zdjec / ${pack.documentIds.length} dokumentow</small>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderRisk(state) {
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <span class="eyebrow">Ocena ryzyka</span>
+        <h2>Ryzyko transportu</h2>
+        <div class="list">
+          ${(state.transports || []).map((transport) => `
+            <div class="row">
+              <strong>${transport.number}</strong>
+              <span>${transport.status}</span>
+              <mark class="${transport.riskFlagged ? "danger" : "good"}">${transport.riskFlagged ? "ryzyko" : "ok"}</mark>
+            </div>
+          `).join("") || `<p class="muted">Brak transportow do oceny.</p>`}
+        </div>
+      </article>
+      <article class="panel">
+        <h2>Alerty AI</h2>
+        <div class="list">
+          ${(state.aiAlerts || []).map((alert) => `
+            <div class="row">
+              <strong>${alert.title || alert.id}</strong>
+              <span>${transportNumber(state, alert.transportId)}</span>
+              <mark class="${tone(alert.level || alert.status)}">${alert.level || alert.status}</mark>
+            </div>
+          `).join("") || `<p class="muted">Brak alertow AI.</p>`}
+        </div>
+      </article>
     </section>
   `;
 }
@@ -2700,7 +2806,6 @@ function transportScopedView(view) {
     "warehouse",
     "carrier",
     "driver_assignment",
-    "driver_mobile",
     "live_map",
     "gps",
     "photos",
@@ -2713,6 +2818,7 @@ function transportScopedView(view) {
     "customs",
     "authority",
     "ferry",
+    "service_orders",
     "service",
     "compliance",
     "ai",
@@ -3049,7 +3155,7 @@ const ExactText = Object.freeze({
   "Carrier acceptance": "Akceptacja przewoźnika",
   "Driver Time Engine": "Silnik czasu pracy kierowcy",
   "Driver assignment": "Przypisanie kierowcy",
-  "Driver mobile": "Telefon kierowcy",
+  "Driver mobile": "Modul kierowcy",
   "GPS pipeline": "Ścieżka GPS",
   "Parking Live Network": "Sieć parkingów live",
   "Document Engine": "Silnik dokumentów",

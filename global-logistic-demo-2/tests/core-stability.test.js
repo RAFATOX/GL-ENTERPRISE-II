@@ -30,7 +30,7 @@ function moduleIdsFor(role) {
   return getVisibleModules({ role }, role).map((module) => module.id);
 }
 
-function renderRoleView(role, view, route) {
+function renderRoleView(role, view = "dashboard", route = "/dashboard") {
   const engine = new GLCoreEngine({ store: memoryStore() });
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
   engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
@@ -88,9 +88,8 @@ test("payload errors are audited as errors", () => {
   assert.equal(engine.state.audit[0].requestedAction, ActionTypes.PUBLISH_LOAD);
 });
 
-test("roleConfig drives role menus and hides unrelated modules", () => {
+test("roleConfig drives one menu and hides unrelated modules", () => {
   const driverMenu = menuForRole(Roles.DRIVER).map((item) => item.id);
-  const adminMenu = menuForRole(Roles.ADMIN).map((item) => item.id);
   const ownerMenu = menuForRole(Roles.PLATFORM_OWNER).map((item) => item.id);
 
   assert.ok(driverMenu.includes("gps"));
@@ -99,68 +98,78 @@ test("roleConfig drives role menus and hides unrelated modules", () => {
   assert.equal(driverMenu.includes("billing"), false);
   assert.equal(driverMenu.includes("invoices"), false);
   assert.equal(driverMenu.includes("audit"), false);
-  assert.equal(adminMenu.includes("platform_wallet"), false);
-  assert.ok(adminMenu.includes("audit"));
   assert.ok(ownerMenu.includes("platform_wallet"));
   assert.equal(viewAllowedForRole(Roles.DRIVER, "platform_wallet", "/wallet"), false);
 });
 
-test("driver workspace renders as ERP panel without phone mockup", () => {
-  const engine = new GLCoreEngine({ store: memoryStore() });
-  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
-  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "driver_mobile" });
-
-  const html = renderApp(engine.state, engine);
-  assert.ok(html.includes("data-role-select"));
-  assert.ok(html.includes("driver-workspace"));
-  assert.equal(html.includes('class="phone"'), false);
-  assert.equal(html.includes('data-view="platform_wallet"'), false);
+test("every role lands on the same main Dashboard", () => {
+  [
+    Roles.DRIVER,
+    Roles.CLIENT_OWNER,
+    Roles.CARRIER_OWNER,
+    Roles.WAREHOUSE_WORKER,
+    Roles.INSURANCE_PARTNER,
+    Roles.WORKSHOP,
+    Roles.PLATFORM_OWNER
+  ].forEach((role) => {
+    const html = renderRoleView(role);
+    assert.ok(html.includes("Jedna aplikacja modulowa"), role);
+    assert.ok(html.includes("Menu modulow"), role);
+    assert.equal(html.includes("Panel kierowcy"), false, role);
+    assert.equal(html.includes("Panel przewoznika"), false, role);
+    assert.equal(html.includes("Panel ubezpieczen"), false, role);
+    assert.equal(html.includes("driver-workspace"), false, role);
+  });
 });
 
-test("wallet demo renders fintech shell only for platform finance roles", () => {
-  const financeEngine = new GLCoreEngine({ store: memoryStore() });
-  financeEngine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.GL_OPERATOR }, { demoOnly: true });
-  financeEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "platform_wallet", route: "/wallet" });
-  const financeHtml = renderApp(financeEngine.getSnapshot(), financeEngine);
-
-  assert.ok(financeHtml.includes("finance-shell"));
-  assert.ok(financeHtml.includes("DEMO MODE"));
-  assert.ok(financeHtml.includes("GLW-"));
-  assert.ok(financeHtml.includes("Saldo systemu"));
-
-  const carrierEngine = new GLCoreEngine({ store: memoryStore() });
-  carrierEngine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER }, { demoOnly: true });
-  carrierEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "billing", route: "/rozliczenia" });
-  const carrierHtml = renderApp(carrierEngine.getSnapshot(), carrierEngine);
-
-  assert.ok(carrierHtml.includes("own-finance-shell"));
-  assert.equal(carrierHtml.includes("GLW-"), false);
-  assert.equal(carrierHtml.includes("Saldo systemu"), false);
-});
-
-test("module navigation shows driver modules only", () => {
-  const modules = getVisibleModules({ role: Roles.DRIVER }, Roles.DRIVER).map((module) => module.id);
+test("driver sees only driver modules and no role panel", () => {
+  const modules = moduleIdsFor(Roles.DRIVER);
+  const html = renderRoleView(Roles.DRIVER);
 
   assert.ok(modules.includes("dashboard"));
-  assert.ok(modules.includes("gl-gps"));
-  assert.ok(modules.includes("gl-photos"));
+  assert.ok(modules.includes("gps"));
+  assert.ok(modules.includes("photos"));
   assert.ok(modules.includes("parking"));
+  assert.equal(modules.includes("driver-panel"), false);
   assert.equal(modules.includes("wallet"), false);
   assert.equal(modules.includes("billing"), false);
   assert.equal(modules.includes("invoices"), false);
-  assert.equal(modules.includes("payment-status"), false);
-  assert.equal(modules.includes("settings"), false);
   assert.equal(modules.includes("academy"), false);
+  assert.equal(html.includes("driver-workspace"), false);
 });
 
-test("platform owner sees every configured module", () => {
-  const modules = getVisibleModules({ role: Roles.PLATFORM_OWNER }, Roles.PLATFORM_OWNER).map((module) => module.id);
+test("insurer sees policy, claim, risk, document and policy billing modules", () => {
+  const modules = moduleIdsFor(Roles.INSURANCE_PARTNER);
+  const html = renderRoleView(Roles.INSURANCE_PARTNER);
 
-  assert.equal(modules.length, modulesConfig.length);
+  assert.ok(modules.includes("policies"));
+  assert.ok(modules.includes("claims"));
+  assert.ok(modules.includes("risk"));
+  assert.ok(modules.includes("documents"));
+  assert.ok(modules.includes("billing"));
+  assert.equal(modules.includes("wallet"), false);
+  assert.equal(html.includes("Panel ubezpieczen"), false);
+});
+
+test("workshop sees service orders, invoices and billing without a separate panel", () => {
+  const modules = moduleIdsFor(Roles.WORKSHOP);
+  const html = renderRoleView(Roles.WORKSHOP);
+
+  assert.ok(modules.includes("service-orders"));
+  assert.ok(modules.includes("invoices"));
+  assert.ok(modules.includes("billing"));
+  assert.equal(modules.includes("wallet"), false);
+  assert.equal(html.includes("Panel warsztatu"), false);
+  assert.equal(html.includes("Panel serwisu"), false);
+});
+
+test("admin and platform_owner see every configured module", () => {
+  assert.equal(moduleIdsFor(Roles.PLATFORM_OWNER).length, modulesConfig.length);
+  assert.equal(moduleIdsFor(Roles.ADMIN).length, modulesConfig.length);
 });
 
 test("academy student sees academy and profile only with dashboard", () => {
-  const modules = getVisibleModules({ role: Roles.ACADEMY_STUDENT }, Roles.ACADEMY_STUDENT).map((module) => module.id);
+  const modules = moduleIdsFor(Roles.ACADEMY_STUDENT);
 
   assert.deepEqual(modules, ["dashboard", "academy", "profile"]);
 });
@@ -177,16 +186,30 @@ test("permission guard blocks direct route access", () => {
   assert.ok(html.includes("Brak dostepu do modulu"));
 });
 
-test("changing active role changes visible modules", () => {
-  const driverModules = getVisibleModules({ role: Roles.DRIVER }, Roles.DRIVER).map((module) => module.id);
-  const ownerModules = getVisibleModules({ role: Roles.PLATFORM_OWNER }, Roles.PLATFORM_OWNER).map((module) => module.id);
+test("legacy role panel routes are blocked by PermissionGuard", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "driver_mobile", route: "/kierowca" });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, false);
+  assert.ok(html.includes("AccessDenied"));
+});
+
+test("changing active role changes visible modules without changing dashboard structure", () => {
+  const driverModules = moduleIdsFor(Roles.DRIVER);
+  const ownerModules = moduleIdsFor(Roles.PLATFORM_OWNER);
+  const driverDashboard = renderRoleView(Roles.DRIVER);
+  const ownerDashboard = renderRoleView(Roles.PLATFORM_OWNER);
 
   assert.equal(driverModules.includes("wallet"), false);
   assert.equal(ownerModules.includes("wallet"), true);
   assert.ok(ownerModules.length > driverModules.length);
+  assert.ok(driverDashboard.includes("Jedna aplikacja modulowa"));
+  assert.ok(ownerDashboard.includes("Jedna aplikacja modulowa"));
 });
 
-test("platform_owner sees full GL Wallet with platform permissions", () => {
+test("platform owner sees full GL Wallet with platform permissions", () => {
   const modules = moduleIdsFor(Roles.PLATFORM_OWNER);
   const permissions = permissionsForRole(Roles.PLATFORM_OWNER);
   const html = renderRoleView(Roles.PLATFORM_OWNER, "platform_wallet", "/wallet");
@@ -199,108 +222,31 @@ test("platform_owner sees full GL Wallet with platform permissions", () => {
   assert.ok(html.includes("GLW-SYSTEM"));
 });
 
-test("carrier sees own settlements but not GL Wallet", () => {
-  const modules = moduleIdsFor(Roles.CARRIER_OWNER);
-  const html = renderRoleView(Roles.CARRIER_OWNER, "billing", "/rozliczenia");
+test("carrier and client use billing modules instead of separate panels", () => {
+  const carrierModules = moduleIdsFor(Roles.CARRIER_OWNER);
+  const clientModules = moduleIdsFor(Roles.CLIENT_OWNER);
+  const carrierHtml = renderRoleView(Roles.CARRIER_OWNER, "billing", "/billing");
+  const clientHtml = renderRoleView(Roles.CLIENT_OWNER, "invoices", "/invoices");
 
-  assert.equal(modules.includes("wallet"), false);
-  assert.ok(modules.includes("billing"));
-  assert.ok(modules.includes("invoices"));
-  assert.ok(modules.includes("payout-status"));
-  assert.ok(html.includes("Naleznosci za transporty"));
-  assert.ok(html.includes("Potracone prowizje GL"));
-  assert.equal(html.includes("Saldo systemu"), false);
-  assert.equal(html.includes("GLW-"), false);
+  assert.ok(carrierModules.includes("billing"));
+  assert.ok(carrierModules.includes("invoices"));
+  assert.ok(clientModules.includes("billing"));
+  assert.ok(clientModules.includes("invoices"));
+  assert.equal(carrierHtml.includes("Panel przewoznika"), false);
+  assert.equal(clientHtml.includes("Panel klienta"), false);
+  assert.equal(carrierHtml.includes("Saldo systemu"), false);
+  assert.equal(clientHtml.includes("Saldo systemu"), false);
 });
 
-test("client sees invoices, payments and transport escrow but not GL Wallet", () => {
-  const modules = moduleIdsFor(Roles.CLIENT_OWNER);
-  const html = renderRoleView(Roles.CLIENT_OWNER, "invoices", "/faktury");
+test("main menu is the single entry point for visible functions", () => {
+  const html = renderRoleView(Roles.INSURANCE_PARTNER);
 
-  assert.equal(modules.includes("wallet"), false);
-  assert.ok(modules.includes("invoices"));
-  assert.ok(modules.includes("payment-status"));
-  assert.ok(modules.includes("transport-escrow"));
-  assert.ok(html.includes("Faktury klienta"));
-  assert.ok(html.includes("Platnosci za transporty"));
-  assert.equal(html.includes("Saldo systemu"), false);
-  assert.equal(html.includes("GLW-"), false);
-});
-
-test("insurer sees policy settlements without platform balance", () => {
-  const modules = moduleIdsFor(Roles.INSURANCE_PARTNER);
-  const html = renderRoleView(Roles.INSURANCE_PARTNER, "billing", "/rozliczenia");
-
-  assert.equal(modules.includes("wallet"), false);
-  assert.ok(modules.includes("billing"));
-  assert.ok(modules.includes("payment-status"));
-  assert.ok(html.includes("Rozliczenia polis"));
-  assert.ok(html.includes("Skladki przypisane do polis") || html.includes("Skladki polis"));
-  assert.equal(html.includes("Saldo systemu"), false);
-  assert.equal(html.includes("GLW-"), false);
-});
-
-test("workshop sees service invoices and payments without platform balance", () => {
-  const modules = moduleIdsFor(Roles.WORKSHOP);
-  const html = renderRoleView(Roles.WORKSHOP, "billing", "/rozliczenia");
-
-  assert.equal(modules.includes("wallet"), false);
-  assert.ok(modules.includes("billing"));
-  assert.ok(modules.includes("invoices"));
-  assert.ok(modules.includes("payment-status"));
-  assert.ok(html.includes("Rozliczenia serwisu"));
-  assert.ok(html.includes("Zlecenia serwisowe"));
-  assert.ok(html.includes("spay-2"));
-  assert.equal(html.includes("Saldo systemu"), false);
-  assert.equal(html.includes("GLW-"), false);
-});
-
-test("driver sees no wallet or finance modules", () => {
-  const modules = moduleIdsFor(Roles.DRIVER);
-
-  assert.equal(modules.includes("wallet"), false);
-  assert.equal(modules.includes("billing"), false);
-  assert.equal(modules.includes("invoices"), false);
-  assert.equal(modules.includes("payment-status"), false);
-  assert.equal(modules.includes("payout-status"), false);
-  assert.equal(modules.includes("transport-escrow"), false);
-});
-
-test("non platform finance role cannot enter /wallet by URL", () => {
-  const engine = new GLCoreEngine({ store: memoryStore() });
-  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER }, { demoOnly: true });
-  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "platform_wallet", route: "/wallet" });
-  const html = renderApp(engine.getSnapshot(), engine);
-
-  assert.equal(result.ok, false);
-  assert.ok(html.includes("AccessDenied"));
-  assert.equal(html.includes("Dashboard Wallet"), false);
-});
-
-test("only platform finance roles can see platform balance", () => {
-  const platformRoles = [Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.ADMIN_FINANCE];
-  const nonPlatformRoles = [
-    Roles.CARRIER_OWNER,
-    Roles.CLIENT_OWNER,
-    Roles.INSURANCE_PARTNER,
-    Roles.WORKSHOP,
-    Roles.DRIVER,
-    Roles.WAREHOUSE_WORKER,
-    Roles.ACADEMY_STUDENT,
-    Roles.ACADEMY_TEACHER
-  ];
-
-  platformRoles.forEach((role) => {
-    const html = renderRoleView(role, "platform_wallet", "/wallet");
-    assert.ok(html.includes("Saldo systemu"), role);
-  });
-  nonPlatformRoles.forEach((role) => {
-    const modules = moduleIdsFor(role);
-    const firstFinanceModule = modules.includes("billing") ? ["billing", "/rozliczenia"]
-      : modules.includes("invoices") ? ["invoices", "/faktury"]
-      : ["dashboard", "/dashboard"];
-    const html = renderRoleView(role, firstFinanceModule[0], firstFinanceModule[1]);
-    assert.equal(html.includes("Saldo systemu"), false, role);
-    assert.equal(html.includes("GLW-SYSTEM"), false, role);
-  });
+  assert.ok(html.includes('data-module-route="/policies"'));
+  assert.ok(html.includes('data-module-route="/claims"'));
+  assert.ok(html.includes('data-module-route="/risk"'));
+  assert.ok(html.includes('data-module-route="/billing"'));
+  assert.equal(html.includes("/insurance/dashboard"), false);
+  assert.equal(html.includes("/workshop/dashboard"), false);
+  assert.equal(html.includes("/carrier/dashboard"), false);
+  assert.equal(html.includes("/client/dashboard"), false);
 });

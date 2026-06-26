@@ -17,7 +17,6 @@ export const ModulePermissions = Object.freeze({
   LOADS: "module.loads",
   LIVE_MAP: "module.live_map",
   GPS: "module.gps",
-  DRIVER_PANEL: "module.driver_panel",
   PHOTOS: "module.photos",
   DOCUMENTS: "module.documents",
   PARKING: "module.parking",
@@ -28,10 +27,10 @@ export const ModulePermissions = Object.freeze({
   WALLET: FinancePermissions.WALLET_PLATFORM_READ,
   BILLING: FinancePermissions.BILLING_OWN_READ,
   INVOICES: FinancePermissions.INVOICES_OWN_READ,
-  PAYMENT_STATUS: FinancePermissions.SETTLEMENTS_OWN_READ,
-  TRANSPORT_ESCROW: FinancePermissions.ESCROW_OWN_READ,
-  PAYOUTS: FinancePermissions.PAYOUTS_OWN_READ,
-  INSURANCE: "module.insurance",
+  POLICIES: "module.policies",
+  CLAIMS: "module.claims",
+  RISK: "module.risk",
+  SERVICE_ORDERS: "module.service_orders",
   REPORTS: "module.reports",
   COMPANY: "module.company",
   PROFILE: "module.profile",
@@ -40,7 +39,6 @@ export const ModulePermissions = Object.freeze({
   CUSTOMS: "module.customs",
   AUTHORITY: "module.authority",
   INTERMODAL: "module.intermodal",
-  SERVICE: "module.service",
   AI: "module.ai",
   AUDIT: "module.audit",
   SYSTEM: "module.system"
@@ -49,7 +47,9 @@ export const ModulePermissions = Object.freeze({
 export const platformWalletRoles = Object.freeze([
   Roles.PLATFORM_OWNER,
   Roles.GL_OPERATOR,
-  Roles.ADMIN_FINANCE
+  Roles.ADMIN_FINANCE,
+  Roles.SUPER_ADMIN,
+  Roles.ADMIN
 ]);
 
 const platformControlRoles = [Roles.PLATFORM_OWNER, Roles.SUPER_ADMIN, Roles.ADMIN];
@@ -59,11 +59,9 @@ const dispatcherRoles = [Roles.CLIENT_DISPATCHER, Roles.CARRIER_DISPATCHER];
 const serviceRoles = [Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE];
 const academyRoles = [Roles.ACADEMY_TEACHER, Roles.ACADEMY_STUDENT];
 const complianceRoles = [Roles.COMPLIANCE, Roles.READONLY_AUDITOR];
-const billingRoles = [Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles];
-const invoiceRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles];
-const paymentStatusRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles, Roles.PAYMENT_OPERATOR];
-const payoutRoles = [Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, ...serviceRoles, Roles.PAYMENT_OPERATOR];
-const escrowOwnRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER];
+const insurerRoles = [Roles.INSURANCE_PARTNER];
+const billingRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...insurerRoles, ...serviceRoles, Roles.PAYMENT_OPERATOR];
+const invoiceRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...insurerRoles, ...serviceRoles];
 const allRoles = [...new Set(Object.values(Roles))];
 
 function withPlatformControl(roles = []) {
@@ -93,38 +91,35 @@ function moduleItem(id, label, icon, route, view, permission, roles, description
 }
 
 export const modulesConfig = Object.freeze([
-  moduleItem("dashboard", "Dashboard", "DB", "/dashboard", "dashboard", ModulePermissions.DASHBOARD, allRoles, "Glowny panel pracy dla aktywnej roli."),
-  moduleItem("transports", "Transporty", "TR", "/transporty", "transports", ModulePermissions.TRANSPORTS, [
-    ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER,
+  moduleItem("dashboard", "Dashboard", "DB", "/dashboard", "dashboard", ModulePermissions.DASHBOARD, allRoles, "Jedno glowne wejscie do aplikacji modulowej."),
+  moduleItem("transports", "Transporty", "TR", "/transports", "transports", ModulePermissions.TRANSPORTS, [
+    ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, ...insurerRoles,
     Roles.PAYMENT_OPERATOR, Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR,
     Roles.RAIL_OPERATOR, ...serviceRoles, Roles.SUPPORT_AGENT, ...complianceRoles, ...platformWalletRoles
-  ], "Lista transportow dostepnych dla roli."),
-  moduleItem("loads", "Ladunki", "LD", "/ladunki", "create", ModulePermissions.LOADS, [
+  ], "Transporty dostepne dla aktywnej roli."),
+  moduleItem("loads", "Ladunki", "LD", "/loads", "create", ModulePermissions.LOADS, [
     ...clientRoles, ...dispatcherRoles
   ], "Tworzenie i publikacja ladunkow."),
-  moduleItem("live-map", "Live Map", "LM", "/live-map", "live_map", ModulePermissions.LIVE_MAP, [
+  moduleItem("map", "Mapa", "MP", "/map", "live_map", ModulePermissions.LIVE_MAP, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.PAYMENT_OPERATOR,
     Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...serviceRoles
   ], "Mapa operacyjna transportow."),
-  moduleItem("gl-gps", "GL GPS", "GP", "/gl-gps", "gps", ModulePermissions.GPS, [
+  moduleItem("gps", "GL GPS", "GP", "/gps", "gps", ModulePermissions.GPS, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.SECURITY,
     Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...serviceRoles
   ], "Punkty GPS i ETA transportu."),
-  moduleItem("driver-panel", "Panel kierowcy", "DR", "/kierowca", "driver_mobile", ModulePermissions.DRIVER_PANEL, [
-    Roles.DRIVER
-  ], "Profesjonalny panel pracy kierowcy bez makiety telefonu."),
-  moduleItem("gl-photos", "GL Photos", "PH", "/gl-photos", "photos", ModulePermissions.PHOTOS, [
-    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER
+  moduleItem("photos", "GL Photos", "PH", "/photos", "photos", ModulePermissions.PHOTOS, [
+    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, ...insurerRoles
   ], "Dowody zdjeciowe przypisane do transportu."),
-  moduleItem("documents", "Dokumenty / CMR", "CM", "/dokumenty-cmr", "documents", ModulePermissions.DOCUMENTS, [
-    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER, Roles.CUSTOMS_AGENT,
+  moduleItem("documents", "Dokumenty", "DC", "/documents", "documents", ModulePermissions.DOCUMENTS, [
+    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, ...insurerRoles, Roles.CUSTOMS_AGENT,
     Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR, ...complianceRoles
-  ], "CMR, dokumenty transportowe i integralnosc plikow."),
+  ], "CMR, dokumenty transportowe i dokumenty spraw."),
   moduleItem("parking", "GL Live Parking", "PK", "/parking", "parking", ModulePermissions.PARKING, [
     ...carrierRoles, ...dispatcherRoles, Roles.DRIVER
   ], "Parkingi, wolne miejsca i raporty kierowcow."),
   moduleItem("chat", "GL Chat", "CH", "/chat", "communication", ModulePermissions.CHAT, [
-    ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER,
+    ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, ...insurerRoles,
     Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...serviceRoles, Roles.SUPPORT_AGENT
   ], "Komunikacja operacyjna i tlumaczenia."),
   moduleItem("jobs", "GL Jobs", "JB", "/jobs", "jobs", ModulePermissions.JOBS, [
@@ -134,44 +129,43 @@ export const modulesConfig = Object.freeze([
     ...academyRoles
   ], "Szkolenia, materialy i role akademii."),
   moduleItem("trust", "GL Trust", "TS", "/trust", "trust", ModulePermissions.TRUST, [
-    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER, Roles.SECURITY,
+    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, ...insurerRoles, Roles.SECURITY,
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, ...serviceRoles, ...complianceRoles
   ], "Reputacja firm, kierowcow i partnerow."),
-  moduleItem("wallet", "GL Wallet", "WL", "/wallet", "platform_wallet", ModulePermissions.WALLET, platformWalletRoles, "Pelny PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.", {
+  moduleItem("wallet", "GL Wallet", "WL", "/wallet", "platform_wallet", ModulePermissions.WALLET, platformWalletRoles, "PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.", {
     includePlatformControl: false
   }),
-  moduleItem("billing", "Moje rozliczenia", "BR", "/rozliczenia", "billing", ModulePermissions.BILLING, billingRoles, "Rozliczenia wlasne bez dostepu do salda platformy.", {
+  moduleItem("billing", "Rozliczenia", "BR", "/billing", "billing", ModulePermissions.BILLING, billingRoles, "Rozliczenia wlasne bez osobnego panelu roli.", {
     allowPermissionOverride: true
   }),
-  moduleItem("invoices", "Faktury", "FV", "/faktury", "invoices", ModulePermissions.INVOICES, invoiceRoles, "Faktury przypisane do wlasnych transportow, polis lub uslug.", {
+  moduleItem("invoices", "Faktury", "FV", "/invoices", "invoices", ModulePermissions.INVOICES, invoiceRoles, "Faktury przypisane do wlasnych transportow, polis lub uslug.", {
     allowPermissionOverride: true
   }),
-  moduleItem("payment-status", "Platnosci", "PY", "/platnosci", "payment_status", ModulePermissions.PAYMENT_STATUS, paymentStatusRoles, "Statusy platnosci i historia wlasnych operacji.", {
-    allowPermissionOverride: true
-  }),
-  moduleItem("payout-status", "Status wyplaty", "PO", "/wyplaty", "payouts", ModulePermissions.PAYOUTS, payoutRoles, "Wlasne wyplaty, naleznosci i potracone prowizje GL.", {
-    allowPermissionOverride: true
-  }),
-  moduleItem("transport-escrow", "Escrow transportu", "ES", "/escrow-transportu", "transport_escrow", ModulePermissions.TRANSPORT_ESCROW, escrowOwnRoles, "Depozyty escrow przypisane do wlasnych transportow.", {
-    allowPermissionOverride: true
-  }),
-  moduleItem("insurance", "Ubezpieczenia", "IN", "/ubezpieczenia", "insurance", ModulePermissions.INSURANCE, [
-    Roles.INSURANCE_PARTNER, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER
-  ], "Polisy, roszczenia i ryzyko."),
-  moduleItem("reports", "Raporty i analizy", "RP", "/raporty", "statistics", ModulePermissions.REPORTS, [
+  moduleItem("policies", "Polisy", "PL", "/policies", "policies", ModulePermissions.POLICIES, [
+    ...insurerRoles, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER
+  ], "Polisy transportowe i status ochrony."),
+  moduleItem("claims", "Zgloszenia szkod", "CL", "/claims", "claims", ModulePermissions.CLAIMS, [
+    ...insurerRoles, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.SUPPORT_AGENT
+  ], "Roszczenia, szkody i paczki dowodowe."),
+  moduleItem("risk", "Ocena ryzyka", "RK", "/risk", "risk", ModulePermissions.RISK, [
+    ...insurerRoles, Roles.CARRIER_OWNER, Roles.CLIENT_OWNER, ...complianceRoles, Roles.SUPPORT_AGENT
+  ], "Ryzyko transportu, AI i dokumenty spraw."),
+  moduleItem("service-orders", "Zlecenia serwisowe", "SV", "/service-orders", "service_orders", ModulePermissions.SERVICE_ORDERS, [
+    ...serviceRoles, ...carrierRoles, Roles.DRIVER
+  ], "Warsztat, serwis mobilny i pomoc drogowa."),
+  moduleItem("reports", "Raporty i analizy", "RP", "/reports", "statistics", ModulePermissions.REPORTS, [
     Roles.PAYMENT_OPERATOR, Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...platformWalletRoles, ...complianceRoles
   ], "Statystyki, raporty i eksport demo."),
-  moduleItem("company", "Moja firma", "CO", "/moja-firma", "companies", ModulePermissions.COMPANY, [
-    ...clientRoles, ...carrierRoles, Roles.WAREHOUSE_WORKER, Roles.INSURANCE_PARTNER, Roles.PAYMENT_OPERATOR,
+  moduleItem("company", "Moja firma", "CO", "/company", "companies", ModulePermissions.COMPANY, [
+    ...clientRoles, ...carrierRoles, Roles.WAREHOUSE_WORKER, ...insurerRoles, Roles.PAYMENT_OPERATOR,
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...serviceRoles, ...complianceRoles
   ], "Profil firmy i uczestnicy ekosystemu."),
-  moduleItem("profile", "Profil", "PR", "/profil", "profile", ModulePermissions.PROFILE, allRoles, "Profil aktywnego uzytkownika."),
-  moduleItem("settings", "Ustawienia", "ST", "/ustawienia", "admin", ModulePermissions.SETTINGS, [], "Ustawienia systemowe dla administracji."),
+  moduleItem("profile", "Profil", "PR", "/profile", "profile", ModulePermissions.PROFILE, allRoles, "Profil aktywnego uzytkownika."),
+  moduleItem("settings", "Ustawienia", "ST", "/settings", "admin", ModulePermissions.SETTINGS, [], "Ustawienia systemowe dla administracji."),
   moduleItem("security", "Security / brama", "SE", "/security", "security", ModulePermissions.SECURITY, [Roles.SECURITY], "Kontrola bramy i skan tablic."),
-  moduleItem("customs", "Odprawy celne", "CU", "/clo", "customs", ModulePermissions.CUSTOMS, [Roles.CUSTOMS_AGENT], "Odprawa, MRN i komunikacja celna."),
-  moduleItem("authority", "Kontrole drogowe", "AU", "/kontrole", "authority", ModulePermissions.AUTHORITY, [Roles.AUTHORITY_USER, ...complianceRoles], "Dostep organow kontrolnych."),
+  moduleItem("customs", "Odprawy celne", "CU", "/customs", "customs", ModulePermissions.CUSTOMS, [Roles.CUSTOMS_AGENT], "Odprawa, MRN i komunikacja celna."),
+  moduleItem("authority", "Kontrole drogowe", "AU", "/authority", "authority", ModulePermissions.AUTHORITY, [Roles.AUTHORITY_USER, ...complianceRoles], "Dostep organow kontrolnych."),
   moduleItem("intermodal", "Prom / kolej", "IM", "/intermodal", "ferry", ModulePermissions.INTERMODAL, [Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...carrierRoles, Roles.DRIVER], "Prom, kolej i terminal."),
-  moduleItem("service", "Serwis techniczny", "SV", "/serwis", "service", ModulePermissions.SERVICE, [...serviceRoles, ...carrierRoles, Roles.DRIVER], "Warsztat, serwis mobilny i pomoc drogowa."),
   moduleItem("ai", "AI Control", "AI", "/ai", "ai", ModulePermissions.AI, [Roles.SUPPORT_AGENT, ...complianceRoles], "Alerty AI i kontrola ryzyka."),
   moduleItem("audit", "Audit Log", "AL", "/audit", "audit", ModulePermissions.AUDIT, [Roles.PAYMENT_OPERATOR, ...platformWalletRoles, ...complianceRoles], "Historia zdarzen i decyzji."),
   moduleItem("system", "System", "SY", "/system", "system", ModulePermissions.SYSTEM, [], "Stan systemu i konfiguracja platformy."),
@@ -182,6 +176,8 @@ const explicitPermissionsByRole = {
   [Roles.PLATFORM_OWNER]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
   [Roles.GL_OPERATOR]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
   [Roles.ADMIN_FINANCE]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
+  [Roles.ADMIN]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
+  [Roles.SUPER_ADMIN]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
   [Roles.PAYMENT_OPERATOR]: [FinancePermissions.PAYOUTS_MANAGE],
   [Roles.ACADEMY_STUDENT]: [ModulePermissions.DASHBOARD, ModulePermissions.ACADEMY, ModulePermissions.PROFILE],
   [Roles.ACADEMY_TEACHER]: [ModulePermissions.DASHBOARD, ModulePermissions.ACADEMY, ModulePermissions.PROFILE, ModulePermissions.REPORTS],
@@ -194,7 +190,8 @@ const explicitPermissionsByRole = {
     ModulePermissions.PROFILE,
     ModulePermissions.AUTHORITY,
     ModulePermissions.AI,
-    ModulePermissions.AUDIT
+    ModulePermissions.AUDIT,
+    ModulePermissions.RISK
   ]
 };
 

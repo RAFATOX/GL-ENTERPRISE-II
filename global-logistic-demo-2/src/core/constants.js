@@ -1,6 +1,6 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 8;
-export const STORAGE_KEY = "global-logistic-gl2-core-engine-v6";
+export const DEMO_DATA_VERSION = 9;
+export const STORAGE_KEY = "global-logistic-gl2-core-engine-v7";
 
 export const Roles = Object.freeze({
   PLATFORM_OWNER: "platform_owner",
@@ -423,7 +423,7 @@ export const NavItems = Object.freeze([
   { id: "warehouse", label: "Zdjęcie magazynu" },
   { id: "carrier", label: "Akceptacja przewoźnika" },
   { id: "driver_assignment", label: "Przypisanie kierowcy" },
-  { id: "driver_mobile", label: "Telefon kierowcy" },
+  { id: "driver_mobile", label: "ModuĹ‚ kierowcy" },
   { id: "gps", label: "Mapa GPS" },
   { id: "parking", label: "Parkingi na żywo" },
   { id: "documents", label: "Dokumenty" },
