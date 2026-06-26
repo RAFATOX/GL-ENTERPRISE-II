@@ -5,7 +5,8 @@ import { ActionTypes, DEMO_DATA_VERSION, Roles } from "../src/core/constants.js"
 import { GLCoreEngine } from "../src/core/gl-core-engine.js";
 import { StateStore } from "../src/core/state-store.js";
 import { parsePayload } from "../src/ui/action-handler.js";
-import { selectedTransport } from "../src/ui/renderers.js";
+import { menuForRole, viewAllowedForRole } from "../src/ui/role-config.js";
+import { renderApp, selectedTransport } from "../src/ui/renderers.js";
 
 function memoryStore() {
   let state = null;
@@ -73,4 +74,47 @@ test("payload errors are audited as errors", () => {
   assert.equal(result.ok, false);
   assert.equal(engine.state.audit[0].result, "error");
   assert.equal(engine.state.audit[0].requestedAction, ActionTypes.PUBLISH_LOAD);
+});
+
+test("roleConfig drives role menus and hides unrelated modules", () => {
+  const driverMenu = menuForRole(Roles.DRIVER).map((item) => item.id);
+  const adminMenu = menuForRole(Roles.ADMIN).map((item) => item.id);
+
+  assert.ok(driverMenu.includes("gps"));
+  assert.ok(driverMenu.includes("documents"));
+  assert.equal(driverMenu.includes("payments"), false);
+  assert.equal(driverMenu.includes("audit"), false);
+  assert.ok(adminMenu.includes("payments"));
+  assert.ok(adminMenu.includes("audit"));
+  assert.equal(viewAllowedForRole(Roles.DRIVER, "payments"), false);
+});
+
+test("driver workspace renders as ERP panel without phone mockup", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "driver_mobile" });
+
+  const html = renderApp(engine.state, engine);
+  assert.ok(html.includes("data-role-select"));
+  assert.ok(html.includes("driver-workspace"));
+  assert.equal(html.includes('class="phone"'), false);
+  assert.equal(html.includes('data-view="payments"'), false);
+});
+
+test("wallet demo renders fintech shell only for finance roles", () => {
+  const financeEngine = new GLCoreEngine({ store: memoryStore() });
+  financeEngine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.PAYMENT_OPERATOR }, { demoOnly: true });
+  financeEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "payments" });
+  const financeHtml = renderApp(financeEngine.getSnapshot(), financeEngine);
+
+  assert.ok(financeHtml.includes("finance-shell"));
+  assert.ok(financeHtml.includes("DEMO MODE"));
+  assert.ok(financeHtml.includes("GLW-"));
+
+  const authorityEngine = new GLCoreEngine({ store: memoryStore() });
+  authorityEngine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.AUTHORITY_USER }, { demoOnly: true });
+  authorityEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "payments" });
+  const authorityHtml = renderApp(authorityEngine.getSnapshot(), authorityEngine);
+
+  assert.equal(authorityHtml.includes("finance-shell"), false);
 });

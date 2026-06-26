@@ -2,62 +2,86 @@ import {
   ActionTypes,
   AllRoles,
   DEMO_MODE,
-  NavItems,
   PaymentStatuses,
   RoleLabels,
   Roles,
   StatusProgress,
   TransportStatuses
 } from "../core/constants.js";
+import {
+  getRoleConfig,
+  menuForRole,
+  viewAllowedForRole
+} from "./role-config.js";
 
 export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
   const selected = selectedTransport(state);
+  const roleConfig = getRoleConfig(state.session.role);
+  const activeView = viewAllowedForRole(state.session.role, state.session.view)
+    ? state.session.view
+    : "dashboard";
   return localizeHtml(`
-    <div class="app-shell">
+    <div class="app-shell role-${state.session.role}">
       <aside class="side">
         <div class="brand">
           <div class="brand-mark">GL</div>
           <div>
             <strong>GL Enterprise II</strong>
-            <span>GL Core Engine</span>
+            <span>${roleConfig.workspace}</span>
           </div>
         </div>
-        <nav class="nav">
-          ${NavItems.map((item) => `
-            <button class="${state.session.view === item.id ? "active" : ""}" data-view="${item.id}">
-              ${item.label}
-            </button>
-          `).join("")}
-        </nav>
+        ${renderRoleMenu(state, activeView)}
         <div class="core-seal">
-          <span>Core rule</span>
-          <strong>User action -> permission -> validation -> workflow -> event -> audit -> UI</strong>
+          <span>Aktywna przestrzen</span>
+          <strong>${roleConfig.workspace}: menu, dashboard i akcje wynikaja z roleConfig.</strong>
         </div>
       </aside>
       <main class="main">
-        ${renderTopbar(state)}
+        ${renderTopbar(state, activeView, roleConfig)}
         ${renderLastResult(state)}
-        ${renderView(state, engine, selected)}
+        ${renderView(state, engine, selected, activeView)}
       </main>
+      ${renderContextRail(state, engine, selected, roleConfig)}
     </div>
   `);
 }
 
-function renderTopbar(state) {
+function renderRoleMenu(state, activeView) {
+  const items = menuForRole(state.session.role);
+  const buttons = items.map((item) => `
+    <button class="${activeView === item.id ? "active" : ""}" data-view="${item.id}">
+      ${item.label}
+    </button>
+  `).join("");
+  return `
+    <nav class="nav nav-desktop">
+      ${buttons}
+    </nav>
+    <details class="mobile-menu">
+      <summary>Menu</summary>
+      <nav class="nav">${buttons}</nav>
+    </details>
+  `;
+}
+
+function renderTopbar(state, activeView, roleConfig) {
   return `
     <header class="topbar">
       <div>
-        <span class="eyebrow">DEMO 2 / stable core</span>
-        <h1>${viewTitle(state.session.view)}</h1>
+        <span class="eyebrow">${roleConfig.workspace} / GL Enterprise II</span>
+        <h1>${viewTitle(state.session.role, activeView)}</h1>
       </div>
-      <div class="role-strip">
+      <div class="role-login">
+        <label>
+          <span>Aktywna rola</span>
+          <select data-role-select aria-label="Aktywna rola">
+            ${AllRoles.map((role) => `
+              <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role]}</option>
+            `).join("")}
+          </select>
+        </label>
         <button class="reset-demo" data-reset-demo="true">Reset demo data</button>
-        ${AllRoles.map((role) => `
-          <button class="${state.session.role === role ? "active" : ""}" data-role="${role}">
-            ${RoleLabels[role]}
-          </button>
-        `).join("")}
       </div>
     </header>
   `;
@@ -84,9 +108,14 @@ function renderLastResult(state) {
   `;
 }
 
-function renderView(state, engine, selected) {
-  const view = state.session.view;
+function renderView(state, engine, selected, activeView = state.session.view) {
+  const view = activeView;
   if (view === "system_tests") return renderSystemTests(state, engine, selected);
+  if (view === "profile") return renderProfile(state);
+  if (view === "companies") return renderCompanies(state);
+  if (view === "users") return renderUsers(state);
+  if (view === "statistics") return renderStatistics(state);
+  if (view === "system") return renderSystem(state, engine);
   if (view === "auth") return renderAuth(state, engine);
   if (view === "roles") return renderRoles(state, engine);
   if (view === "transports") return renderTransportList(state);
@@ -126,6 +155,10 @@ function renderView(state, engine, selected) {
 }
 
 function renderDashboard(state, engine, selected) {
+  const roleConfig = getRoleConfig(state.session.role);
+  const roleDashboard = DashboardRenderers[roleConfig.dashboard] || DashboardRenderers.platform;
+  return roleDashboard(state, engine, selected);
+
   const blocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
   const paymentBlocked = state.payments.filter((payment) => payment.status === PaymentStatuses.BLOCKED).length;
   const escrowBlocked = state.escrows.filter((escrow) => escrow.status === "blocked").length;
@@ -177,6 +210,214 @@ function renderDashboard(state, engine, selected) {
       </div>
     </section>
   `;
+}
+
+const DashboardRenderers = {
+  driver: renderDriverDashboard,
+  client: renderClientDashboard,
+  warehouse: renderWarehouseDashboard,
+  payments: renderPaymentsDashboard,
+  admin: renderPlatformDashboard,
+  platform: renderPlatformDashboard,
+  carrier: renderCarrierDashboard,
+  security: renderSecurityDashboard,
+  customs: renderCustomsDashboard,
+  authority: renderAuthorityDashboard,
+  ferry: renderFerryDashboard,
+  rail: renderCarrierDashboard,
+  service: renderServiceDashboard,
+  insurance: renderInsuranceDashboard,
+  support: renderSupportDashboard,
+  audit: renderAuditDashboard
+};
+
+function dashboardShell(title, metrics, left, right) {
+  return `
+    <section class="metrics">
+      ${metrics.map(([label, value, sub]) => metric(label, value, sub)).join("")}
+    </section>
+    <section class="grid two">
+      ${left}
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Dashboard</span>
+            <h2>${title}</h2>
+          </div>
+        </div>
+        ${right}
+      </article>
+    </section>
+  `;
+}
+
+function renderDriverDashboard(state, engine, selected) {
+  const driverTime = state.driverTime.find((item) => item.driverId === state.session.userId);
+  return dashboardShell("Panel kierowcy", [
+    ["Dzisiejsze transporty", state.transports.length, selected?.status || "brak aktywnego"],
+    ["Punkty aktywnosci", state.events.filter((event) => event.actorId === state.session.userId).length, "dzisiaj"],
+    ["Status", selected?.status || "brak", selected?.number || "bez transportu"],
+    ["Czas pracy", driverTime ? `${driverTime.remainingLegalHours}h` : "brak", driverTime?.legalToComplete ? "legalny" : "sprawdz"],
+    ["Powiadomienia", state.notifications?.length || 0, "operacyjne"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), `
+    <div class="actions">
+      ${selected ? actionButton(engine, ActionTypes.START_PICKUP_NAVIGATION, "Start GPS", { transportId: selected.id }) : disabledAction("Start GPS", "Brak transportow")}
+      ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Dodaj zdjecie", { transportId: selected.id, type: "loading", label: "Zdjecie kierowcy" }) : disabledAction("Dodaj zdjecie", "Brak transportow")}
+      ${selected ? actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj dokument", { transportId: selected.id, type: "pickup_confirmation", label: "Dokument zaladunku" }) : disabledAction("Dodaj dokument", "Brak transportow")}
+      ${actionButton(engine, ActionTypes.PARKING_REPORT, "Zglos parking", { parkingId: "pk-1", freePlaces: 4 })}
+    </div>
+  `);
+}
+
+function renderClientDashboard(state, engine, selected) {
+  return dashboardShell("Panel klienta", [
+    ["Ladunki", state.transports.length, "aktywne"],
+    ["Faktury", state.payments.length, "demo"],
+    ["Platnosci", state.payments.filter((payment) => payment.status !== PaymentStatuses.RELEASED).length, "w toku"],
+    ["Przewoznicy", new Set(state.transports.map((transport) => transport.carrierCompanyId).filter(Boolean)).size, "przypisani"],
+    ["Dokumenty", state.documents.length, "transportowe"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), `
+    <div class="actions">
+      ${actionButton(engine, ActionTypes.CREATE_LOAD, "Utworz ladunek", { clientCompanyId: "co-client-a", pickupAddress: "Gdansk", deliveryAddress: "Berlin", description: "Ladunek klienta", pickupGps: { lat: 54.352, lng: 18.6466 }, deliveryGps: { lat: 52.52, lng: 13.405 }, price: 1500 })}
+      ${selected ? actionButton(engine, ActionTypes.PUBLISH_LOAD, "Opublikuj", { transportId: selected.id }) : disabledAction("Opublikuj", "Brak transportow")}
+    </div>
+  `);
+}
+
+function renderWarehouseDashboard(state, engine, selected) {
+  return dashboardShell("Panel magazynu", [
+    ["Rampy", 4, "demo"],
+    ["Kolejka", state.transports.filter((transport) => [TransportStatuses.ARRIVED_AT_PICKUP, TransportStatuses.LOADING_STARTED].includes(transport.status)).length, "transporty"],
+    ["Zdjecia", state.photos.length, "dowody"],
+    ["Bramy", state.securityChecks.length, "kontrole"],
+    ["Dokumenty", state.documents.length, "transportowe"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), `
+    <div class="actions">
+      ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Zdjecie ladunku", { transportId: selected.id, type: "loading", label: "Zdjecie magazynu" }) : disabledAction("Zdjecie ladunku", "Brak transportow")}
+      ${selected ? actionButton(engine, ActionTypes.CONFIRM_LOADING, "Potwierdz zaladunek", { transportId: selected.id }) : disabledAction("Potwierdz zaladunek", "Brak transportow")}
+    </div>
+  `);
+}
+
+function renderPaymentsDashboard(state, engine, selected) {
+  return dashboardShell("Panel platnosci", [
+    ["Escrow", state.escrows.length, "sprawy"],
+    ["Platnosci", state.payments.length, "transakcje"],
+    ["Blokady", state.payments.filter((payment) => payment.status === PaymentStatuses.BLOCKED).length, "ryzyko"],
+    ["Portfele", state.wallets.length, "widoczne"],
+    ["Audit", state.audit.length, "wpisy"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Release payment", { transportId: selected.id }) : disabledAction("Release payment", "Brak transportow"));
+}
+
+function renderPlatformDashboard(state, engine, selected) {
+  const blocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
+  return dashboardShell("Dashboard platformy", [
+    ["Transporty", state.transports.length, `${blocked} blokad/ryzyk`],
+    ["Firmy", state.companies.length, "ekosystem"],
+    ["Uzytkownicy", state.users.length, "role"],
+    ["Audit", state.audit.length, "read only"],
+    ["AI alerty", state.aiAlerts.filter((alert) => alert.status === "open").length, "aktywne"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), `
+    <div class="actions">
+      ${selected ? actionButton(engine, ActionTypes.AI_RUN_CHECK, "Run AI check", { transportId: selected.id }) : disabledAction("Run AI check", "Brak transportow")}
+      ${actionButton(engine, ActionTypes.RUN_RESILIENCE_CHECK, "Run resilience check", {})}
+    </div>
+  `);
+}
+
+function renderCarrierDashboard(state, engine, selected) {
+  return dashboardShell("Panel przewoznika", [
+    ["Transporty", state.transports.length, "widoczne"],
+    ["Kierowcy", state.users.filter((user) => user.roles.includes(Roles.DRIVER)).length, "flota"],
+    ["Pojazdy", state.vehicles.length, "dostepne"],
+    ["Parkingi", state.parking.length, "sieci"],
+    ["Dokumenty", state.documents.length, "transportowe"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), `
+    <div class="actions">
+      ${selected ? actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Accept carrier", { transportId: selected.id, carrierCompanyId: "co-carrier-a" }) : disabledAction("Accept carrier", "Brak transportow")}
+      ${selected ? actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Assign driver", { transportId: selected.id, driverId: "u-driver-1", vehicleId: "vh-1" }) : disabledAction("Assign driver", "Brak transportow")}
+    </div>
+  `);
+}
+
+function renderSecurityDashboard(state, engine, selected) {
+  return dashboardShell("Panel ochrony", [
+    ["Kontrole", state.securityChecks.length, "brama"],
+    ["Skany tablic", state.plateLookups.length, "OCR demo"],
+    ["Transporty", state.transports.length, "do kontroli"],
+    ["Blokady", state.securityChecks.filter((check) => check.status === "blocked").length, "decyzje"],
+    ["Komunikaty", state.messages.length, "operacyjne"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? renderSecurityActions(engine, selected, state) : disabledAction("Kontrola bramy", "Brak transportow"));
+}
+
+function renderCustomsDashboard(state, engine, selected) {
+  return dashboardShell("Panel agencji celnej", [
+    ["Odprawy", state.customsCases?.length || 0, "sprawy"],
+    ["Dokumenty", state.documents.length, "celne"],
+    ["Hold", state.transports.filter((transport) => transport.status === TransportStatuses.CUSTOMS_HOLD).length, "zatrzymania"],
+    ["MRN", state.documents.filter((doc) => doc.type === "mrn").length, "dokumenty"],
+    ["Komunikaty", state.messages.length, "wymiana"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? renderCustomsActions(engine, selected) : disabledAction("Odprawa", "Brak transportow"));
+}
+
+function renderAuthorityDashboard(state, engine, selected) {
+  return dashboardShell("Panel organu kontrolnego", [
+    ["Kontrole", state.authorityControls?.length || 0, "aktywne"],
+    ["Historia", state.authorityControlHistory?.length || 0, "audit"],
+    ["Dokumenty", state.documents.length, "wymagane prawem"],
+    ["Transporty", state.transports.length, "do kontroli"],
+    ["Problemy", state.transports.filter((transport) => transport.status === TransportStatuses.CONTROL_ISSUE_FOUND).length, "wykryte"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? renderAuthorityActions(engine, selected) : disabledAction("Kontrola", "Brak transportow"));
+}
+
+function renderFerryDashboard(state, engine, selected) {
+  return dashboardShell("Panel promu / intermodal", [
+    ["Rezerwacje", state.ferryBookings?.length || 0, "przeprawy"],
+    ["Na promie", state.transports.filter((transport) => transport.status === TransportStatuses.ON_FERRY).length, "pojazdy"],
+    ["ETA", selected?.eta ? formatTime(selected.eta) : "brak", "aktywny transport"],
+    ["Dokumenty", state.documents.length, "promowe"],
+    ["Platnosci", state.ferryPayments?.length || 0, "demo"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? renderFerryActions(engine, selected) : disabledAction("Prom", "Brak transportow"));
+}
+
+function renderServiceDashboard(state, engine, selected) {
+  return dashboardShell("Panel serwisu", [
+    ["Zgloszenia", state.serviceRequests?.length || 0, "awarie"],
+    ["Aktywne", (state.serviceRequests || []).filter((request) => request.status !== "completed").length, "zlecenia"],
+    ["Platnosci", state.servicePayments?.length || 0, "demo"],
+    ["ETA", selected?.eta ? formatTime(selected.eta) : "brak", "transport"],
+    ["Dokumenty", state.documents.length, "raporty"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? renderServiceActions(engine, selected, state) : disabledAction("Serwis", "Brak transportow"));
+}
+
+function renderInsuranceDashboard(state, engine, selected) {
+  return dashboardShell("Panel ubezpieczen", [
+    ["Polisy", state.insurancePolicies.length, "aktywne"],
+    ["Roszczenia", state.claims.length, "sprawy"],
+    ["Ryzyka", state.aiAlerts.filter((alert) => alert.status === "open").length, "alerty"],
+    ["Dokumenty", state.documents.length, "dowody"],
+    ["Transporty", state.transports.length, "wglad"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? actionButton(engine, ActionTypes.OPEN_CLAIM, "Open insurance claim", { transportId: selected.id, reason: "damage claim from demo" }) : disabledAction("Open claim", "Brak transportow"));
+}
+
+function renderSupportDashboard(state, engine, selected) {
+  return dashboardShell("Panel wsparcia", [
+    ["Komunikaty", state.messages.length, "watki"],
+    ["Spory", state.disputes.length, "sprawy"],
+    ["AI", state.aiAlerts.length, "alerty"],
+    ["Transporty", state.transports.length, "widoczne"],
+    ["Audit", state.audit.length, "wpisy"]
+  ], selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine), selected ? actionButton(engine, ActionTypes.OPEN_DISPUTE, "Open dispute", { transportId: selected.id, reason: "support review" }) : disabledAction("Open dispute", "Brak transportow"));
+}
+
+function renderAuditDashboard(state, engine, selected) {
+  return dashboardShell("Panel audytu", [
+    ["Audit", state.audit.length, "wpisy"],
+    ["Zdarzenia", state.events.length, "event bus"],
+    ["Transporty", state.transports.length, "widoczne"],
+    ["Blokady", state.audit.filter((row) => row.result === "blocked").length, "blocked"],
+    ["Bledy", state.audit.filter((row) => row.result === "error").length, "error"]
+  ], renderAudit(state), selected ? renderAuditSlice(state, selected) : renderNoTransport(state, engine));
 }
 
 function renderAuth(state, engine) {
@@ -406,6 +647,49 @@ function renderDriverAssignment(state, engine, selected) {
 
 function renderDriverMobile(state, engine, selected) {
   return `
+    <section class="grid two driver-workspace">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Kierowca</span>
+            <h2>${selected.number}</h2>
+          </div>
+          <mark class="${tone(selected.status)}">${selected.status}</mark>
+        </div>
+        <p class="muted">${selected.pickup.address} -> ${selected.delivery.address}</p>
+        <div class="detail-grid">
+          <div><span>Odbior</span><strong>${gpsLabel(selected.pickup.gps)}</strong></div>
+          <div><span>Dostawa</span><strong>${gpsLabel(selected.delivery.gps)}</strong></div>
+          <div><span>ETA</span><strong>${selected.eta ? formatTime(selected.eta) : "brak"}</strong></div>
+        </div>
+        <div class="actions compact">
+          ${actionButton(engine, ActionTypes.START_PICKUP_NAVIGATION, "Start GPS", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.ARRIVE_PICKUP, "Przyjazd na zaladunek", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.START_LOADING, "Rozpocznij zaladunek", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.CONFIRM_LOADING, "Potwierdz zaladunek", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dokument zaladunku", { transportId: selected.id, type: "pickup_confirmation", label: "Potwierdzenie zaladunku" })}
+          ${actionButton(engine, ActionTypes.START_TRANSIT, "Start trasy", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.SELECT_PARKING, "Wybierz parking", { transportId: selected.id, parkingId: "pk-1" })}
+          ${actionButton(engine, ActionTypes.ARRIVE_DELIVERY, "Przyjazd na dostawe", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.START_UNLOADING, "Rozpocznij rozladunek", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.CONFIRM_DELIVERY, "Potwierdz dostawe", { transportId: selected.id })}
+          ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dokument dostawy", { transportId: selected.id, type: "delivery_confirmation", label: "Potwierdzenie rozladunku" })}
+        </div>
+      </article>
+      <article class="panel">
+        <span class="eyebrow">Mapa i status</span>
+        <h2>Nawigacja transportu</h2>
+        <img class="map" src="./assets/route-network.svg" alt="GL route network" />
+        <div class="detail-grid">
+          <div><span>Platnosc</span><strong>${state.access?.canViewFinancials ? selected.paymentStatus : "ograniczone"}</strong></div>
+          <div><span>GPS</span><strong>${selected.pickup.gps && selected.delivery.gps ? "potwierdzony" : "brak danych"}</strong></div>
+          <div><span>Ryzyko</span><strong>${selected.riskFlagged ? "AI alert" : "brak"}</strong></div>
+        </div>
+      </article>
+    </section>
+  `;
+
+  return `
     <section class="mobile-grid">
       <article class="phone">
         <div class="phone-top"></div>
@@ -520,89 +804,365 @@ function renderPayments(state, engine, selected) {
   if (!state.access?.canViewFinancials) {
     return renderAccessDenied("Payment Engine", "Financial ledger hidden for this role.");
   }
-  return `
-    <section class="grid two">
-      <article class="panel">
-        <span class="eyebrow">Payment Engine</span>
-        <h2>Payment follows transport proof</h2>
-        ${actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Release payment", { transportId: selected.id })}
-      </article>
-      <article class="panel">
-        <h2>Payment ledger</h2>
-        <div class="list">
-          ${state.payments.map((payment) => `
-            <div class="row">
-              <strong>${transportNumber(state, payment.transportId)}</strong>
-              <span>${payment.amount} ${payment.currency}</span>
-              <mark class="${tone(payment.status)}">${payment.status}</mark>
-            </div>
-          `).join("")}
-        </div>
-      </article>
-    </section>
-  `;
+  return renderFintechModule(state, engine, selected, "dashboard");
 }
 
 function renderWallets(state) {
   if (!state.access?.canViewFinancials) {
     return renderAccessDenied("Wallet Engine", "Wallet balances are not exposed to this role.");
   }
-  return `
-    <section class="grid two">
-      <article class="panel">
-        <span class="eyebrow">Wallet Engine</span>
-        <h2>Company wallets and held balance</h2>
-        <div class="list">
-          ${state.wallets.map((wallet) => `
-            <div class="row">
-              <strong>${companyName(state, wallet.ownerCompanyId) || wallet.ownerCompanyId}</strong>
-              <span>${wallet.balance} ${wallet.currency}</span>
-              <mark class="${wallet.heldBalance ? "warning" : "good"}">${wallet.heldBalance} held</mark>
-            </div>
-          `).join("") || `<p class="muted">No visible wallets.</p>`}
-        </div>
-      </article>
-      <article class="panel">
-        <span class="eyebrow">Wallet ledger</span>
-        <h2>Immutable demo movements</h2>
-        <div class="list">
-          ${state.walletLedger.slice(0, 10).map((entry) => `
-            <div class="row">
-              <strong>${entry.type}</strong>
-              <span>${entry.amount} ${entry.currency}</span>
-              <small>${transportNumber(state, entry.transportId)} / ${entry.reason}</small>
-            </div>
-          `).join("") || `<p class="muted">No ledger rows visible.</p>`}
-        </div>
-      </article>
-    </section>
-  `;
+  return renderFintechModule(state, null, selectedTransport(state), "accounts");
 }
 
 function renderEscrow(state) {
   if (!state.access?.canViewFinancials) {
     return renderAccessDenied("Escrow Engine", "Escrow details are restricted for this role.");
   }
+  return renderFintechModule(state, null, selectedTransport(state), "escrow");
+}
+
+function renderFintechModule(state, engine, selected, mode) {
+  const totals = financialTotals(state);
+  const fee = calculateGlFee(selected);
+  const policy = selected ? state.insurancePolicies.find((item) => item.id === selected.insuranceId) : null;
+  const activeTransactions = (state.walletTransactions || []).slice(0, 8);
+  const sortedTransactions = [...(state.walletTransactions || [])].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+  const sectionTitle = mode === "accounts" ? "Konta GL Wallet" : mode === "escrow" ? "Escrow i spory" : "Dashboard Wallet";
+
   return `
-    <section class="panel">
-      <span class="eyebrow">Escrow Engine</span>
-      <h2>Funds are reserved, blocked or released by events</h2>
-      <div class="transport-table compact-table">
-        <div class="table-row table-head">
-          <span>ID</span><span>Transport</span><span>Payer</span><span>Status</span><span>Amount</span><span>Payee</span>
+    <section class="finance-shell">
+      <div class="finance-hero">
+        <div>
+          <span class="finance-demo">DEMO MODE</span>
+          <h2>${sectionTitle}</h2>
+          <p>Brak rzeczywistych operacji finansowych. Dane, salda, hash transakcji i API sa symulowane pod przyszla integracje z licencjonowanym operatorem.</p>
         </div>
-        ${state.escrows.map((escrow) => `
-          <div class="table-row">
-            <span>${escrow.id}</span>
-            <span>${transportNumber(state, escrow.transportId)}</span>
-            <span>${companyName(state, escrow.payerCompanyId)}</span>
-            <span><mark class="${tone(escrow.status)}">${escrow.status}</mark></span>
-            <span>${escrow.amount} ${escrow.currency}</span>
-            <span>${companyName(state, escrow.payeeCompanyId)}</span>
+        <div class="finance-hero-balance">
+          <span>Saldo systemu</span>
+          <strong>${formatMoney(totals.totalSystem, "EUR")}</strong>
+          <small>symulowany GL Wallet</small>
+        </div>
+      </div>
+
+      <div class="finance-metrics">
+        ${financeMetric("Saldo dostepne", totals.available, "EUR", "success")}
+        ${financeMetric("Saldo zablokowane", totals.blocked, "EUR", "warning")}
+        ${financeMetric("Saldo oczekujace", totals.pending, "EUR", "info")}
+        ${financeMetric("Srodki w escrow", totals.escrow, "EUR", "warning")}
+        ${financeMetric("Platnosci w drodze", totals.inTransit, "EUR", "info")}
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Historia transakcji</span>
+              <h2>Immutable demo ledger</h2>
+            </div>
+            <span class="finance-pill">hash + audit id</span>
           </div>
-        `).join("") || `<p class="muted">No escrow rows visible.</p>`}
+          ${renderTransactionHistory(state, activeTransactions)}
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Ostatnie operacje</span>
+              <h2>Operacje portfela</h2>
+            </div>
+          </div>
+          <div class="finance-list">
+            ${(state.walletLedger || []).slice(0, 6).map((entry) => `
+              <div>
+                <strong>${entry.type}</strong>
+                <span>${formatMoney(entry.amount, entry.currency)} / ${transportNumber(state, entry.transportId)}</span>
+                <small>${entry.reason}</small>
+              </div>
+            `).join("") || `<p class="finance-muted">Brak operacji.</p>`}
+          </div>
+        </article>
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Konta</span>
+              <h2>Portfele uzytkownikow i firm</h2>
+            </div>
+            <span class="finance-pill">${(state.wallets || []).length} GL Wallet ID</span>
+          </div>
+          <div class="wallet-card-grid">
+            ${(state.wallets || []).map((wallet) => renderWalletAccount(state, wallet)).join("") || `<p class="finance-muted">Brak widocznych portfeli.</p>`}
+          </div>
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Statusy</span>
+              <h2>Cykl platnosci</h2>
+            </div>
+          </div>
+          <div class="status-cloud">
+            ${["Pending", "Reserved", "Escrow", "Released", "Completed", "Rejected", "Blocked", "Refunded", "Cancelled", "Disputed"].map((status) => `
+              <mark class="${financeTone(status)}">${status}</mark>
+            `).join("")}
+          </div>
+          <div class="status-cloud currencies">
+            ${(state.exchangeRates || []).map((rate) => `<span>${rate.currency}</span>`).join("")}
+          </div>
+        </article>
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Escrow Engine</span>
+              <h2>Blokada, dowody, zwolnienie</h2>
+            </div>
+            ${engine && selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Release payment", { transportId: selected.id }) : ""}
+          </div>
+          ${renderEscrowFlow()}
+          ${renderEscrowRows(state)}
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Spory</span>
+              <h2>Decyzje administratora</h2>
+            </div>
+          </div>
+          ${renderDisputeFinance(state)}
+        </article>
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">GL Fee</span>
+              <h2>Kalkulacja prowizji</h2>
+            </div>
+          </div>
+          <div class="finance-kv">
+            <div><span>Kwota brutto</span><strong>${formatMoney(fee.gross, fee.currency)}</strong></div>
+            <div><span>Prowizja GL</span><strong>${formatMoney(fee.feeGross, fee.currency)}</strong></div>
+            <div><span>Kwota netto prowizji</span><strong>${formatMoney(fee.feeNet, fee.currency)}</strong></div>
+            <div><span>Podatek</span><strong>${formatMoney(fee.tax, fee.currency)}</strong></div>
+            <div><span>Kwota dla przewoznika</span><strong>${formatMoney(fee.carrierAmount, fee.currency)}</strong></div>
+          </div>
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Ubezpieczenie</span>
+              <h2>Polisa transportu</h2>
+            </div>
+          </div>
+          ${policy ? `
+            <div class="finance-kv">
+              <div><span>Numer polisy</span><strong>${policy.number}</strong></div>
+              <div><span>Firma</span><strong>${policy.partner}</strong></div>
+              <div><span>Zakres</span><strong>${policy.scope}</strong></div>
+              <div><span>Kwota</span><strong>${formatMoney(policy.cost, "EUR")}</strong></div>
+              <div><span>Status</span><strong>${policy.status}</strong></div>
+            </div>
+          ` : `<p class="finance-muted">Ten transport nie ma aktywnej polisy.</p>`}
+        </article>
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Dashboard administratora</span>
+              <h2>Ryzyko, naduzycia i najwieksze transakcje</h2>
+            </div>
+          </div>
+          <div class="finance-admin-grid">
+            <div><span>Calkowite saldo</span><strong>${formatMoney(totals.totalSystem, "EUR")}</strong></div>
+            <div><span>Escrow</span><strong>${formatMoney(totals.escrow, "EUR")}</strong></div>
+            <div><span>Blokady</span><strong>${formatMoney(totals.blocked, "EUR")}</strong></div>
+            <div><span>Spory</span><strong>${totals.disputes}</strong></div>
+            <div><span>Alarmy</span><strong>${(state.walletRiskAlerts || []).length}</strong></div>
+            <div><span>Podejrzane operacje</span><strong>${(state.walletRiskAlerts || []).filter((alert) => ["HIGH", "CRITICAL"].includes(alert.level)).length}</strong></div>
+          </div>
+          ${renderLargestTransactions(state, sortedTransactions)}
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">AI Risk Engine</span>
+              <h2>AML / Fraud demo</h2>
+            </div>
+          </div>
+          <div class="finance-list">
+            ${(state.walletRiskAlerts || []).map((alert) => `
+              <div>
+                <strong>${alert.title}</strong>
+                <span><mark class="${financeTone(alert.level)}">${alert.level}</mark> ${alert.source}</span>
+                <small>${alert.description}</small>
+              </div>
+            `).join("") || `<p class="finance-muted">Brak alertow.</p>`}
+          </div>
+        </article>
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Raporty</span>
+              <h2>Eksport demo</h2>
+            </div>
+          </div>
+          <div class="report-grid">
+            ${(state.walletReports || []).map((report) => `
+              <div>
+                <strong>${report.name}</strong>
+                <span>${report.exports.join(" / ")}</span>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">API Architecture</span>
+              <h2>Endpointy przygotowane pod integracje</h2>
+            </div>
+            <span class="finance-pill">backend nieaktywny w demo</span>
+          </div>
+          <div class="api-grid">
+            ${(state.walletApiEndpoints || []).map((endpoint) => `
+              <div>
+                <span>${endpoint.group}</span>
+                <strong>${endpoint.method} ${endpoint.path}</strong>
+                <small>${endpoint.purpose}</small>
+              </div>
+            `).join("")}
+          </div>
+        </article>
       </div>
     </section>
+  `;
+}
+
+function renderTransactionHistory(state, transactions) {
+  return `
+    <div class="finance-table transactions">
+      <div class="finance-row finance-head-row">
+        <span>ID</span><span>Data</span><span>Godzina</span><span>Kwota</span><span>Nadawca</span><span>Odbiorca</span><span>Status</span><span>Hash demo</span><span>Audit ID</span>
+      </div>
+      ${transactions.map((entry) => {
+        const date = formatWalletDate(entry.at);
+        return `
+          <div class="finance-row">
+            <span>${entry.id}</span>
+            <span>${date.day}</span>
+            <span>${date.time}</span>
+            <strong>${formatMoney(entry.amount, entry.currency)}</strong>
+            <span>${entityName(state, entry.senderId)}</span>
+            <span>${entityName(state, entry.receiverId)}</span>
+            <span><mark class="${financeTone(entry.status)}">${entry.status}</mark></span>
+            <small>${entry.hash}</small>
+            <small>${entry.auditId}</small>
+          </div>
+        `;
+      }).join("") || `<p class="finance-muted">Brak transakcji.</p>`}
+    </div>
+  `;
+}
+
+function renderWalletAccount(state, wallet) {
+  return `
+    <div class="wallet-card">
+      <span>${wallet.walletType}</span>
+      <strong>${wallet.glWalletId}</strong>
+      <p>${walletOwnerName(state, wallet)}</p>
+      <div>
+        <small>Dostepne</small>
+        <b>${formatMoney(wallet.balance, wallet.currency)}</b>
+      </div>
+      <div>
+        <small>Zablokowane / escrow</small>
+        <b>${formatMoney((wallet.heldBalance || 0) + (wallet.blockedBalance || 0), wallet.currency)}</b>
+      </div>
+    </div>
+  `;
+}
+
+function renderEscrowFlow() {
+  const steps = [
+    "Klient tworzy transport",
+    "Srodki zostaja zablokowane",
+    "Transport rusza",
+    "Rozladunek zakonczony",
+    "Dokumenty zaakceptowane",
+    "Brak sporu",
+    "Escrow zwolnione do przewoznika"
+  ];
+  return `<div class="finance-flow">${steps.map((step, index) => `<div><span>${index + 1}</span><strong>${step}</strong></div>`).join("")}</div>`;
+}
+
+function renderEscrowRows(state) {
+  return `
+    <div class="finance-table escrow-table">
+      <div class="finance-row finance-head-row">
+        <span>ID</span><span>Transport</span><span>Platnik</span><span>Status</span><span>Kwota</span><span>Odbiorca</span>
+      </div>
+      ${(state.escrows || []).map((escrow) => `
+        <div class="finance-row">
+          <span>${escrow.id}</span>
+          <span>${transportNumber(state, escrow.transportId)}</span>
+          <span>${companyName(state, escrow.payerCompanyId)}</span>
+          <span><mark class="${financeTone(escrow.status)}">${escrow.status}</mark></span>
+          <strong>${formatMoney(escrow.amount, escrow.currency)}</strong>
+          <span>${companyName(state, escrow.payeeCompanyId)}</span>
+        </div>
+      `).join("") || `<p class="finance-muted">Brak rekordow escrow.</p>`}
+    </div>
+  `;
+}
+
+function renderDisputeFinance(state) {
+  const disputes = state.disputes || [];
+  if (!disputes.length) return `<p class="finance-muted">Brak aktywnych sporow. Escrow moze przejsc do release po dokumentach.</p>`;
+  return `
+    <div class="finance-list">
+      ${disputes.map((dispute) => `
+        <div>
+          <strong>${transportNumber(state, dispute.transportId)}</strong>
+          <span>Status: ${dispute.status} / escrow zamrozone</span>
+          <small>AI analizuje historie, dokumenty, GPS i zdjecia.</small>
+          <div class="decision-row">
+            <button type="button">Release</button>
+            <button type="button">Refund</button>
+            <button type="button">Split Payment</button>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderLargestTransactions(state, transactions) {
+  return `
+    <div class="finance-list compact-finance-list">
+      ${transactions.slice(0, 3).map((entry) => `
+        <div>
+          <strong>${formatMoney(entry.amount, entry.currency)}</strong>
+          <span>${entityName(state, entry.senderId)} -> ${entityName(state, entry.receiverId)}</span>
+          <small>${entry.reason}</small>
+        </div>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -1428,6 +1988,191 @@ function renderSystemTests(state, engine, selected) {
   `;
 }
 
+function renderContextRail(state, engine, selected, roleConfig) {
+  const aiAlerts = state.aiAlerts.filter((alert) => !selected || alert.transportId === selected.id).slice(0, 3);
+  const activity = state.audit.filter((row) => !selected || row.transportId === selected.id || row.objectId === selected.id).slice(0, 5);
+  return `
+    <aside class="context-rail">
+      <section class="context-panel">
+        <span class="eyebrow">${roleConfig.workspace}</span>
+        <h2>Kontekst</h2>
+        <div class="context-stack">
+          <div><span>Status</span><strong>${selected?.status || "brak transportu"}</strong></div>
+          <div><span>GPS</span><strong>${selected ? `${gpsLabel(selected.pickup.gps)} / ${gpsLabel(selected.delivery.gps)}` : "-"}</strong></div>
+          <div><span>ETA</span><strong>${selected?.eta ? formatTime(selected.eta) : "brak"}</strong></div>
+          <div><span>Platnosc</span><strong>${selected ? (state.access?.canViewFinancials ? selected.paymentStatus : "ograniczone") : "-"}</strong></div>
+        </div>
+      </section>
+      <section class="context-panel">
+        <span class="eyebrow">AI / powiadomienia</span>
+        <h2>Alerty</h2>
+        <div class="list compact-list">
+          ${aiAlerts.map((alert) => `
+            <div class="row">
+              <strong>${alert.type}</strong>
+              <span>${alert.status}</span>
+              <small>${alert.reason}</small>
+            </div>
+          `).join("") || `<p class="muted">Brak aktywnych alertow.</p>`}
+        </div>
+      </section>
+      <section class="context-panel">
+        <span class="eyebrow">Aktywnosc</span>
+        <h2>Ostatnie zdarzenia</h2>
+        <div class="list compact-list">
+          ${activity.map((row) => `
+            <div class="row">
+              <strong>${row.requestedAction || row.action}</strong>
+              <span>${row.result || "success"}</span>
+              <small>${row.reason}</small>
+            </div>
+          `).join("") || `<p class="muted">Brak aktywnosci.</p>`}
+        </div>
+      </section>
+    </aside>
+  `;
+}
+
+function renderProfile(state) {
+  const user = state.users.find((item) => item.id === state.session.userId);
+  return `
+    <section class="panel">
+      <span class="eyebrow">Profil</span>
+      <h2>${user?.name || "Uzytkownik demo"}</h2>
+      <div class="detail-grid">
+        <div><span>Rola</span><strong>${RoleLabels[state.session.role]}</strong></div>
+        <div><span>Firma</span><strong>${companyName(state, user?.companyId) || "platforma"}</strong></div>
+        <div><span>Status</span><strong>${user?.accountStatus || "demo"}</strong></div>
+      </div>
+      <p class="muted">W trybie produkcyjnym profil i rola pochodza z backendu oraz Permissions Engine. UI demo tylko symuluje logowanie rola.</p>
+    </section>
+  `;
+}
+
+function renderCompanies(state) {
+  return `
+    <section class="panel">
+      <span class="eyebrow">Company Engine</span>
+      <h2>Firmy</h2>
+      <div class="card-grid">
+        ${state.companies.map((company) => `
+          <article class="mini-card">
+            <strong>${company.name}</strong>
+            <span>${company.type}</span>
+            <mark class="${tone(company.status || "active")}">${company.status || "active"}</mark>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderUsers(state) {
+  return `
+    <section class="panel">
+      <span class="eyebrow">User Engine</span>
+      <h2>Uzytkownicy</h2>
+      <div class="transport-table compact-table">
+        ${state.users.map((user) => `
+          <div class="table-row">
+            <span>${user.id}</span>
+            <span>${user.name}</span>
+            <span>${user.roles?.[0] || "role"}</span>
+            <span>${companyName(state, user.companyId) || "platforma"}</span>
+            <span>${user.phone}</span>
+            <span>${user.accountStatus}</span>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderStatistics(state) {
+  return `
+    <section class="metrics">
+      ${metric("Transporty", state.transports.length, "calosc")}
+      ${metric("Zdarzenia", state.events.length, "event bus")}
+      ${metric("Audit", state.audit.length, "read only")}
+      ${metric("Dokumenty", state.documents.length, "transportowe")}
+      ${metric("Trust", state.trustScores?.length || state.trust?.length || 0, "rekordy")}
+    </section>
+    <section class="panel">
+      <span class="eyebrow">Statystyki</span>
+      <h2>Platforma GL Enterprise II</h2>
+      <div class="module-grid">
+        ${["workflow", "permissions", "audit", "GPS", "documents", "payments", "AI", "trust"].map((name) => `<div class="module-pill">${name}</div>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderSystem(state, engine) {
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <span class="eyebrow">System</span>
+        <h2>Operacje demo</h2>
+        <div class="actions">
+          ${actionButton(engine, ActionTypes.RUN_RESILIENCE_CHECK, "Run resilience check", {})}
+          ${actionButton(engine, ActionTypes.RESET_DEMO, "Reset demo data", {})}
+        </div>
+      </article>
+      <article class="panel">
+        <span class="eyebrow">Konfiguracja UI</span>
+        <h2>roleConfig</h2>
+        <p class="muted">Menu, dashboard, widgety i akcje sa wybierane przez aktywna role. Ukryte moduly nie sa renderowane w menu roli.</p>
+      </article>
+    </section>
+  `;
+}
+
+function renderSecurityActions(engine, selected, state) {
+  return `
+    <div class="actions">
+      ${actionButton(engine, ActionTypes.SCAN_LICENSE_PLATE, "Skanuj tablice", { licensePlate: vehiclePlate(state, selected.vehicleId), reason: "gate arrival check" })}
+      ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Zatwierdz brame", { transportId: selected.id, checkpoint: "pickup", status: "cleared", reason: "Gate cleared" })}
+    </div>
+  `;
+}
+
+function renderCustomsActions(engine, selected) {
+  return `
+    <div class="actions">
+      ${actionButton(engine, ActionTypes.START_CUSTOMS, "Rozpocznij odprawe", { transportId: selected.id })}
+      ${actionButton(engine, ActionTypes.CLEAR_CUSTOMS, "Zwolnij celnie", { transportId: selected.id })}
+    </div>
+  `;
+}
+
+function renderAuthorityActions(engine, selected) {
+  return `
+    <div class="actions">
+      ${actionButton(engine, ActionTypes.START_AUTHORITY_CONTROL, "Rozpocznij kontrole", { transportId: selected.id })}
+      ${actionButton(engine, ActionTypes.PASS_AUTHORITY_CONTROL, "Kontrola pozytywna", { transportId: selected.id })}
+    </div>
+  `;
+}
+
+function renderFerryActions(engine, selected) {
+  return `
+    <div class="actions">
+      ${actionButton(engine, ActionTypes.BOOK_FERRY, "Zarezerwuj prom", { transportId: selected.id, operatorCompanyId: "co-ferry-dfds" })}
+      ${actionButton(engine, ActionTypes.COMPLETE_FERRY, "Zakoncz prom", { transportId: selected.id })}
+    </div>
+  `;
+}
+
+function renderServiceActions(engine, selected, state) {
+  const provider = state.serviceProviders?.[0];
+  return `
+    <div class="actions">
+      ${actionButton(engine, ActionTypes.ACCEPT_SERVICE_JOB, "Przyjmij serwis", { transportId: selected.id, providerCompanyId: provider?.companyId })}
+      ${actionButton(engine, ActionTypes.COMPLETE_SERVICE_JOB, "Zakoncz serwis", { transportId: selected.id, cost: 320, rating: 5 })}
+    </div>
+  `;
+}
+
 function renderAdmin(state, engine, selected) {
   const targetUser = state.users.find((user) => user.accountStatus !== "blocked" && user.id !== state.session.userId) || state.users[0];
   return `
@@ -1740,6 +2485,88 @@ function renderAccessDenied(title, message) {
 export function selectedTransport(state) {
   if (!state?.transports?.length) return null;
   return state.transports.find((transport) => transport.id === state.session?.selectedTransportId) || state.transports[0] || null;
+}
+
+function financialTotals(state) {
+  const wallets = state.wallets || [];
+  const payments = state.payments || [];
+  const escrows = state.escrows || [];
+  const sum = (items, selector) => items.reduce((total, item) => total + Number(selector(item) || 0), 0);
+  const pendingPayments = payments.filter((payment) => String(payment.status).includes("pending"));
+  const reservedPayments = payments.filter((payment) => String(payment.status).includes("reserved"));
+  const blockedPayments = payments.filter((payment) => String(payment.status).includes("blocked"));
+
+  return {
+    available: sum(wallets, (wallet) => wallet.balance),
+    blocked: sum(wallets, (wallet) => (wallet.heldBalance || 0) + (wallet.blockedBalance || 0)) + sum(blockedPayments, (payment) => payment.amount),
+    pending: sum(wallets, (wallet) => wallet.pendingBalance) + sum(pendingPayments, (payment) => payment.amount),
+    escrow: sum(escrows.filter((escrow) => escrow.status !== "released"), (escrow) => escrow.amount),
+    inTransit: sum(wallets, (wallet) => wallet.paymentsInTransit) + sum(reservedPayments, (payment) => payment.amount),
+    disputes: (state.disputes || []).length,
+    totalSystem: sum(wallets, (wallet) => wallet.balance + (wallet.heldBalance || 0) + (wallet.pendingBalance || 0))
+  };
+}
+
+function calculateGlFee(transport) {
+  const gross = Number(transport?.price || 0);
+  const currency = "EUR";
+  const feeGross = Math.round(gross * 0.03 * 100) / 100;
+  const tax = Math.round(feeGross * 0.23 * 100) / 100;
+  const feeNet = Math.max(0, Math.round((feeGross - tax) * 100) / 100);
+  return {
+    gross,
+    currency,
+    feeGross,
+    feeNet,
+    tax,
+    carrierAmount: Math.max(0, Math.round((gross - feeGross) * 100) / 100)
+  };
+}
+
+function financeMetric(label, amount, currency, toneName) {
+  return `
+    <article class="finance-metric ${toneName}">
+      <span>${label}</span>
+      <strong>${formatMoney(amount, currency)}</strong>
+      <small>DEMO ledger</small>
+    </article>
+  `;
+}
+
+function formatMoney(amount, currency = "EUR") {
+  return new Intl.NumberFormat("pl-PL", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0
+  }).format(Number(amount || 0));
+}
+
+function formatWalletDate(value) {
+  const date = new Date(value);
+  return {
+    day: date.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" }),
+    time: date.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })
+  };
+}
+
+function entityName(state, id) {
+  if (!id) return "-";
+  if (String(id).startsWith("escrow:")) return `Escrow ${String(id).replace("escrow:", "")}`;
+  return companyName(state, id) || userName(state, id) || id;
+}
+
+function walletOwnerName(state, wallet) {
+  return userName(state, wallet.ownerUserId)
+    || companyName(state, wallet.ownerCompanyId)
+    || (wallet.ownerCompanyId === "platform" ? "GL Enterprise" : wallet.ownerCompanyId);
+}
+
+function financeTone(value) {
+  const text = String(value || "").toLowerCase();
+  if (["critical", "high"].includes(text) || text.includes("blocked") || text.includes("rejected") || text.includes("cancelled") || text.includes("disputed")) return "danger";
+  if (["info", "low"].includes(text) || text.includes("released") || text.includes("completed")) return "good";
+  if (text.includes("pending") || text.includes("reserved") || text.includes("escrow") || text.includes("medium") || text.includes("refunded")) return "warning";
+  return "info";
 }
 
 function companyName(state, companyId) {
@@ -2409,6 +3236,6 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function viewTitle(view) {
-  return NavItems.find((item) => item.id === view)?.label || "Panel główny";
+function viewTitle(role, view) {
+  return menuForRole(role).find((item) => item.id === view)?.label || "Panel";
 }

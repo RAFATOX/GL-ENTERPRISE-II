@@ -455,20 +455,25 @@ export class PermissionsEngine {
       snapshot.resilienceChecks = [];
     }
 
-    const financeScope = financialScope(actor);
+    const scope = financialScope(actor);
     snapshot.access = {
-      canViewFinancials: financeScope !== "none",
-      financialScope,
+      canViewFinancials: scope !== "none",
+      financialScope: scope,
       privateContactsVisible: privileged(actor)
     };
 
-    if (financeScope === "none") {
+    if (scope === "none") {
       snapshot.payments = [];
       snapshot.wallets = [];
       snapshot.walletLedger = [];
+      snapshot.walletTransactions = [];
+      snapshot.walletRiskAlerts = [];
+      snapshot.walletReports = [];
+      snapshot.walletApiEndpoints = [];
+      snapshot.exchangeRates = [];
       snapshot.escrows = [];
       snapshot.revenueLedger = [];
-    } else if (financeScope !== "all") {
+    } else if (scope !== "all") {
       const companyId = actor.companyId;
       const financialTransportIds = new Set(snapshot.transports
         .filter((transport) => transport.clientCompanyId === companyId || transport.carrierCompanyId === companyId)
@@ -480,6 +485,9 @@ export class PermissionsEngine {
       snapshot.wallets = snapshot.wallets.filter((wallet) => wallet.ownerCompanyId === companyId);
       const walletIds = new Set(snapshot.wallets.map((wallet) => wallet.id));
       snapshot.walletLedger = snapshot.walletLedger.filter((entry) => walletIds.has(entry.walletId));
+      snapshot.walletTransactions = (snapshot.walletTransactions || []).filter((entry) => financialTransportIds.has(entry.transportId));
+      const transactionIds = new Set(snapshot.walletTransactions.map((entry) => entry.id));
+      snapshot.walletRiskAlerts = (snapshot.walletRiskAlerts || []).filter((alert) => transactionIds.has(alert.transactionId));
       snapshot.revenueLedger = [];
     }
 

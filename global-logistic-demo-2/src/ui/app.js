@@ -2,6 +2,7 @@ import { ActionTypes } from "../core/constants.js";
 import { GLCoreEngine } from "../core/gl-core-engine.js";
 import { renderApp } from "./renderers.js";
 import { parsePayload, payloadFromForm } from "./action-handler.js";
+import { firstViewForRole } from "./role-config.js";
 
 const engine = new GLCoreEngine();
 const root = document.querySelector("#app");
@@ -47,6 +48,14 @@ root.addEventListener("click", (event) => {
     }
     engine.dispatchAction(actionButton.dataset.action, parsed.payload);
   }
+});
+
+root.addEventListener("change", (event) => {
+  const roleSelect = event.target.closest("[data-role-select]");
+  if (!roleSelect) return;
+  const role = roleSelect.value;
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: firstViewForRole(role) });
 });
 
 root.addEventListener("submit", (event) => {

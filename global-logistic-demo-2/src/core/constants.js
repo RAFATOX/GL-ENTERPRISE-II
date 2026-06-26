@@ -1,5 +1,5 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 6;
+export const DEMO_DATA_VERSION = 7;
 export const STORAGE_KEY = "global-logistic-gl2-core-engine-v5";
 
 export const Roles = Object.freeze({

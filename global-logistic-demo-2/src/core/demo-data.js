@@ -12,7 +12,7 @@ const baseTime = "2026-05-27T07:00:00.000Z";
 
 export function createDemoState() {
   const state = {
-    schemaVersion: 6,
+    schemaVersion: 7,
     demoDataVersion: DEMO_DATA_VERSION,
     revision: 1,
     session: {
@@ -248,18 +248,22 @@ export function createDemoState() {
       payment("pay-6", "tr-1006", PaymentStatuses.RESERVED, 5100)
     ],
     wallets: [
-      wallet("wal-client-a", "co-client-a", 52000, 4280),
-      wallet("wal-client-b", "co-client-b", 18000, 11200),
-      wallet("wal-client-c", "co-client-c", 7600, 3650),
-      wallet("wal-carrier-a", "co-carrier-a", 9400, 0),
-      wallet("wal-carrier-b", "co-carrier-b", 6800, 0),
-      wallet("wal-carrier-c", "co-carrier-c", 2100, 0),
-      wallet("wal-customs-a", "co-customs-a", 1200, 0),
-      wallet("wal-ferry-dfds", "co-ferry-dfds", 5200, 0),
-      wallet("wal-workshop-a", "co-workshop-a", 2400, 0),
-      wallet("wal-mobile-service-a", "co-mobile-service-a", 3100, 0),
-      wallet("wal-roadside-a", "co-roadside-a", 900, 0),
-      wallet("wal-platform", "platform", 0, 0)
+      wallet("wal-client-a", "co-client-a", 52000, 4280, { walletType: "Client Wallet", pendingBalance: 2400, glWalletId: "GLW-CLIENT-0001" }),
+      wallet("wal-client-b", "co-client-b", 18000, 11200, { walletType: "Client Wallet", pendingBalance: 980, glWalletId: "GLW-CLIENT-0002" }),
+      wallet("wal-client-c", "co-client-c", 7600, 3650, { walletType: "Client Wallet", blockedBalance: 3650, glWalletId: "GLW-CLIENT-0003" }),
+      wallet("wal-carrier-a", "co-carrier-a", 9400, 0, { walletType: "Carrier Wallet", pendingBalance: 4280, paymentsInTransit: 5100, glWalletId: "GLW-CARRIER-0001" }),
+      wallet("wal-carrier-b", "co-carrier-b", 6800, 0, { walletType: "Carrier Wallet", glWalletId: "GLW-CARRIER-0002" }),
+      wallet("wal-carrier-c", "co-carrier-c", 2100, 0, { walletType: "Carrier Wallet", glWalletId: "GLW-CARRIER-0003" }),
+      wallet("wal-driver-1", "co-carrier-a", 1260, 0, { walletType: "Driver Wallet", ownerUserId: "u-driver-1", pendingBalance: 180, glWalletId: "GLW-DRIVER-0001" }),
+      wallet("wal-warehouse-a", "co-client-b", 820, 0, { walletType: "Warehouse Wallet", ownerUserId: "u-warehouse", glWalletId: "GLW-WAREHOUSE-0001" }),
+      wallet("wal-insurance-a", "co-insurance-a", 12400, 0, { walletType: "Insurance Wallet", ownerUserId: "u-insurance", pendingBalance: 320, glWalletId: "GLW-INSURANCE-0001" }),
+      wallet("wal-customs-a", "co-customs-a", 1200, 0, { walletType: "Customs Wallet", glWalletId: "GLW-CUSTOMS-0001" }),
+      wallet("wal-ferry-dfds", "co-ferry-dfds", 5200, 0, { walletType: "Ferry Wallet", paymentsInTransit: 430, glWalletId: "GLW-FERRY-0001" }),
+      wallet("wal-workshop-a", "co-workshop-a", 2400, 0, { walletType: "Workshop Wallet", glWalletId: "GLW-SERVICE-0001" }),
+      wallet("wal-mobile-service-a", "co-mobile-service-a", 3100, 0, { walletType: "Mobile Service Wallet", paymentsInTransit: 280, glWalletId: "GLW-SERVICE-0002" }),
+      wallet("wal-roadside-a", "co-roadside-a", 900, 0, { walletType: "Roadside Assistance Wallet", glWalletId: "GLW-SERVICE-0003" }),
+      wallet("wal-admin", "platform", 0, 0, { walletType: "Administrator Wallet", ownerUserId: "u-admin", glWalletId: "GLW-ADMIN-0001" }),
+      wallet("wal-platform", "platform", 7850, 0, { walletType: "GL System Wallet", glWalletId: "GLW-SYSTEM-0001" })
     ],
     walletLedger: [
       ledger("led-1", "wal-client-a", "tr-1001", "hold", -4280, "escrow reserved for GL2-1001"),
@@ -268,6 +272,54 @@ export function createDemoState() {
       ledger("led-6", "wal-ferry-dfds", "tr-1006", "credit", 430, "symulowana platnosc za prom Calais-Dover"),
       ledger("led-7", "wal-customs-a", "tr-1001", "credit", 180, "opłata za odprawę celną MRN-GL2-1001"),
       ledger("led-8", "wal-mobile-service-a", "tr-1001", "credit", 280, "opłata za serwis techniczny srv-1")
+    ],
+    walletTransactions: [
+      walletTransaction("gtx-1001", "2026-05-27T07:12:00.000Z", 4280, "EUR", "co-client-a", "escrow:esc-1", "Rezerwacja escrow dla GL2-1001", "Escrow", "hash-demo-6f4a-1001", "aud-esc-1001", "tr-1001"),
+      walletTransaction("gtx-1002", "2026-05-27T07:18:00.000Z", 11200, "EUR", "co-client-b", "escrow:esc-2", "Blokada escrow - ryzyko temperatury", "Blocked", "hash-demo-9bc1-1002", "aud-esc-1002", "tr-1002"),
+      walletTransaction("gtx-1003", "2026-05-27T07:33:00.000Z", 3650, "EUR", "co-client-c", "escrow:esc-4", "Sporny transport mebli premium", "Disputed", "hash-demo-c8a4-1004", "aud-dis-1004", "tr-1004"),
+      walletTransaction("gtx-1004", "2026-05-27T08:05:00.000Z", 430, "EUR", "co-client-a", "co-ferry-dfds", "Oplata promowa Calais-Dover", "Completed", "hash-demo-ferry-430", "aud-fer-1006", "tr-1006"),
+      walletTransaction("gtx-1005", "2026-05-27T08:21:00.000Z", 180, "EUR", "co-client-a", "co-customs-a", "Oplata odprawy MRN-GL2-1001", "Completed", "hash-demo-mrn-180", "aud-cus-1001", "tr-1001"),
+      walletTransaction("gtx-1006", "2026-05-27T08:44:00.000Z", 280, "EUR", "co-carrier-a", "co-mobile-service-a", "Serwis mobilny - kontrola hamulca", "Completed", "hash-demo-srv-280", "aud-srv-1001", "tr-1001"),
+      walletTransaction("gtx-1007", "2026-05-27T09:15:00.000Z", 980, "PLN", "co-client-a", "escrow:draft", "Oczekujaca rezerwacja po publikacji ladunku", "Pending", "hash-demo-pending-980", "aud-pay-1003", "tr-1003"),
+      walletTransaction("gtx-1008", "2026-05-27T10:10:00.000Z", 5100, "EUR", "co-client-a", "escrow:esc-6", "Transport intermodalny na promie", "Reserved", "hash-demo-interop-5100", "aud-esc-1006", "tr-1006")
+    ],
+    walletRiskAlerts: [
+      walletRiskAlert("risk-wallet-1", "HIGH", "Escrow zablokowane przez dispute", "Transport GL2-1004 ma aktywny spor, srodki pozostaja zamrozone.", "gtx-1003"),
+      walletRiskAlert("risk-wallet-2", "MEDIUM", "Nietypowa kwota w pharma", "GL2-1002 przekracza standardowy prog dla zimnego lancucha.", "gtx-1002"),
+      walletRiskAlert("risk-wallet-3", "INFO", "AML demo check", "Brak prawdziwej weryfikacji AML - alert pokazowy dla architektury.", "gtx-1001")
+    ],
+    walletReports: [
+      walletReport("Saldo", ["PDF", "Excel", "CSV"]),
+      walletReport("Cash Flow", ["PDF", "Excel", "CSV"]),
+      walletReport("Escrow", ["PDF", "Excel", "CSV"]),
+      walletReport("Prowizje", ["PDF", "Excel", "CSV"]),
+      walletReport("Przychody", ["PDF", "Excel", "CSV"]),
+      walletReport("Zwroty", ["PDF", "Excel", "CSV"]),
+      walletReport("Reklamacje", ["PDF", "Excel", "CSV"]),
+      walletReport("Rozliczenia", ["PDF", "Excel", "CSV"])
+    ],
+    walletApiEndpoints: [
+      walletEndpoint("Wallet", "GET", "/api/wallets/{walletId}", "Pobranie portfela i limitow", "architecture"),
+      walletEndpoint("Escrow", "POST", "/api/escrow/reserve", "Rezerwacja srodkow po utworzeniu transportu", "architecture"),
+      walletEndpoint("Transactions", "GET", "/api/transactions", "Historia transakcji i audit id", "architecture"),
+      walletEndpoint("Balance", "GET", "/api/balance/{ownerId}", "Saldo dostepne, zablokowane i oczekujace", "architecture"),
+      walletEndpoint("Insurance", "GET", "/api/insurance/policies/{transportId}", "Polisy powiazane z transportem", "architecture"),
+      walletEndpoint("Settlement", "POST", "/api/settlement/release", "Zwolnienie escrow po dokumentach", "architecture"),
+      walletEndpoint("Refund", "POST", "/api/refund", "Zwrot demo po decyzji administratora", "architecture"),
+      walletEndpoint("Dispute", "POST", "/api/disputes/{id}/decision", "Release, refund albo split payment", "architecture"),
+      walletEndpoint("Fees", "GET", "/api/fees/simulate", "Kalkulacja prowizji GL i podatku", "architecture"),
+      walletEndpoint("Exchange Rates", "GET", "/api/exchange-rates", "Tabela kursow do przyszlych integracji", "architecture")
+    ],
+    exchangeRates: [
+      exchangeRate("EUR", 1),
+      exchangeRate("PLN", 4.31),
+      exchangeRate("USD", 1.08),
+      exchangeRate("CHF", 0.96),
+      exchangeRate("GBP", 0.84),
+      exchangeRate("CZK", 24.72),
+      exchangeRate("SEK", 11.18),
+      exchangeRate("NOK", 11.42),
+      exchangeRate("DKK", 7.46)
     ],
     escrows: [
       escrow("esc-1", "tr-1001", "co-client-a", "co-carrier-a", 4280, "reserved"),
@@ -607,14 +659,21 @@ function payment(id, transportId, status, amount) {
   return { id, transportId, status, amount, currency: "EUR", updatedAt: baseTime };
 }
 
-function wallet(id, ownerCompanyId, balance, heldBalance) {
+function wallet(id, ownerCompanyId, balance, heldBalance, options = {}) {
   return {
     id,
+    glWalletId: options.glWalletId || `GLW-DEMO-${id.toUpperCase()}`,
+    walletType: options.walletType || "Company Wallet",
     ownerType: ownerCompanyId === "platform" ? "platform" : "company",
     ownerCompanyId,
+    ownerUserId: options.ownerUserId || null,
     currency: "EUR",
     balance,
     heldBalance,
+    pendingBalance: options.pendingBalance || 0,
+    blockedBalance: options.blockedBalance || 0,
+    escrowBalance: options.escrowBalance || heldBalance,
+    paymentsInTransit: options.paymentsInTransit || 0,
     status: "demo_only"
   };
 }
@@ -630,6 +689,46 @@ function ledger(id, walletId, transportId, type, amount, reason) {
     reason,
     at: baseTime
   };
+}
+
+function walletTransaction(id, at, amount, currency, senderId, receiverId, reason, status, hash, auditId, transportId) {
+  return {
+    id,
+    at,
+    amount,
+    currency,
+    senderId,
+    receiverId,
+    reason,
+    status,
+    hash,
+    auditId,
+    transportId
+  };
+}
+
+function walletRiskAlert(id, level, title, description, transactionId) {
+  return {
+    id,
+    level,
+    title,
+    description,
+    transactionId,
+    createdAt: baseTime,
+    source: "AI Risk Engine / demo"
+  };
+}
+
+function walletReport(name, exports) {
+  return { name, exports, status: "ready_demo" };
+}
+
+function walletEndpoint(group, method, path, purpose, status) {
+  return { group, method, path, purpose, status };
+}
+
+function exchangeRate(currency, demoRateToEur) {
+  return { currency, demoRateToEur, source: "demo_static" };
 }
 
 function escrow(id, transportId, payerCompanyId, payeeCompanyId, amount, status) {
