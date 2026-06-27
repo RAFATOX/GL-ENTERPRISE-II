@@ -143,8 +143,9 @@ export function getRoleConfig(role) {
   return roleConfig[role] || roleConfig[Roles.PLATFORM_OWNER];
 }
 
-export function menuForRole(role) {
-  return getVisibleModules({ role }, role).map((module) => ({
+export function menuForRole(role, actor = { role }) {
+  const accessActor = { role, ...actor };
+  return getVisibleModules(accessActor, role).map((module) => ({
     id: module.view,
     moduleId: module.id,
     label: module.labelByRole?.[role] || module.label,
@@ -156,8 +157,8 @@ export function menuForRole(role) {
   }));
 }
 
-export function viewAllowedForRole(role, view, route = null) {
-  return canAccessModuleView({ role }, role, view, route).ok;
+export function viewAllowedForRole(role, view, route = null, actor = { role }) {
+  return canAccessModuleView({ role, ...actor }, role, view, route).ok;
 }
 
 export function firstViewForRole(role) {

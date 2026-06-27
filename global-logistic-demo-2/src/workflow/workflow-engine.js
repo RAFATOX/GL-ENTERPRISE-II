@@ -1,6 +1,7 @@
 import {
   ActionTypes,
   AccountStatuses,
+  CompanyVerificationStatuses,
   CriticalTransportActions,
   EventTypes,
   PaymentStatuses,
@@ -35,8 +36,15 @@ export class WorkflowEngine {
       reasons.push(`konto wymaga pelnej weryfikacji: ${actor.accountStatus}`);
     }
 
-    if (requiresVerifiedRole(actionType) && !modules.onboarding.canUseRole(actor, roleForOperationalAction(actionType, ActionTypes, actor.role))) {
+    const verificationRole = actor.permissionsSource === "company_engine"
+      ? actor.role
+      : roleForOperationalAction(actionType, ActionTypes, actor.role);
+    if (requiresVerifiedRole(actionType) && !modules.onboarding.canUseRole(actor, verificationRole)) {
       reasons.push("rola wymaga osobnej weryfikacji dokumentow");
+    }
+
+    if (requiresVerifiedCompany(actionType) && actor.companyId && !companyVerified(actor)) {
+      reasons.push(`firma wymaga weryfikacji: ${actor.companyVerificationStatus}`);
     }
 
     if (CriticalTransportActions.has(actionType) && selectedTransport) {
@@ -45,6 +53,10 @@ export class WorkflowEngine {
     }
 
     switch (actionType) {
+      case ActionTypes.SELECT_CONTEXT:
+        if (!payload.contextType) reasons.push("typ kontekstu jest wymagany");
+        if (payload.contextType === "company" && !payload.companyId) reasons.push("company_id jest wymagany");
+        break;
       case ActionTypes.SELECT_ROLE:
         if (!payload.role) reasons.push("missing target role");
         break;
@@ -62,6 +74,39 @@ export class WorkflowEngine {
       case ActionTypes.CHANGE_PHONE:
         if (!payload.userId) reasons.push("user id is required");
         if (actionType === ActionTypes.CHANGE_PHONE && !payload.phone) reasons.push("new phone is required");
+        break;
+      case ActionTypes.CREATE_COMPANY:
+        validateCreateCompany(payload, reasons);
+        break;
+      case ActionTypes.UPDATE_COMPANY:
+        if (!payload.companyId && !actor.companyId) reasons.push("company_id jest wymagany");
+        break;
+      case ActionTypes.INVITE_COMPANY_USER:
+        if (!payload.userId) reasons.push("user_id zapraszanego jest wymagany");
+        if (!payload.companyId && !actor.companyId) reasons.push("company_id jest wymagany");
+        if (!payload.roleName) reasons.push("rola firmowa jest wymagana");
+        break;
+      case ActionTypes.ACCEPT_COMPANY_INVITATION:
+        if (!payload.userCompanyRoleId && !payload.companyId) reasons.push("zaproszenie albo company_id jest wymagane");
+        break;
+      case ActionTypes.CHANGE_COMPANY_USER_ROLE:
+        if (!payload.userId && !payload.userCompanyRoleId) reasons.push("user_id albo userCompanyRoleId jest wymagany");
+        if (!payload.roleName) reasons.push("nowa rola firmowa jest wymagana");
+        break;
+      case ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS:
+        if (!payload.userId && !payload.userCompanyRoleId) reasons.push("user_id albo userCompanyRoleId jest wymagany");
+        break;
+      case ActionTypes.REMOVE_COMPANY_USER:
+        if (!payload.userId && !payload.userCompanyRoleId) reasons.push("user_id albo userCompanyRoleId jest wymagany");
+        break;
+      case ActionTypes.UPLOAD_COMPANY_DOCUMENT:
+        if (!payload.companyId && !actor.companyId) reasons.push("company_id jest wymagany");
+        if (!payload.type) reasons.push("typ dokumentu firmy jest wymagany");
+        break;
+      case ActionTypes.VERIFY_COMPANY:
+      case ActionTypes.REJECT_COMPANY_VERIFICATION:
+      case ActionTypes.SUSPEND_COMPANY:
+        if (!payload.companyId) reasons.push("company_id jest wymagany");
         break;
       case ActionTypes.ONBOARDING_START:
         validateOnboardingStart(payload, reasons);
@@ -228,6 +273,8 @@ export class WorkflowEngine {
     const transport = modules.transports.getById(payload.transportId || state.session.selectedTransportId);
 
     switch (actionType) {
+      case ActionTypes.SELECT_CONTEXT:
+        return this.selectContext(state, payload, actor);
       case ActionTypes.SELECT_ROLE:
         return this.selectRole(state, modules, payload);
       case ActionTypes.SELECT_VIEW:
@@ -248,6 +295,28 @@ export class WorkflowEngine {
         return modules.auth.verifyAccount(payload.userId);
       case ActionTypes.CHANGE_PHONE:
         return modules.auth.changePhone(payload.userId, payload.phone);
+      case ActionTypes.CREATE_COMPANY:
+        return modules.companies.createCompany(actor, payload);
+      case ActionTypes.UPDATE_COMPANY:
+        return modules.companies.updateCompany(actor, payload);
+      case ActionTypes.INVITE_COMPANY_USER:
+        return modules.companies.inviteUser(actor, payload);
+      case ActionTypes.ACCEPT_COMPANY_INVITATION:
+        return modules.companies.acceptInvitation(actor, payload);
+      case ActionTypes.CHANGE_COMPANY_USER_ROLE:
+        return modules.companies.changeUserRole(actor, payload);
+      case ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS:
+        return modules.companies.changeUserPermissions(actor, payload);
+      case ActionTypes.REMOVE_COMPANY_USER:
+        return modules.companies.removeUser(actor, payload);
+      case ActionTypes.UPLOAD_COMPANY_DOCUMENT:
+        return modules.companies.uploadCompanyDocument(actor, payload);
+      case ActionTypes.VERIFY_COMPANY:
+        return modules.companies.verifyCompany(actor, payload);
+      case ActionTypes.REJECT_COMPANY_VERIFICATION:
+        return modules.companies.rejectCompany(actor, payload);
+      case ActionTypes.SUSPEND_COMPANY:
+        return modules.companies.suspendCompany(actor, payload);
       case ActionTypes.ONBOARDING_START:
         return modules.onboarding.start(payload);
       case ActionTypes.ONBOARDING_VERIFY_PHONE:
@@ -445,10 +514,33 @@ export class WorkflowEngine {
     }
   }
 
+  selectContext(state, payload, actor) {
+    const previous = `${state.session.contextType || "private"}:${state.session.companyId || "none"}`;
+    state.session.contextType = payload.contextType;
+    state.session.companyId = payload.contextType === "company" ? payload.companyId : null;
+    state.session.companyRoleId = payload.companyRoleId || payload.userCompanyRoleId || null;
+    state.session.deniedView = null;
+    state.session.deniedRoute = null;
+    return {
+      events: [{
+        type: EventTypes.SESSION_CONTEXT_CHANGED,
+        objectType: "session",
+        objectId: "demo-session",
+        previousState: previous,
+        newState: `${state.session.contextType}:${state.session.companyId || "none"}`,
+        reason: `aktywny kontekst zmieniony przez ${actor.userId}`
+      }]
+    };
+  }
+
   selectRole(state, modules, payload) {
     const demoUser = modules.users.findDemoUserForRole(payload.role);
+    const context = modules.companies.defaultContextForUser(demoUser);
     state.session.role = payload.role;
     state.session.userId = demoUser.id;
+    state.session.contextType = context.contextType;
+    state.session.companyId = context.companyId || null;
+    state.session.companyRoleId = context.userCompanyRoleId || null;
     state.session.onboardingRequired = false;
     state.session.onboardingUserId = null;
     state.session.deniedView = null;
@@ -516,7 +608,7 @@ export class WorkflowEngine {
 }
 
 function sessionOnly(actionType) {
-  return [ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT].includes(actionType);
+  return [ActionTypes.SELECT_CONTEXT, ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT].includes(actionType);
 }
 
 function requiresVerifiedRole(actionType) {
@@ -533,6 +625,34 @@ function requiresVerifiedRole(actionType) {
     ActionTypes.OPEN_CLAIM,
     ActionTypes.RELEASE_PAYMENT
   ].includes(actionType);
+}
+
+function requiresVerifiedCompany(actionType) {
+  return [
+    ActionTypes.CREATE_LOAD,
+    ActionTypes.PUBLISH_LOAD,
+    ActionTypes.ACCEPT_CARRIER,
+    ActionTypes.ASSIGN_DRIVER,
+    ActionTypes.ADD_VEHICLE,
+    ActionTypes.ACCEPT_SERVICE_JOB,
+    ActionTypes.COMPLETE_SERVICE_JOB,
+    ActionTypes.OPEN_CLAIM
+  ].includes(actionType);
+}
+
+function companyVerified(actor) {
+  return [
+    CompanyVerificationStatuses.VERIFIED,
+    CompanyVerificationStatuses.LIMITED
+  ].includes(actor.companyVerificationStatus);
+}
+
+function validateCreateCompany(payload, reasons) {
+  if (!payload.name && !payload.companyName) reasons.push("nazwa firmy jest wymagana");
+  if (!payload.country) reasons.push("kraj firmy jest wymagany");
+  if (!payload.vatEu && !payload.vat) reasons.push("NIP / VAT EU jest wymagany");
+  if (!payload.address) reasons.push("adres firmy jest wymagany");
+  if (!payload.type && !payload.companyType) reasons.push("typ firmy jest wymagany");
 }
 
 function validateOnboardingStart(payload, reasons) {

@@ -1,5 +1,5 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 11;
+export const DEMO_DATA_VERSION = 12;
 export const STORAGE_KEY = "global-logistic-gl2-core-engine-v7";
 
 export const Roles = Object.freeze({
@@ -66,6 +66,47 @@ export const AuthoritySubtypes = Object.freeze({
   TRANSPORT_INSPECTION: "transport_inspection",
   CUSTOMS_AUTHORITY: "customs_authority",
   ROAD_AUTHORITY: "road_authority"
+});
+
+export const CompanyTypes = Object.freeze({
+  CARRIER: "carrier",
+  CLIENT: "client",
+  WAREHOUSE: "warehouse",
+  WORKSHOP: "workshop",
+  INSURER: "insurer",
+  INSURANCE: "insurance",
+  DISPATCHER: "dispatcher",
+  ACADEMY_PARTNER: "academy_partner",
+  PAYMENT: "payment",
+  SECURITY: "security",
+  CUSTOMS_AGENT: "customs_agent",
+  AUTHORITY: "authority",
+  FERRY_OPERATOR: "ferry_operator",
+  RAIL_OPERATOR: "rail_operator",
+  MOBILE_SERVICE: "mobile_service",
+  ROADSIDE_ASSISTANCE: "roadside_assistance"
+});
+
+export const CompanyVerificationStatuses = Object.freeze({
+  DRAFT: "draft",
+  PENDING: "pending",
+  VERIFIED: "verified",
+  LIMITED: "limited",
+  SUSPENDED: "suspended",
+  REJECTED: "rejected"
+});
+
+export const CompanyRoleNames = Object.freeze({
+  OWNER: "owner",
+  ADMIN: "admin",
+  FINANCE: "finance",
+  DISPATCHER: "dispatcher",
+  DRIVER_MANAGER: "driver_manager",
+  WAREHOUSE_MANAGER: "warehouse_manager",
+  MECHANIC: "mechanic",
+  INSURANCE_MANAGER: "insurance_manager",
+  EMPLOYEE: "employee",
+  VIEWER: "viewer"
 });
 
 export const CustomsDocumentTypes = Object.freeze([
@@ -176,9 +217,21 @@ export const PaymentStatuses = Object.freeze({
 });
 
 export const ActionTypes = Object.freeze({
+  SELECT_CONTEXT: "SELECT_CONTEXT",
   SELECT_ROLE: "SELECT_ROLE",
   SELECT_VIEW: "SELECT_VIEW",
   SELECT_TRANSPORT: "SELECT_TRANSPORT",
+  CREATE_COMPANY: "CREATE_COMPANY",
+  UPDATE_COMPANY: "UPDATE_COMPANY",
+  INVITE_COMPANY_USER: "INVITE_COMPANY_USER",
+  ACCEPT_COMPANY_INVITATION: "ACCEPT_COMPANY_INVITATION",
+  CHANGE_COMPANY_USER_ROLE: "CHANGE_COMPANY_USER_ROLE",
+  CHANGE_COMPANY_USER_PERMISSIONS: "CHANGE_COMPANY_USER_PERMISSIONS",
+  REMOVE_COMPANY_USER: "REMOVE_COMPANY_USER",
+  UPLOAD_COMPANY_DOCUMENT: "UPLOAD_COMPANY_DOCUMENT",
+  VERIFY_COMPANY: "VERIFY_COMPANY",
+  REJECT_COMPANY_VERIFICATION: "REJECT_COMPANY_VERIFICATION",
+  SUSPEND_COMPANY: "SUSPEND_COMPANY",
   REGISTER_USER: "REGISTER_USER",
   VERIFY_ACCOUNT: "VERIFY_ACCOUNT",
   CHANGE_PHONE: "CHANGE_PHONE",
@@ -251,8 +304,19 @@ export const ActionTypes = Object.freeze({
 
 export const EventTypes = Object.freeze({
   ACTION_BLOCKED: "ACTION_BLOCKED",
+  SESSION_CONTEXT_CHANGED: "SESSION_CONTEXT_CHANGED",
   SESSION_ROLE_CHANGED: "SESSION_ROLE_CHANGED",
   UI_VIEW_CHANGED: "UI_VIEW_CHANGED",
+  COMPANY_CREATED: "COMPANY_CREATED",
+  COMPANY_UPDATED: "COMPANY_UPDATED",
+  COMPANY_DOCUMENT_UPLOADED: "COMPANY_DOCUMENT_UPLOADED",
+  COMPANY_USER_INVITED: "COMPANY_USER_INVITED",
+  COMPANY_INVITATION_ACCEPTED: "COMPANY_INVITATION_ACCEPTED",
+  COMPANY_USER_ROLE_CHANGED: "COMPANY_USER_ROLE_CHANGED",
+  COMPANY_USER_PERMISSIONS_CHANGED: "COMPANY_USER_PERMISSIONS_CHANGED",
+  COMPANY_USER_REMOVED: "COMPANY_USER_REMOVED",
+  COMPANY_SUSPENDED: "COMPANY_SUSPENDED",
+  COMPANY_VERIFICATION_REJECTED: "COMPANY_VERIFICATION_REJECTED",
   USER_REGISTERED: "USER_REGISTERED",
   ACCOUNT_VERIFIED: "ACCOUNT_VERIFIED",
   PHONE_CHANGED: "PHONE_CHANGED",

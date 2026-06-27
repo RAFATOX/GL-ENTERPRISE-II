@@ -60,6 +60,18 @@ root.addEventListener("click", (event) => {
 });
 
 root.addEventListener("change", (event) => {
+  const contextSelect = event.target.closest("[data-context-select]");
+  if (contextSelect) {
+    const [contextType, companyId, userCompanyRoleId] = contextSelect.value.split("|");
+    engine.dispatchAction(ActionTypes.SELECT_CONTEXT, {
+      contextType,
+      companyId: companyId || null,
+      userCompanyRoleId: userCompanyRoleId || null
+    });
+    navigateToRoute("#/dashboard");
+    return;
+  }
+
   const roleSelect = event.target.closest("[data-role-select]");
   if (!roleSelect) return;
   const role = roleSelect.value;

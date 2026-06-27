@@ -1,18 +1,66 @@
-import { Roles } from "./constants.js";
+import { CompanyRoleNames, CompanyTypes, Roles } from "./constants.js";
 
 export const FinancePermissions = Object.freeze({
   WALLET_OWN_READ: "wallet.own.read",
   WALLET_OWN_MANAGE: "wallet.own.manage",
+  WALLET_COMPANY_READ: "wallet.company.read",
+  WALLET_COMPANY_MANAGE: "wallet.company.manage",
   WALLET_PLATFORM_READ: "wallet.platform.read",
   WALLET_PLATFORM_MANAGE: "wallet.platform.manage",
   BILLING_OWN_READ: "billing.own.read",
   INVOICES_OWN_READ: "invoices.own.read",
+  INVOICES_COMPANY_READ: "invoices.company.read",
   SETTLEMENTS_OWN_READ: "settlements.own.read",
   ESCROW_OWN_READ: "escrow.own.read",
+  ESCROW_COMPANY_READ: "escrow.company.read",
   ESCROW_MANAGE: "escrow.manage",
   PAYOUTS_OWN_READ: "payouts.own.read",
+  PAYOUTS_COMPANY_MANAGE: "payouts.company.manage",
   PAYOUTS_MANAGE: "payouts.manage",
   FINANCE_AUDIT_READ: "finance.audit.read"
+});
+
+export const CompanyPermissions = Object.freeze({
+  CREATE: "company.create",
+  READ: "company.read",
+  MANAGE: "company.manage",
+  INVITE_USERS: "company.invite_users",
+  REMOVE_USERS: "company.remove_users",
+  DOCUMENTS_UPLOAD: "company.documents.upload",
+  DOCUMENTS_VERIFY_STATUS_READ: "company.documents.verify_status_read"
+});
+
+export const LoadPermissions = Object.freeze({
+  CREATE: "loads.create",
+  ACCEPT: "loads.accept",
+  ASSIGN_DRIVER: "loads.assign_driver",
+  VIEW_OWN: "loads.view_own",
+  VIEW_COMPANY: "loads.view_company",
+  MANAGE_COMPANY: "loads.manage_company"
+});
+
+export const VehiclePermissions = Object.freeze({
+  CREATE: "vehicles.create",
+  MANAGE: "vehicles.manage"
+});
+
+export const DriverPermissions = Object.freeze({
+  ASSIGN: "drivers.assign"
+});
+
+export const DocumentPermissions = Object.freeze({
+  UPLOAD: "documents.upload",
+  APPROVE: "documents.approve"
+});
+
+export const AdminPermissions = Object.freeze({
+  AUDIT_READ: "admin.audit.read"
+});
+
+export const CompliancePermissions = Object.freeze({
+  REVIEW: "compliance.review",
+  SUSPEND_USER: "compliance.suspend_user",
+  SUSPEND_COMPANY: "compliance.suspend_company"
 });
 
 export const ModulePermissions = Object.freeze({
@@ -287,7 +335,295 @@ const explicitPermissionsByRole = {
   ]
 };
 
+export const PrivateContextPermissions = Object.freeze([
+  ModulePermissions.DASHBOARD,
+  ModulePermissions.PROFILE,
+  CompanyPermissions.CREATE
+]);
+
+export const PlatformRolePermissionMap = Object.freeze({
+  [Roles.PLATFORM_OWNER]: unique([
+    ...Object.values(ModulePermissions),
+    ...Object.values(CompanyPermissions),
+    ...Object.values(LoadPermissions),
+    ...Object.values(VehiclePermissions),
+    ...Object.values(DriverPermissions),
+    ...Object.values(DocumentPermissions),
+    ...Object.values(FinancePermissions),
+    ...Object.values(AdminPermissions),
+    ...Object.values(CompliancePermissions)
+  ]),
+  [Roles.GL_OPERATOR]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    ModulePermissions.WALLET,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.AUTHORITY,
+    ModulePermissions.AI,
+    ModulePermissions.AUDIT,
+    CompanyPermissions.READ,
+    CompanyPermissions.MANAGE,
+    FinancePermissions.WALLET_PLATFORM_READ,
+    FinancePermissions.WALLET_PLATFORM_MANAGE,
+    FinancePermissions.ESCROW_MANAGE,
+    FinancePermissions.PAYOUTS_MANAGE,
+    FinancePermissions.FINANCE_AUDIT_READ,
+    AdminPermissions.AUDIT_READ,
+    CompliancePermissions.REVIEW,
+    CompliancePermissions.SUSPEND_COMPANY,
+    CompliancePermissions.SUSPEND_USER
+  ]),
+  [Roles.ADMIN_FINANCE]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.REPORTS,
+    ModulePermissions.PROFILE,
+    ModulePermissions.WALLET,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.AUDIT,
+    FinancePermissions.WALLET_PLATFORM_READ,
+    FinancePermissions.WALLET_PLATFORM_MANAGE,
+    FinancePermissions.ESCROW_MANAGE,
+    FinancePermissions.PAYOUTS_MANAGE,
+    FinancePermissions.FINANCE_AUDIT_READ,
+    AdminPermissions.AUDIT_READ
+  ])
+});
+
+const operationalCompanyPermissions = [
+  ModulePermissions.DASHBOARD,
+  ModulePermissions.TRANSPORTS,
+  ModulePermissions.LIVE_MAP,
+  ModulePermissions.GPS,
+  ModulePermissions.PHOTOS,
+  ModulePermissions.DOCUMENTS,
+  ModulePermissions.PARKING,
+  ModulePermissions.CHAT,
+  ModulePermissions.JOBS,
+  ModulePermissions.TRUST,
+  ModulePermissions.PROFILE,
+  CompanyPermissions.READ,
+  LoadPermissions.VIEW_COMPANY,
+  DocumentPermissions.UPLOAD
+];
+
+export const CompanyRolePermissionMap = Object.freeze({
+  [CompanyRoleNames.OWNER]: unique([
+    ...operationalCompanyPermissions,
+    ModulePermissions.LOADS,
+    ModulePermissions.WALLET,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    CompanyPermissions.MANAGE,
+    CompanyPermissions.INVITE_USERS,
+    CompanyPermissions.REMOVE_USERS,
+    CompanyPermissions.DOCUMENTS_UPLOAD,
+    CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
+    LoadPermissions.CREATE,
+    LoadPermissions.ACCEPT,
+    LoadPermissions.ASSIGN_DRIVER,
+    LoadPermissions.MANAGE_COMPANY,
+    VehiclePermissions.CREATE,
+    VehiclePermissions.MANAGE,
+    DriverPermissions.ASSIGN,
+    FinancePermissions.WALLET_COMPANY_READ,
+    FinancePermissions.WALLET_COMPANY_MANAGE,
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ,
+    FinancePermissions.INVOICES_COMPANY_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.ESCROW_OWN_READ,
+    FinancePermissions.ESCROW_COMPANY_READ,
+    FinancePermissions.PAYOUTS_OWN_READ,
+    FinancePermissions.PAYOUTS_COMPANY_MANAGE
+  ]),
+  [CompanyRoleNames.ADMIN]: unique([
+    ...operationalCompanyPermissions,
+    ModulePermissions.LOADS,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    CompanyPermissions.MANAGE,
+    CompanyPermissions.INVITE_USERS,
+    CompanyPermissions.DOCUMENTS_UPLOAD,
+    CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
+    LoadPermissions.CREATE,
+    LoadPermissions.ACCEPT,
+    LoadPermissions.ASSIGN_DRIVER,
+    LoadPermissions.MANAGE_COMPANY,
+    VehiclePermissions.MANAGE,
+    DriverPermissions.ASSIGN,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_COMPANY_READ,
+    FinancePermissions.ESCROW_COMPANY_READ
+  ]),
+  [CompanyRoleNames.FINANCE]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.WALLET,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
+    FinancePermissions.WALLET_COMPANY_READ,
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ,
+    FinancePermissions.INVOICES_COMPANY_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.ESCROW_COMPANY_READ,
+    FinancePermissions.PAYOUTS_OWN_READ,
+    FinancePermissions.PAYOUTS_COMPANY_MANAGE,
+    FinancePermissions.FINANCE_AUDIT_READ
+  ]),
+  [CompanyRoleNames.DISPATCHER]: unique([
+    ...operationalCompanyPermissions,
+    ModulePermissions.LOADS,
+    LoadPermissions.CREATE,
+    LoadPermissions.ACCEPT,
+    LoadPermissions.ASSIGN_DRIVER,
+    LoadPermissions.MANAGE_COMPANY,
+    VehiclePermissions.MANAGE,
+    DriverPermissions.ASSIGN
+  ]),
+  [CompanyRoleNames.DRIVER_MANAGER]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.JOBS,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_COMPANY,
+    LoadPermissions.ASSIGN_DRIVER,
+    VehiclePermissions.MANAGE,
+    DriverPermissions.ASSIGN,
+    DocumentPermissions.UPLOAD
+  ]),
+  [CompanyRoleNames.WAREHOUSE_MANAGER]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.CHAT,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_COMPANY,
+    DocumentPermissions.UPLOAD
+  ]),
+  [CompanyRoleNames.MECHANIC]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.SERVICE_ORDERS,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    DocumentPermissions.UPLOAD,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.PAYOUTS_OWN_READ
+  ]),
+  [CompanyRoleNames.INSURANCE_MANAGER]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.POLICIES,
+    ModulePermissions.CLAIMS,
+    ModulePermissions.RISK,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    DocumentPermissions.UPLOAD,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ
+  ]),
+  [CompanyRoleNames.EMPLOYEE]: unique([
+    ...operationalCompanyPermissions,
+    LoadPermissions.VIEW_OWN
+  ]),
+  [CompanyRoleNames.VIEWER]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_COMPANY
+  ])
+});
+
+export const CompanyTypePermissionMap = Object.freeze({
+  [CompanyTypes.CLIENT]: unique([
+    ModulePermissions.LOADS,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.CHAT,
+    ModulePermissions.TRUST,
+    LoadPermissions.CREATE,
+    LoadPermissions.VIEW_COMPANY,
+    FinancePermissions.ESCROW_OWN_READ,
+    FinancePermissions.ESCROW_COMPANY_READ
+  ]),
+  [CompanyTypes.CARRIER]: unique([
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.PARKING,
+    ModulePermissions.CHAT,
+    ModulePermissions.JOBS,
+    ModulePermissions.TRUST,
+    LoadPermissions.ACCEPT,
+    LoadPermissions.ASSIGN_DRIVER,
+    LoadPermissions.VIEW_COMPANY
+  ]),
+  [CompanyTypes.WAREHOUSE]: unique([
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.CHAT
+  ]),
+  [CompanyTypes.WORKSHOP]: unique([ModulePermissions.SERVICE_ORDERS, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
+  [CompanyTypes.MOBILE_SERVICE]: unique([ModulePermissions.SERVICE_ORDERS, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
+  [CompanyTypes.ROADSIDE_ASSISTANCE]: unique([ModulePermissions.SERVICE_ORDERS, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
+  [CompanyTypes.INSURER]: unique([ModulePermissions.DOCUMENTS, ModulePermissions.POLICIES, ModulePermissions.CLAIMS, ModulePermissions.RISK, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
+  [CompanyTypes.INSURANCE]: unique([ModulePermissions.DOCUMENTS, ModulePermissions.POLICIES, ModulePermissions.CLAIMS, ModulePermissions.RISK, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
+  [CompanyTypes.PAYMENT]: unique([ModulePermissions.BILLING, ModulePermissions.INVOICES, ModulePermissions.REPORTS, ModulePermissions.AUDIT]),
+  [CompanyTypes.SECURITY]: unique([ModulePermissions.SECURITY, ModulePermissions.TRANSPORTS, ModulePermissions.LIVE_MAP, ModulePermissions.GPS]),
+  [CompanyTypes.CUSTOMS_AGENT]: unique([ModulePermissions.CUSTOMS, ModulePermissions.TRANSPORTS, ModulePermissions.DOCUMENTS, ModulePermissions.CHAT]),
+  [CompanyTypes.AUTHORITY]: unique([ModulePermissions.AUTHORITY, ModulePermissions.TRANSPORTS, ModulePermissions.DOCUMENTS]),
+  [CompanyTypes.FERRY_OPERATOR]: unique([ModulePermissions.INTERMODAL, ModulePermissions.TRANSPORTS, ModulePermissions.DOCUMENTS, ModulePermissions.CHAT]),
+  [CompanyTypes.RAIL_OPERATOR]: unique([ModulePermissions.INTERMODAL, ModulePermissions.TRANSPORTS, ModulePermissions.DOCUMENTS, ModulePermissions.CHAT]),
+  [CompanyTypes.ACADEMY_PARTNER]: unique([ModulePermissions.ACADEMY, ModulePermissions.PROFILE])
+});
+
 export function permissionsForRole(role, user = {}) {
+  if (user.permissionsSource === "company_engine") return unique(user.permissions || []);
+  if (Array.isArray(user.permissions) && user.permissions.length) {
+    return unique([...(explicitPermissionsByRole[role] || []), ...user.permissions]);
+  }
   const configured = modulesConfig
     .filter((module) => module.allowedRoles.includes(role))
     .flatMap((module) => module.requiredPermissions);
@@ -296,7 +632,7 @@ export function permissionsForRole(role, user = {}) {
 
 export function getVisibleModules(user = {}, activeRole = user.role) {
   const permissions = permissionsForRole(activeRole, user);
-  return modulesConfig.filter((module) => moduleIsAllowed(module, activeRole, permissions));
+  return modulesConfig.filter((module) => moduleIsAllowed(module, activeRole, permissions, user));
 }
 
 export function moduleForRoute(route) {
@@ -315,7 +651,7 @@ export function canAccessModuleView(user = {}, activeRole = user.role, view, rou
     return { ok: false, reason: `module route not found for ${route || view}` };
   }
   const permissions = permissionsForRole(activeRole, user);
-  if (!moduleIsAllowed(module, activeRole, permissions)) {
+  if (!moduleIsAllowed(module, activeRole, permissions, user)) {
     return { ok: false, reason: `${activeRole} has no access to module ${module.label}` };
   }
   return { ok: true, module };
@@ -335,7 +671,8 @@ export function normalizeRoute(route = "") {
   return noHash.startsWith("/") ? noHash : `/${noHash}`;
 }
 
-function moduleIsAllowed(module, role, permissions) {
+function moduleIsAllowed(module, role, permissions, user = {}) {
   const hasPermissions = module.requiredPermissions.every((permission) => permissions.includes(permission));
+  if (hasPermissions && user.permissionsSource === "company_engine") return true;
   return hasPermissions && (module.allowedRoles.includes(role) || module.allowPermissionOverride);
 }

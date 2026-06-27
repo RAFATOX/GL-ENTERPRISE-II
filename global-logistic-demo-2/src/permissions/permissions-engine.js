@@ -1,9 +1,22 @@
 import { ActionTypes, AccountStatuses, DEMO_MODE, Roles, TransportStatuses } from "../core/constants.js";
-import { canAccessModuleView, platformWalletRoles } from "../core/modules-config.js";
+import {
+  AdminPermissions,
+  CompanyPermissions,
+  CompliancePermissions,
+  DocumentPermissions,
+  DriverPermissions,
+  FinancePermissions,
+  LoadPermissions,
+  ModulePermissions,
+  VehiclePermissions,
+  canAccessModuleView,
+  platformWalletRoles
+} from "../core/modules-config.js";
 import { onboardingActionTypes } from "../onboarding/registration-onboarding-engine.js";
 
 const platformActions = Object.values(ActionTypes);
 const onboardingActions = new Set(onboardingActionTypes(ActionTypes));
+const sessionActions = new Set([ActionTypes.SELECT_CONTEXT, ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT]);
 
 const rolePermissions = {
   [Roles.PLATFORM_OWNER]: platformActions,
@@ -315,6 +328,82 @@ const rolePermissions = {
   ]
 };
 
+const actionPermissionRequirements = {
+  [ActionTypes.SELECT_CONTEXT]: [[ModulePermissions.DASHBOARD]],
+  [ActionTypes.SELECT_VIEW]: [[ModulePermissions.DASHBOARD]],
+  [ActionTypes.SELECT_TRANSPORT]: [[LoadPermissions.VIEW_OWN], [LoadPermissions.VIEW_COMPANY], [ModulePermissions.TRANSPORTS]],
+  [ActionTypes.CREATE_COMPANY]: [[CompanyPermissions.CREATE]],
+  [ActionTypes.UPDATE_COMPANY]: [[CompanyPermissions.MANAGE]],
+  [ActionTypes.INVITE_COMPANY_USER]: [[CompanyPermissions.INVITE_USERS]],
+  [ActionTypes.ACCEPT_COMPANY_INVITATION]: [[CompanyPermissions.READ]],
+  [ActionTypes.CHANGE_COMPANY_USER_ROLE]: [[CompanyPermissions.MANAGE]],
+  [ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS]: [[CompanyPermissions.MANAGE]],
+  [ActionTypes.REMOVE_COMPANY_USER]: [[CompanyPermissions.REMOVE_USERS]],
+  [ActionTypes.UPLOAD_COMPANY_DOCUMENT]: [[CompanyPermissions.DOCUMENTS_UPLOAD]],
+  [ActionTypes.VERIFY_COMPANY]: [[CompliancePermissions.REVIEW]],
+  [ActionTypes.REJECT_COMPANY_VERIFICATION]: [[CompliancePermissions.REVIEW]],
+  [ActionTypes.SUSPEND_COMPANY]: [[CompliancePermissions.SUSPEND_COMPANY]],
+  [ActionTypes.REGISTER_USER]: [[CompanyPermissions.CREATE]],
+  [ActionTypes.VERIFY_ACCOUNT]: [[CompliancePermissions.REVIEW]],
+  [ActionTypes.CHANGE_PHONE]: [[ModulePermissions.PROFILE]],
+  [ActionTypes.ADD_VEHICLE]: [[VehiclePermissions.CREATE]],
+  [ActionTypes.CREATE_LOAD]: [[LoadPermissions.CREATE]],
+  [ActionTypes.ADD_LOAD_PHOTO]: [[DocumentPermissions.UPLOAD], [ModulePermissions.PHOTOS]],
+  [ActionTypes.CONFIRM_GPS]: [[ModulePermissions.GPS]],
+  [ActionTypes.PUBLISH_LOAD]: [[LoadPermissions.CREATE], [LoadPermissions.MANAGE_COMPANY]],
+  [ActionTypes.ACCEPT_CARRIER]: [[LoadPermissions.ACCEPT]],
+  [ActionTypes.ASSIGN_DRIVER]: [[LoadPermissions.ASSIGN_DRIVER], [DriverPermissions.ASSIGN]],
+  [ActionTypes.START_PICKUP_NAVIGATION]: [[LoadPermissions.VIEW_OWN]],
+  [ActionTypes.ARRIVE_PICKUP]: [[LoadPermissions.VIEW_OWN]],
+  [ActionTypes.START_LOADING]: [[LoadPermissions.VIEW_OWN], [LoadPermissions.VIEW_COMPANY]],
+  [ActionTypes.CONFIRM_LOADING]: [[LoadPermissions.VIEW_OWN], [LoadPermissions.VIEW_COMPANY]],
+  [ActionTypes.UPLOAD_DOCUMENT]: [[DocumentPermissions.UPLOAD]],
+  [ActionTypes.START_TRANSIT]: [[LoadPermissions.VIEW_OWN]],
+  [ActionTypes.SELECT_PARKING]: [[ModulePermissions.PARKING]],
+  [ActionTypes.START_BREAK]: [[ModulePermissions.PARKING]],
+  [ActionTypes.FINISH_BREAK]: [[ModulePermissions.PARKING]],
+  [ActionTypes.ARRIVE_DELIVERY]: [[LoadPermissions.VIEW_OWN]],
+  [ActionTypes.START_UNLOADING]: [[LoadPermissions.VIEW_OWN]],
+  [ActionTypes.CONFIRM_DELIVERY]: [[LoadPermissions.VIEW_OWN]],
+  [ActionTypes.RELEASE_PAYMENT]: [[FinancePermissions.WALLET_PLATFORM_MANAGE], [FinancePermissions.ESCROW_MANAGE]],
+  [ActionTypes.OPEN_DISPUTE]: [[LoadPermissions.VIEW_COMPANY], [CompliancePermissions.REVIEW]],
+  [ActionTypes.OPEN_CLAIM]: [[ModulePermissions.CLAIMS]],
+  [ActionTypes.SEND_MESSAGE]: [[ModulePermissions.CHAT]],
+  [ActionTypes.REQUEST_TRANSLATION]: [[ModulePermissions.CHAT]],
+  [ActionTypes.SCAN_LICENSE_PLATE]: [[ModulePermissions.SECURITY], [ModulePermissions.AUTHORITY], [ModulePermissions.TRANSPORTS]],
+  [ActionTypes.RECORD_SECURITY_CHECK]: [[ModulePermissions.SECURITY]],
+  [ActionTypes.MARK_CUSTOMS_REQUIRED]: [[LoadPermissions.MANAGE_COMPANY], [ModulePermissions.CUSTOMS]],
+  [ActionTypes.SEND_TO_CUSTOMS]: [[LoadPermissions.MANAGE_COMPANY], [ModulePermissions.CUSTOMS]],
+  [ActionTypes.START_CUSTOMS]: [[ModulePermissions.CUSTOMS]],
+  [ActionTypes.CLEAR_CUSTOMS]: [[ModulePermissions.CUSTOMS]],
+  [ActionTypes.HOLD_CUSTOMS]: [[ModulePermissions.CUSTOMS]],
+  [ActionTypes.START_AUTHORITY_CONTROL]: [[ModulePermissions.AUTHORITY]],
+  [ActionTypes.RECORD_DOCUMENT_CHECK]: [[ModulePermissions.AUTHORITY]],
+  [ActionTypes.RECORD_ROAD_INSPECTION]: [[ModulePermissions.AUTHORITY]],
+  [ActionTypes.PASS_AUTHORITY_CONTROL]: [[ModulePermissions.AUTHORITY]],
+  [ActionTypes.REPORT_AUTHORITY_ISSUE]: [[ModulePermissions.AUTHORITY]],
+  [ActionTypes.MARK_FERRY_REQUIRED]: [[LoadPermissions.MANAGE_COMPANY], [ModulePermissions.INTERMODAL]],
+  [ActionTypes.BOOK_FERRY]: [[ModulePermissions.INTERMODAL]],
+  [ActionTypes.START_PORT_NAVIGATION]: [[ModulePermissions.INTERMODAL], [LoadPermissions.VIEW_OWN]],
+  [ActionTypes.CHECK_IN_FERRY]: [[ModulePermissions.INTERMODAL]],
+  [ActionTypes.BOARD_FERRY]: [[ModulePermissions.INTERMODAL], [LoadPermissions.VIEW_OWN]],
+  [ActionTypes.COMPLETE_FERRY]: [[ModulePermissions.INTERMODAL]],
+  [ActionTypes.REPORT_BREAKDOWN]: [[ModulePermissions.SERVICE_ORDERS], [LoadPermissions.VIEW_OWN]],
+  [ActionTypes.REQUEST_TECHNICAL_SERVICE]: [[ModulePermissions.SERVICE_ORDERS], [LoadPermissions.MANAGE_COMPANY]],
+  [ActionTypes.ACCEPT_SERVICE_JOB]: [[ModulePermissions.SERVICE_ORDERS]],
+  [ActionTypes.COMPLETE_SERVICE_JOB]: [[ModulePermissions.SERVICE_ORDERS]],
+  [ActionTypes.SIMULATE_API_CALL]: [[ModulePermissions.SYSTEM], [AdminPermissions.AUDIT_READ]],
+  [ActionTypes.RUN_INTEGRATION_SYNC]: [[ModulePermissions.SYSTEM], [AdminPermissions.AUDIT_READ]],
+  [ActionTypes.RUN_RESILIENCE_CHECK]: [[ModulePermissions.SYSTEM], [AdminPermissions.AUDIT_READ]],
+  [ActionTypes.RUN_COMPLIANCE_CHECK]: [[CompliancePermissions.REVIEW]],
+  [ActionTypes.AI_RUN_CHECK]: [[ModulePermissions.AI], [CompliancePermissions.REVIEW]],
+  [ActionTypes.ADMIN_BLOCK_TRANSPORT]: [[CompliancePermissions.REVIEW]],
+  [ActionTypes.ADMIN_RESOLVE_DISPUTE]: [[CompliancePermissions.REVIEW], [FinancePermissions.ESCROW_MANAGE]],
+  [ActionTypes.ADMIN_BLOCK_ACCOUNT]: [[CompliancePermissions.SUSPEND_USER]],
+  [ActionTypes.PARKING_REPORT]: [[ModulePermissions.PARKING]],
+  [ActionTypes.RESET_DEMO]: [[ModulePermissions.SYSTEM]]
+};
+
 export class PermissionsEngine {
   can(actionType, context) {
     return this.canPerformAction(context.actor, actionType, context);
@@ -356,13 +445,9 @@ export class PermissionsEngine {
       };
     }
 
-    const allowed = rolePermissions[context.actor.role] || [];
-    if (!allowed.includes(actionType)) {
-      return {
-        ok: false,
-        reason: `${context.actor.role} has no permission for ${actionType}`
-      };
-    }
+    const actionAccess = this.checkActionPermission(actionType, context);
+    if (!actionAccess.ok) return actionAccess;
+
     if (actionType === ActionTypes.SELECT_VIEW) {
       const moduleAccess = canAccessModuleView(context.actor, context.actor.role, context.payload.view, context.payload.route);
       if (!moduleAccess.ok) return moduleAccess;
@@ -374,6 +459,41 @@ export class PermissionsEngine {
 
   listForRole(role) {
     return rolePermissions[role] || [];
+  }
+
+  checkActionPermission(actionType, context) {
+    if (context.actor?.permissionsSource !== "company_engine") {
+      const allowed = rolePermissions[context.actor.role] || [];
+      if (!allowed.includes(actionType)) {
+        return {
+          ok: false,
+          reason: `${context.actor.role} has no permission for ${actionType}`
+        };
+      }
+      return { ok: true, reason: "legacy role permission granted" };
+    }
+
+    if (actionType === ActionTypes.SELECT_CONTEXT) {
+      return canSelectContext(context);
+    }
+
+    const requirementGroups = actionPermissionRequirements[actionType] || [];
+    if (!requirementGroups.length) {
+      return {
+        ok: false,
+        reason: `brak zmapowanego permission dla akcji ${actionType}`
+      };
+    }
+
+    const granted = requirementGroups.some((group) => group.every((permission) => hasPermission(context.actor, permission)));
+    if (!granted) {
+      return {
+        ok: false,
+        reason: `brak permission dla ${actionType}: wymagane ${requirementGroups.map((group) => group.join("+")).join(" albo ")}`
+      };
+    }
+
+    return { ok: true, reason: "permission granted by Company Engine context" };
   }
 
   checkEntityAccess(actionType, context) {
@@ -523,6 +643,21 @@ export class PermissionsEngine {
     const scope = financialScope(actor);
     const owner = financeOwnerForActor(actor, scope);
     snapshot.access = {
+      actor: {
+        userId: actor.userId,
+        role: actor.role,
+        companyId: actor.companyId,
+        companyName: actor.companyName,
+        companyType: actor.companyType,
+        companyRole: actor.companyRole,
+        contextType: actor.contextType,
+        permissions: actor.permissions || [],
+        permissionsSource: actor.permissionsSource
+      },
+      permissions: actor.permissions || [],
+      contextType: actor.contextType || "private",
+      contextOptions: actor.contextOptions || [],
+      activeContextLabel: activeContextLabel(actor),
       canViewFinancials: scope !== "none",
       canViewPlatformWallet: scope === "platform",
       canViewOwnWallet: ["client", "carrier", "insurance", "service"].includes(scope),
@@ -588,10 +723,22 @@ export class PermissionsEngine {
 function transportForContext(context) {
   const nonTransportActions = [
     ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_CONTEXT,
     ActionTypes.SELECT_VIEW,
     ActionTypes.REGISTER_USER,
     ActionTypes.VERIFY_ACCOUNT,
     ActionTypes.CHANGE_PHONE,
+    ActionTypes.CREATE_COMPANY,
+    ActionTypes.UPDATE_COMPANY,
+    ActionTypes.INVITE_COMPANY_USER,
+    ActionTypes.ACCEPT_COMPANY_INVITATION,
+    ActionTypes.CHANGE_COMPANY_USER_ROLE,
+    ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS,
+    ActionTypes.REMOVE_COMPANY_USER,
+    ActionTypes.UPLOAD_COMPANY_DOCUMENT,
+    ActionTypes.VERIFY_COMPANY,
+    ActionTypes.REJECT_COMPANY_VERIFICATION,
+    ActionTypes.SUSPEND_COMPANY,
     ActionTypes.ONBOARDING_START,
     ActionTypes.ONBOARDING_VERIFY_PHONE,
     ActionTypes.ONBOARDING_CREATE_ACCOUNT,
@@ -695,11 +842,15 @@ function canViewTransport(actor, transport, state) {
 }
 
 function financialScope(actor) {
-  if (platformFinanceRole(actor)) return "platform";
-  if (actor.role === Roles.CLIENT_OWNER) return "client";
-  if (actor.role === Roles.CARRIER_OWNER) return "carrier";
-  if (actor.role === Roles.INSURANCE_PARTNER) return "insurance";
-  if (serviceRole(actor.role)) return "service";
+  if (hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ)) return "platform";
+  const canReadCompanyWallet = hasPermission(actor, FinancePermissions.WALLET_COMPANY_READ)
+    || hasPermission(actor, FinancePermissions.WALLET_OWN_READ)
+    || hasPermission(actor, FinancePermissions.INVOICES_COMPANY_READ)
+    || hasPermission(actor, FinancePermissions.INVOICES_OWN_READ);
+  if (canReadCompanyWallet && actor.companyType === "client") return "client";
+  if (canReadCompanyWallet && actor.companyType === "carrier") return "carrier";
+  if (canReadCompanyWallet && ["insurance", "insurer"].includes(actor.companyType)) return "insurance";
+  if (canReadCompanyWallet && ["workshop", "mobile_service", "roadside_assistance"].includes(actor.companyType)) return "service";
   if (actor.role === Roles.PAYMENT_OPERATOR) return "payment_status";
   return "none";
 }
@@ -718,6 +869,12 @@ function walletViewForScope(scope) {
   if (scope === "insurance") return "PartnerWallet";
   if (scope === "service") return "PartnerWallet";
   return null;
+}
+
+function activeContextLabel(actor) {
+  if (actor.contextType === "platform") return "Operator GL";
+  if (actor.contextType === "company") return `${actor.companyName || actor.companyId} / ${actor.companyRole || "rola firmowa"}`;
+  return "Osoba prywatna";
 }
 
 function walletVisibleForActor(wallet, actor, scope) {
@@ -775,6 +932,30 @@ function filterFinanceRecords(records, actor, financialTransportIds, scope) {
 
 function platformFinanceRole(actor) {
   return platformWalletRoles.includes(actor.role);
+}
+
+function hasPermission(actor, permission) {
+  return (actor.permissions || []).includes(permission);
+}
+
+function canSelectContext(context) {
+  const payload = context.payload || {};
+  const actor = context.actor || {};
+  if (payload.contextType === "private") return { ok: true, reason: "private context allowed" };
+  if (payload.contextType === "platform") {
+    return hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ) || hasPermission(actor, AdminPermissions.AUDIT_READ)
+      ? { ok: true, reason: "platform context allowed" }
+      : { ok: false, reason: "brak uprawnien operatora GL" };
+  }
+  const companyId = payload.companyId;
+  const canUseCompany = (context.state.userCompanyRoles || []).some((membership) => (
+    membership.userId === actor.userId
+    && membership.companyId === companyId
+    && membership.status === "active"
+  ));
+  return canUseCompany
+    ? { ok: true, reason: "company context allowed" }
+    : { ok: false, reason: "uzytkownik nie jest przypisany do tej firmy" };
 }
 
 function accountApproved(actor) {

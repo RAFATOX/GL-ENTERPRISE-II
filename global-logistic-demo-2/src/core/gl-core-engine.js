@@ -119,7 +119,8 @@ export class GLCoreEngine {
   }
 
   getActor() {
-    return this.modules.users.getActor(this.state.session);
+    const user = this.modules.users.getById(this.state.session.userId);
+    return this.modules.companies.actorForSession(user, this.state.session);
   }
 
   explainAction(actionType, payload = {}) {
@@ -419,6 +420,9 @@ export class GLCoreEngine {
       at: nowIso(),
       actorId: context.actor.userId,
       actorRole: context.actor.role,
+      actorCompanyId: context.actor.companyId || null,
+      actorCompanyRole: context.actor.companyRole || null,
+      actorContextType: context.actor.contextType || "private",
       objectType: partial.objectType || "system",
       objectId: partial.objectId || "demo",
       transportId: partial.transportId || (partial.objectType === "transport" ? partial.objectId : null),

@@ -21,10 +21,11 @@ export function renderApp(state, engine) {
     return localizeHtml(renderOnboardingApp(state, engine), state.session.language || "pl");
   }
   const selected = selectedTransport(state);
+  const accessActor = state.access?.actor || { role: state.session.role };
   const roleConfig = getRoleConfig(state.session.role);
   const activeView = state.session.deniedView
     ? state.session.deniedView
-    : viewAllowedForRole(state.session.role, state.session.view)
+    : viewAllowedForRole(state.session.role, state.session.view, null, accessActor)
     ? state.session.view
     : "dashboard";
   return localizeHtml(`
@@ -40,7 +41,7 @@ export function renderApp(state, engine) {
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>Aktywna przestrzen</span>
-          <strong>${roleConfig.workspace}: moduly wynikaja z silnika uprawnien i konfiguracji modulow.</strong>
+          <strong>${state.access?.activeContextLabel || roleConfig.workspace}: moduly wynikaja z Company Engine i Permission Engine.</strong>
         </div>
       </aside>
       <main class="main">
@@ -278,7 +279,7 @@ function onboardingCompanyRequired(user) {
 }
 
 function renderAppNavigation(state, activeView) {
-  const items = menuForRole(state.session.role);
+  const items = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   const buttons = items.map((item) => `
     <button class="module-nav-button ${activeView === item.id ? "active" : ""}" data-module-route="${item.route}" data-view="${item.id}">
       <span class="module-icon">${item.icon}</span>
@@ -297,13 +298,24 @@ function renderAppNavigation(state, activeView) {
 }
 
 function renderTopbar(state, activeView, roleConfig) {
+  const contexts = state.access?.contextOptions || [];
   return `
     <header class="topbar">
       <div>
         <span class="eyebrow">${roleConfig.workspace} / GL Enterprise II</span>
-        <h1>${viewTitle(state.session.role, activeView)}</h1>
+        <h1>${viewTitle(state.session.role, activeView, state.access?.actor || { role: state.session.role })}</h1>
       </div>
       <div class="role-login">
+        ${contexts.length ? `
+          <label>
+            <span>Aktywny kontekst</span>
+            <select data-context-select aria-label="Aktywny kontekst">
+              ${contexts.map((context) => `
+                <option value="${context.contextType}|${context.companyId || ""}|${context.userCompanyRoleId || ""}" ${contextSelected(state, context) ? "selected" : ""}>${context.label}</option>
+              `).join("")}
+            </select>
+          </label>
+        ` : ""}
         <label>
           <span>Aktywna rola</span>
           <select data-role-select aria-label="Aktywna rola">
@@ -397,7 +409,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
 
 function renderDashboard(state, engine, selected) {
   const dashboardBlocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
-  const dashboardModules = menuForRole(state.session.role);
+  const dashboardModules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   return `
     <section class="metrics">
       ${metric("Moduly", dashboardModules.length, "widoczne dla roli")}
@@ -426,7 +438,7 @@ function renderDashboard(state, engine, selected) {
 }
 
 function renderModuleMenuPanel(state) {
-  const modules = menuForRole(state.session.role);
+  const modules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   return `
     <section class="panel module-menu-panel">
       <div class="panel-head">
@@ -2484,10 +2496,11 @@ function renderProfile(state) {
       <h2>${user?.name || "Uzytkownik demo"}</h2>
       <div class="detail-grid">
         <div><span>Rola</span><strong>${RoleLabels[state.session.role]}</strong></div>
-        <div><span>Firma</span><strong>${companyName(state, user?.companyId) || "platforma"}</strong></div>
+        <div><span>Kontekst</span><strong>${state.access?.activeContextLabel || companyName(state, user?.companyId) || "osoba prywatna"}</strong></div>
+        <div><span>Rola w firmie</span><strong>${state.access?.actor?.companyRole || "brak"}</strong></div>
         <div><span>Status</span><strong>${user?.accountStatus || "demo"}</strong></div>
       </div>
-      <p class="muted">W trybie produkcyjnym profil i rola pochodza z backendu oraz Permissions Engine. UI demo tylko symuluje logowanie rola.</p>
+      <p class="muted">W trybie produkcyjnym profil, firma i uprawnienia pochodza z GL Identity, Company Engine oraz Permission Engine.</p>
     </section>
   `;
 }
@@ -3113,6 +3126,12 @@ function encodePayload(payload) {
   return encodeURIComponent(JSON.stringify(payload));
 }
 
-function viewTitle(role, view) {
-  return menuForRole(role).find((item) => item.id === view)?.label || "Panel";
+function viewTitle(role, view, actor = { role }) {
+  return menuForRole(role, actor).find((item) => item.id === view)?.label || "Panel";
+}
+
+function contextSelected(state, context) {
+  return (state.session.contextType || "private") === context.contextType
+    && (state.session.companyId || "") === (context.companyId || "")
+    && (!context.userCompanyRoleId || (state.session.companyRoleId || "") === (context.userCompanyRoleId || ""));
 }

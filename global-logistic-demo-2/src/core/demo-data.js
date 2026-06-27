@@ -1,18 +1,20 @@
 import {
   AccountStatuses,
   AuthoritySubtypes,
+  CompanyRoleNames,
   DEMO_DATA_VERSION,
   PaymentStatuses,
   Roles,
   SourceTypes,
   TransportStatuses
 } from "./constants.js";
+import { buildCompanyAccessSeed } from "../companies/company-engine.js";
 
 const baseTime = "2026-05-27T07:00:00.000Z";
 
 export function createDemoState() {
   const state = {
-    schemaVersion: 11,
+    schemaVersion: DEMO_DATA_VERSION,
     demoDataVersion: DEMO_DATA_VERSION,
     revision: 1,
     session: {
@@ -21,6 +23,9 @@ export function createDemoState() {
       language: "pl",
       view: "onboarding",
       selectedTransportId: "tr-1001",
+      contextType: "platform",
+      companyId: null,
+      companyRoleId: null,
       onboardingRequired: true,
       onboardingUserId: null,
       lastResult: null
@@ -36,6 +41,8 @@ export function createDemoState() {
       user("u-warehouse", "Pawel Warehouse", "+48500100105", Roles.WAREHOUSE_WORKER, "co-client-b", AccountStatuses.VERIFIED),
       user("u-carrier-owner", "Kamil Carrier", "+48500100106", Roles.CARRIER_OWNER, "co-carrier-a", AccountStatuses.VERIFIED),
       user("u-carrier-dispatcher", "Nina CarrierOps", "+48500100107", Roles.CARRIER_DISPATCHER, "co-carrier-a", AccountStatuses.VERIFIED),
+      user("u-carrier-finance", "Filip Finance", "+48500100132", Roles.CARRIER_OWNER, "co-carrier-a", AccountStatuses.VERIFIED),
+      user("u-multi-company", "Maja Multi", "+48500100133", Roles.CARRIER_DISPATCHER, "co-carrier-a", AccountStatuses.VERIFIED),
       user("u-driver-1", "Marek Driver", "+48500100108", Roles.DRIVER, "co-carrier-a", AccountStatuses.VERIFIED, { documentsValid: true, faceVerified: true }),
       user("u-driver-2", "Piotr Cold", "+48500100109", Roles.DRIVER, "co-carrier-b", AccountStatuses.VERIFIED, { documentsValid: true, faceVerified: true }),
       user("u-driver-3", "Tomasz Late", "+48500100110", Roles.DRIVER, "co-carrier-c", AccountStatuses.VERIFIED, { documentsValid: true, faceVerified: true, driverTimeLegal: false }),
@@ -61,10 +68,10 @@ export function createDemoState() {
       user("u-demo-pending", "New Pending", "+48500100999", Roles.CLIENT_DISPATCHER, "co-client-c", AccountStatuses.PENDING, { documentVerified: false, faceVerified: false })
     ],
     companies: [
-      company("co-client-a", "Nord Market BV", "client", 93, ["u-client-owner", "u-client-dispatcher"], AccountStatuses.VERIFIED),
+      company("co-client-a", "Nord Market BV", "client", 93, ["u-client-owner", "u-client-dispatcher", "u-multi-company"], AccountStatuses.VERIFIED),
       company("co-client-b", "Mazovia Med", "client", 88, ["u-warehouse"], AccountStatuses.VERIFIED),
       company("co-client-c", "Casa Verde", "client", 79, ["u-demo-pending"], AccountStatuses.PENDING),
-      company("co-carrier-a", "Baltic Line", "carrier", 96, ["u-carrier-owner", "u-carrier-dispatcher", "u-driver-1", "u-driver-4"], AccountStatuses.VERIFIED),
+      company("co-carrier-a", "Baltic Line", "carrier", 96, ["u-carrier-owner", "u-carrier-dispatcher", "u-carrier-finance", "u-multi-company", "u-driver-1", "u-driver-4"], AccountStatuses.VERIFIED),
       company("co-carrier-b", "Cold Link", "carrier", 91, ["u-driver-2", "u-driver-5"], AccountStatuses.VERIFIED),
       company("co-carrier-c", "Oder Freight", "carrier", 61, ["u-driver-3", "u-driver-6"], AccountStatuses.VERIFIED),
       company("co-insurance-a", "ShieldCargo Insurance", "insurance", 94, ["u-insurance"], AccountStatuses.VERIFIED),
@@ -589,6 +596,8 @@ export function createDemoState() {
     }
   };
 
+  buildCompanyAccessSeed(state);
+  tuneDemoCompanyRoles(state);
   seedEvents(state);
   return state;
 }
@@ -651,13 +660,45 @@ function user(id, name, phone, primaryRole, companyId, accountStatus, options = 
 function company(id, name, type, trustScore, people, status) {
   return {
     id,
+    company_id: id,
     name,
+    country: "PL",
+    vatEu: `DEMO-${id.toUpperCase()}`,
+    address: "adres demo",
     type,
+    companyType: type,
     trustScore,
     status,
+    verificationStatus: status,
     people,
-    ownerUserIds: people.slice(0, 1)
+    ownerUserIds: people.slice(0, 1),
+    invitedUserIds: [],
+    documentIds: [],
+    auditIds: []
   };
+}
+
+function tuneDemoCompanyRoles(state) {
+  const finance = state.userCompanyRoles.find((item) => item.userId === "u-carrier-finance" && item.companyId === "co-carrier-a");
+  if (finance) {
+    finance.roleName = CompanyRoleNames.FINANCE;
+    finance.roleId = `company_role_${CompanyRoleNames.FINANCE}`;
+    finance.role_id = finance.roleId;
+  }
+
+  const multiCarrier = state.userCompanyRoles.find((item) => item.userId === "u-multi-company" && item.companyId === "co-carrier-a");
+  if (multiCarrier) {
+    multiCarrier.roleName = CompanyRoleNames.DISPATCHER;
+    multiCarrier.roleId = `company_role_${CompanyRoleNames.DISPATCHER}`;
+    multiCarrier.role_id = multiCarrier.roleId;
+  }
+
+  const multiClient = state.userCompanyRoles.find((item) => item.userId === "u-multi-company" && item.companyId === "co-client-a");
+  if (multiClient) {
+    multiClient.roleName = CompanyRoleNames.FINANCE;
+    multiClient.roleId = `company_role_${CompanyRoleNames.FINANCE}`;
+    multiClient.role_id = multiClient.roleId;
+  }
 }
 
 function vehicle(id, plate, companyId, type, documentsValid, available) {

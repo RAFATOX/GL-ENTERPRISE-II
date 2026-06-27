@@ -1,9 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { AccountStatuses, ActionTypes, DEMO_DATA_VERSION, PaymentStatuses, Roles, TransportStatuses } from "../src/core/constants.js";
+import {
+  AccountStatuses,
+  ActionTypes,
+  CompanyRoleNames,
+  CompanyVerificationStatuses,
+  DEMO_DATA_VERSION,
+  PaymentStatuses,
+  Roles,
+  TransportStatuses
+} from "../src/core/constants.js";
 import { GLCoreEngine } from "../src/core/gl-core-engine.js";
-import { FinancePermissions, getVisibleModules, modulesConfig, permissionsForRole } from "../src/core/modules-config.js";
+import {
+  DriverPermissions,
+  FinancePermissions,
+  LoadPermissions,
+  getVisibleModules,
+  modulesConfig,
+  permissionsForRole
+} from "../src/core/modules-config.js";
 import { StateStore } from "../src/core/state-store.js";
 import { roleDocumentRequirements } from "../src/roles/role-verification-engine.js";
 import { parsePayload } from "../src/ui/action-handler.js";
@@ -42,6 +58,22 @@ function snapshotForRole(role) {
   const engine = new GLCoreEngine({ store: memoryStore() });
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
   return engine.getSnapshot();
+}
+
+function engineForUserContext(userId, companyId = null) {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const user = engine.state.users.find((item) => item.id === userId);
+  const context = companyId
+    ? engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId)
+    : engine.modules.companies.defaultContextForUser(user);
+  engine.state.session.userId = userId;
+  engine.state.session.role = user.selectedRole;
+  engine.state.session.contextType = context.contextType;
+  engine.state.session.companyId = context.companyId || null;
+  engine.state.session.companyRoleId = context.userCompanyRoleId || null;
+  engine.state.session.onboardingRequired = false;
+  engine.state.session.onboardingUserId = null;
+  return engine;
 }
 
 test("new user sees registration onboarding before the application", () => {
@@ -362,6 +394,148 @@ test("partner and carrier snapshots do not expose GL platform balance", () => {
     assert.equal(snapshot.wallets.some((wallet) => wallet.ownerType === "platform"), false, role);
     assert.equal(snapshot.wallets.some((wallet) => wallet.glWalletId === "GLW-SYSTEM-0001"), false, role);
   });
+});
+
+test("user can create a company and becomes owner through UserCompanyRole", () => {
+  const engine = engineForUserContext("u-academy-student");
+  engine.state.session.contextType = "private";
+  engine.state.session.companyId = null;
+  engine.state.session.companyRoleId = null;
+
+  const result = engine.dispatchAction(ActionTypes.CREATE_COMPANY, {
+    name: "Nowa Firma Demo",
+    country: "PL",
+    vatEu: "PL999888777",
+    address: "Warszawa, Testowa 1",
+    type: "client"
+  });
+
+  const company = engine.state.companies.find((item) => item.name === "Nowa Firma Demo");
+  const membership = engine.state.userCompanyRoles.find((item) => item.userId === "u-academy-student" && item.companyId === company.id);
+  assert.equal(result.ok, true);
+  assert.equal(company.status, CompanyVerificationStatuses.PENDING);
+  assert.equal(membership.roleName, CompanyRoleNames.OWNER);
+  assert.ok(engine.state.audit.some((entry) => entry.action === "COMPANY_CREATED" && entry.objectId === company.id));
+});
+
+test("one user can belong to multiple companies with different company roles", () => {
+  const carrierEngine = engineForUserContext("u-multi-company", "co-carrier-a");
+  const carrierActor = carrierEngine.getActor();
+  const clientEngine = engineForUserContext("u-multi-company", "co-client-a");
+  const clientActor = clientEngine.getActor();
+
+  assert.equal(carrierActor.companyRole, CompanyRoleNames.DISPATCHER);
+  assert.equal(clientActor.companyRole, CompanyRoleNames.FINANCE);
+  assert.ok(carrierActor.permissions.includes(LoadPermissions.ASSIGN_DRIVER));
+  assert.equal(clientActor.permissions.includes(DriverPermissions.ASSIGN), false);
+  assert.ok(clientActor.permissions.includes(FinancePermissions.WALLET_COMPANY_READ));
+});
+
+test("carrier owner sees company and transports through permissions", () => {
+  const engine = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  const actor = engine.getActor();
+  const modules = getVisibleModules(actor, actor.role).map((item) => item.id);
+
+  assert.equal(actor.companyRole, CompanyRoleNames.OWNER);
+  assert.ok(modules.includes("company"));
+  assert.ok(modules.includes("transports"));
+  assert.ok(actor.permissions.includes(LoadPermissions.MANAGE_COMPANY));
+});
+
+test("driver assigned to carrier company does not see company finance", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const actor = engine.getActor();
+  const snapshot = engine.getSnapshot();
+
+  assert.equal(actor.companyRole, CompanyRoleNames.EMPLOYEE);
+  assert.equal(actor.permissions.includes(FinancePermissions.WALLET_COMPANY_READ), false);
+  assert.equal(snapshot.access.canViewFinancials, false);
+  assert.equal(snapshot.wallets.length, 0);
+});
+
+test("finance sees company invoices and wallet but cannot manage drivers", () => {
+  const engine = engineForUserContext("u-carrier-finance", "co-carrier-a");
+  const actor = engine.getActor();
+  const modules = getVisibleModules(actor, actor.role).map((item) => item.id);
+  const assignDriver = engine.explainAction(ActionTypes.ASSIGN_DRIVER, {
+    transportId: "tr-1003",
+    driverId: "u-driver-1",
+    vehicleId: "vh-1"
+  });
+
+  assert.equal(actor.companyRole, CompanyRoleNames.FINANCE);
+  assert.ok(modules.includes("wallet"));
+  assert.ok(modules.includes("invoices"));
+  assert.ok(actor.permissions.includes(FinancePermissions.INVOICES_COMPANY_READ));
+  assert.equal(actor.permissions.includes(DriverPermissions.ASSIGN), false);
+  assert.equal(assignDriver.ok, false);
+});
+
+test("dispatcher manages transports but cannot enter PlatformWallet", () => {
+  const engine = engineForUserContext("u-carrier-dispatcher", "co-carrier-a");
+  const actor = engine.getActor();
+  const accept = engine.explainAction(ActionTypes.ACCEPT_CARRIER, {
+    transportId: "tr-1003",
+    carrierCompanyId: "co-carrier-a"
+  });
+  const wallet = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "wallet", route: "/wallet" });
+
+  assert.equal(actor.companyRole, CompanyRoleNames.DISPATCHER);
+  assert.ok(actor.permissions.includes(LoadPermissions.ACCEPT));
+  assert.equal(actor.permissions.includes(FinancePermissions.WALLET_PLATFORM_READ), false);
+  assert.equal(accept.ok, true);
+  assert.equal(wallet.ok, false);
+  assert.ok(engine.state.audit.some((entry) => entry.action === "ACTION_BLOCKED" && entry.requestedAction === ActionTypes.SELECT_VIEW));
+});
+
+test("client can create load only as a verified company context", () => {
+  const engine = engineForUserContext("u-client-owner", "co-client-a");
+  const company = engine.state.companies.find((item) => item.id === "co-client-a");
+  company.status = CompanyVerificationStatuses.PENDING;
+  company.verificationStatus = CompanyVerificationStatuses.PENDING;
+
+  const result = engine.explainAction(ActionTypes.CREATE_LOAD, {
+    description: "ladunek testowy",
+    pickupAddress: "Warszawa",
+    deliveryAddress: "Poznan"
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.join(" ").includes("firma wymaga weryfikacji"));
+});
+
+test("workshop and insurer use their company modules without platform wallet", () => {
+  const workshop = engineForUserContext("u-workshop", "co-workshop-a");
+  const insurer = engineForUserContext("u-insurance", "co-insurance-a");
+  const workshopModules = getVisibleModules(workshop.getActor(), workshop.getActor().role).map((item) => item.id);
+  const insurerModules = getVisibleModules(insurer.getActor(), insurer.getActor().role).map((item) => item.id);
+
+  assert.ok(workshopModules.includes("service-orders"));
+  assert.ok(workshopModules.includes("billing"));
+  assert.equal(workshop.getActor().permissions.includes(FinancePermissions.WALLET_PLATFORM_READ), false);
+  assert.ok(insurerModules.includes("policies"));
+  assert.ok(insurerModules.includes("claims"));
+  assert.ok(insurerModules.includes("risk"));
+  assert.equal(insurer.getActor().permissions.includes(FinancePermissions.WALLET_PLATFORM_READ), false);
+});
+
+test("company role and permission changes are saved in audit log", () => {
+  const engine = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  const target = engine.state.userCompanyRoles.find((item) => item.userId === "u-carrier-dispatcher" && item.companyId === "co-carrier-a");
+
+  const roleResult = engine.dispatchAction(ActionTypes.CHANGE_COMPANY_USER_ROLE, {
+    userCompanyRoleId: target.id,
+    roleName: CompanyRoleNames.FINANCE
+  });
+  const permissionResult = engine.dispatchAction(ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS, {
+    userCompanyRoleId: target.id,
+    permissions: "invoices.company.read,wallet.company.read"
+  });
+
+  assert.equal(roleResult.ok, true);
+  assert.equal(permissionResult.ok, true);
+  assert.ok(engine.state.audit.some((entry) => entry.action === "COMPANY_USER_ROLE_CHANGED" && entry.objectId === target.id));
+  assert.ok(engine.state.audit.some((entry) => entry.action === "COMPANY_USER_PERMISSIONS_CHANGED" && entry.objectId === target.id));
 });
 
 test("carrier acceptance reserves client funds in transport escrow without crediting carrier", () => {
