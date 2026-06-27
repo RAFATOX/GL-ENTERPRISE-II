@@ -17,6 +17,11 @@ export class EscrowEngine {
     const previousState = existing?.status || null;
     const escrow = existing || {
       id: createId("escrow"),
+      modelType: "TransportEscrow",
+      ownerType: "transport_escrow",
+      ownerId: transport.id,
+      owner_type: "transport_escrow",
+      owner_id: transport.id,
       transportId: transport.id,
       payerCompanyId: transport.clientCompanyId,
       payeeCompanyId: transport.carrierCompanyId,

@@ -496,10 +496,16 @@ export class PermissionsEngine {
     }
 
     const scope = financialScope(actor);
+    const owner = financeOwnerForActor(actor, scope);
     snapshot.access = {
       canViewFinancials: scope !== "none",
       canViewPlatformWallet: scope === "platform",
+      canViewOwnWallet: ["client", "carrier", "insurance", "service"].includes(scope),
+      canViewFinanceAudit: scope === "platform",
       financialScope: scope,
+      financeOwnerType: owner.ownerType,
+      financeOwnerId: owner.ownerId,
+      walletView: walletViewForScope(scope),
       privateContactsVisible: privileged(actor)
     };
 
@@ -514,6 +520,9 @@ export class PermissionsEngine {
       snapshot.exchangeRates = [];
       snapshot.escrows = [];
       snapshot.revenueLedger = [];
+      snapshot.invoices = [];
+      snapshot.settlements = [];
+      snapshot.payouts = [];
     } else if (scope !== "platform") {
       const companyId = actor.companyId;
       const financialTransportIds = financialTransportIdsForScope(snapshot, actor, scope, visibleTransportIds);
@@ -521,12 +530,12 @@ export class PermissionsEngine {
       snapshot.escrows = ["client", "carrier"].includes(scope) ? snapshot.escrows.filter((escrow) => (
         escrow.payerCompanyId === companyId || escrow.payeeCompanyId === companyId
       )) : [];
-      snapshot.wallets = ["client", "carrier"].includes(scope)
-        ? snapshot.wallets.filter((wallet) => wallet.ownerCompanyId === companyId)
-        : [];
+      snapshot.wallets = snapshot.wallets.filter((wallet) => walletVisibleForActor(wallet, actor, scope));
       const walletIds = new Set(snapshot.wallets.map((wallet) => wallet.id));
       snapshot.walletLedger = snapshot.walletLedger.filter((entry) => walletIds.has(entry.walletId));
-      snapshot.walletTransactions = (snapshot.walletTransactions || []).filter((entry) => financialTransportIds.has(entry.transportId));
+      snapshot.walletTransactions = (snapshot.walletTransactions || []).filter((entry) => (
+        transactionVisibleForScope(entry, actor, scope, financialTransportIds)
+      ));
       const transactionIds = new Set(snapshot.walletTransactions.map((entry) => entry.id));
       snapshot.walletRiskAlerts = scope === "payment_status"
         ? (snapshot.walletRiskAlerts || []).filter((alert) => transactionIds.has(alert.transactionId))
@@ -535,6 +544,9 @@ export class PermissionsEngine {
       snapshot.walletApiEndpoints = [];
       snapshot.exchangeRates = [];
       snapshot.revenueLedger = [];
+      snapshot.invoices = filterFinanceRecords(snapshot.invoices || [], actor, financialTransportIds, scope);
+      snapshot.settlements = filterFinanceRecords(snapshot.settlements || [], actor, financialTransportIds, scope);
+      snapshot.payouts = filterFinanceRecords(snapshot.payouts || [], actor, financialTransportIds, scope);
     }
 
     if (!privileged(actor)) {
@@ -655,6 +667,75 @@ function financialScope(actor) {
   if (serviceRole(actor.role)) return "service";
   if (actor.role === Roles.PAYMENT_OPERATOR) return "payment_status";
   return "none";
+}
+
+function financeOwnerForActor(actor, scope) {
+  if (scope === "platform") return { ownerType: "platform", ownerId: "platform" };
+  if (["insurance", "service"].includes(scope)) return { ownerType: "partner", ownerId: actor.companyId || actor.userId || null };
+  if (["client", "carrier"].includes(scope)) return { ownerType: "company", ownerId: actor.companyId || null };
+  return { ownerType: null, ownerId: null };
+}
+
+function walletViewForScope(scope) {
+  if (scope === "platform") return "PlatformWallet";
+  if (scope === "client") return "CompanyWallet";
+  if (scope === "carrier") return "CompanyWallet";
+  if (scope === "insurance") return "PartnerWallet";
+  if (scope === "service") return "PartnerWallet";
+  return null;
+}
+
+function walletVisibleForActor(wallet, actor, scope) {
+  if (!wallet) return false;
+  if (wallet.ownerType === "platform" || wallet.owner_type === "platform") return false;
+  if (wallet.ownerType === "transport_escrow" || wallet.owner_type === "transport_escrow") return false;
+
+  const ownerId = wallet.ownerId || wallet.owner_id || wallet.ownerCompanyId || wallet.ownerUserId;
+  if (wallet.ownerUserId && wallet.ownerUserId === actor.userId) return true;
+  if (!actor.companyId) return ownerId === actor.userId;
+
+  if (["client", "carrier"].includes(scope)) {
+    return ownerId === actor.companyId
+      && ["company", undefined, null].includes(wallet.ownerType || wallet.owner_type);
+  }
+
+  if (["insurance", "service"].includes(scope)) {
+    return ownerId === actor.companyId
+      && ["partner", "company", undefined, null].includes(wallet.ownerType || wallet.owner_type);
+  }
+
+  return false;
+}
+
+function transactionVisibleForScope(entry, actor, scope, financialTransportIds) {
+  if (!entry) return false;
+  if (scope === "payment_status") return financialTransportIds.has(entry.transportId);
+  const companyId = actor.companyId;
+  if (!companyId) return entry.senderId === actor.userId || entry.receiverId === actor.userId;
+  if (entry.senderId === companyId || entry.receiverId === companyId) return true;
+  if (["client", "carrier"].includes(scope)) {
+    const escrowSide = String(entry.senderId || "").startsWith("escrow:")
+      || String(entry.receiverId || "").startsWith("escrow:");
+    return escrowSide && financialTransportIds.has(entry.transportId);
+  }
+  return false;
+}
+
+function filterFinanceRecords(records, actor, financialTransportIds, scope) {
+  if (!Array.isArray(records) || scope === "payment_status") return [];
+  const companyId = actor.companyId;
+  return records.filter((record) => (
+    record.ownerCompanyId === companyId
+    || record.companyId === companyId
+    || record.clientCompanyId === companyId
+    || record.carrierCompanyId === companyId
+    || record.partnerCompanyId === companyId
+    || record.providerCompanyId === companyId
+    || record.payerCompanyId === companyId
+    || record.payeeCompanyId === companyId
+    || record.recipientCompanyId === companyId
+    || financialTransportIds.has(record.transportId)
+  ));
 }
 
 function platformFinanceRole(actor) {

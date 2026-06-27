@@ -1,14 +1,18 @@
 import { Roles } from "./constants.js";
 
 export const FinancePermissions = Object.freeze({
+  WALLET_OWN_READ: "wallet.own.read",
+  WALLET_OWN_MANAGE: "wallet.own.manage",
   WALLET_PLATFORM_READ: "wallet.platform.read",
   WALLET_PLATFORM_MANAGE: "wallet.platform.manage",
   BILLING_OWN_READ: "billing.own.read",
   INVOICES_OWN_READ: "invoices.own.read",
   SETTLEMENTS_OWN_READ: "settlements.own.read",
   ESCROW_OWN_READ: "escrow.own.read",
+  ESCROW_MANAGE: "escrow.manage",
   PAYOUTS_OWN_READ: "payouts.own.read",
-  PAYOUTS_MANAGE: "payouts.manage"
+  PAYOUTS_MANAGE: "payouts.manage",
+  FINANCE_AUDIT_READ: "finance.audit.read"
 });
 
 export const ModulePermissions = Object.freeze({
@@ -24,7 +28,7 @@ export const ModulePermissions = Object.freeze({
   JOBS: "module.jobs",
   ACADEMY: "module.academy",
   TRUST: "module.trust",
-  WALLET: FinancePermissions.WALLET_PLATFORM_READ,
+  WALLET: FinancePermissions.WALLET_OWN_READ,
   BILLING: FinancePermissions.BILLING_OWN_READ,
   INVOICES: FinancePermissions.INVOICES_OWN_READ,
   POLICIES: "module.policies",
@@ -58,6 +62,13 @@ const serviceRoles = [Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSIS
 const academyRoles = [Roles.ACADEMY_TEACHER, Roles.ACADEMY_STUDENT];
 const complianceRoles = [Roles.COMPLIANCE, Roles.READONLY_AUDITOR];
 const insurerRoles = [Roles.INSURANCE_PARTNER];
+export const ownWalletRoles = Object.freeze([
+  Roles.CLIENT_OWNER,
+  Roles.CARRIER_OWNER,
+  ...insurerRoles,
+  ...serviceRoles
+]);
+const walletRouteRoles = [...platformWalletRoles, ...ownWalletRoles];
 const billingRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...insurerRoles, ...serviceRoles, Roles.PAYMENT_OPERATOR];
 const invoiceRoles = [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, ...insurerRoles, ...serviceRoles];
 const allRoles = [...new Set(Object.values(Roles))];
@@ -84,6 +95,8 @@ function moduleItem(id, label, icon, route, view, permission, roles, description
     requiredPermissions,
     allowedRoles,
     allowPermissionOverride: Boolean(options.allowPermissionOverride),
+    labelByRole: Object.freeze(options.labelByRole || {}),
+    descriptionByRole: Object.freeze(options.descriptionByRole || {}),
     description
   });
 }
@@ -130,8 +143,30 @@ export const modulesConfig = Object.freeze([
     ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.SECURITY,
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, ...complianceRoles
   ], "Reputacja firm, kierowcow i partnerow."),
-  moduleItem("wallet", "Portfel GL", "WL", "/wallet", "platform_wallet", ModulePermissions.WALLET, platformWalletRoles, "Portfel platformy: saldo GL, escrow, prowizje, wyplaty i audit finansowy.", {
-    includePlatformControl: false
+  moduleItem("wallet", "Portfel", "WL", "/wallet", "wallet", ModulePermissions.WALLET, walletRouteRoles, "Portfel lub rozliczenia widoczne zgodnie z rola i wlascicielem danych.", {
+    includePlatformControl: false,
+    labelByRole: {
+      [Roles.PLATFORM_OWNER]: "Portfel GL",
+      [Roles.GL_OPERATOR]: "Portfel GL",
+      [Roles.ADMIN_FINANCE]: "Portfel platformy",
+      [Roles.CLIENT_OWNER]: "Moj portfel",
+      [Roles.CARRIER_OWNER]: "Moj portfel",
+      [Roles.INSURANCE_PARTNER]: "Rozliczenia polis",
+      [Roles.WORKSHOP]: "Rozliczenia serwisowe",
+      [Roles.MOBILE_SERVICE]: "Rozliczenia serwisowe",
+      [Roles.ROADSIDE_ASSISTANCE]: "Rozliczenia serwisowe"
+    },
+    descriptionByRole: {
+      [Roles.PLATFORM_OWNER]: "PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.",
+      [Roles.GL_OPERATOR]: "PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.",
+      [Roles.ADMIN_FINANCE]: "PlatformWallet: saldo GL, escrow, prowizje, wyplaty i audit finansowy.",
+      [Roles.CLIENT_OWNER]: "Indywidualny portfel klienta, platnosci i escrow wlasnych transportow.",
+      [Roles.CARRIER_OWNER]: "Indywidualny portfel przewoznika, naleznosci i status wyplat.",
+      [Roles.INSURANCE_PARTNER]: "Rozliczenia polis bez salda platformy GL.",
+      [Roles.WORKSHOP]: "Rozliczenia uslug serwisowych bez salda platformy GL.",
+      [Roles.MOBILE_SERVICE]: "Rozliczenia uslug serwisowych bez salda platformy GL.",
+      [Roles.ROADSIDE_ASSISTANCE]: "Rozliczenia uslug serwisowych bez salda platformy GL."
+    }
   }),
   moduleItem("billing", "Rozliczenia", "BR", "/billing", "billing", ModulePermissions.BILLING, billingRoles, "Rozliczenia wlasne bez osobnego panelu roli.", {
     allowPermissionOverride: true
@@ -171,9 +206,70 @@ export const modulesConfig = Object.freeze([
 ]);
 
 const explicitPermissionsByRole = {
-  [Roles.PLATFORM_OWNER]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
-  [Roles.GL_OPERATOR]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
-  [Roles.ADMIN_FINANCE]: [FinancePermissions.WALLET_PLATFORM_MANAGE, FinancePermissions.PAYOUTS_MANAGE],
+  [Roles.PLATFORM_OWNER]: [
+    FinancePermissions.WALLET_OWN_MANAGE,
+    FinancePermissions.WALLET_PLATFORM_READ,
+    FinancePermissions.WALLET_PLATFORM_MANAGE,
+    FinancePermissions.ESCROW_MANAGE,
+    FinancePermissions.PAYOUTS_MANAGE,
+    FinancePermissions.FINANCE_AUDIT_READ
+  ],
+  [Roles.GL_OPERATOR]: [
+    FinancePermissions.WALLET_OWN_MANAGE,
+    FinancePermissions.WALLET_PLATFORM_READ,
+    FinancePermissions.WALLET_PLATFORM_MANAGE,
+    FinancePermissions.ESCROW_MANAGE,
+    FinancePermissions.PAYOUTS_MANAGE,
+    FinancePermissions.FINANCE_AUDIT_READ
+  ],
+  [Roles.ADMIN_FINANCE]: [
+    FinancePermissions.WALLET_OWN_MANAGE,
+    FinancePermissions.WALLET_PLATFORM_READ,
+    FinancePermissions.WALLET_PLATFORM_MANAGE,
+    FinancePermissions.ESCROW_MANAGE,
+    FinancePermissions.PAYOUTS_MANAGE,
+    FinancePermissions.FINANCE_AUDIT_READ
+  ],
+  [Roles.CLIENT_OWNER]: [
+    FinancePermissions.WALLET_OWN_MANAGE,
+    FinancePermissions.ESCROW_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ
+  ],
+  [Roles.CARRIER_OWNER]: [
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.PAYOUTS_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ
+  ],
+  [Roles.INSURANCE_PARTNER]: [
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ
+  ],
+  [Roles.WORKSHOP]: [
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.PAYOUTS_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ
+  ],
+  [Roles.MOBILE_SERVICE]: [
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.PAYOUTS_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ
+  ],
+  [Roles.ROADSIDE_ASSISTANCE]: [
+    FinancePermissions.WALLET_OWN_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.PAYOUTS_OWN_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ
+  ],
   [Roles.PAYMENT_OPERATOR]: [FinancePermissions.PAYOUTS_MANAGE],
   [Roles.ACADEMY_STUDENT]: [ModulePermissions.DASHBOARD, ModulePermissions.ACADEMY, ModulePermissions.PROFILE],
   [Roles.ACADEMY_TEACHER]: [ModulePermissions.DASHBOARD, ModulePermissions.ACADEMY, ModulePermissions.PROFILE, ModulePermissions.REPORTS],

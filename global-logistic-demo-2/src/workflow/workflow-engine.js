@@ -458,6 +458,9 @@ function validateCarrierAccept(transport, payload, modules, reasons) {
   if (payload.carrierCompanyId && modules.companies.trustScore(payload.carrierCompanyId) < 70) {
     reasons.push("carrier trust score below 70");
   }
+  if (Number(transport.price || 0) > 0 && !modules.wallets.canReserve(transport.clientCompanyId, transport.price)) {
+    reasons.push("client wallet must secure funds before carrier acceptance");
+  }
 }
 
 function validateDriverAssignment(transport, payload, modules, reasons) {
@@ -506,6 +509,12 @@ function validateTransition(transport, actionType, modules, reasons) {
   if (actionType === ActionTypes.START_PICKUP_NAVIGATION) {
     if (!transport.driverId) reasons.push("driver is required before starting transport");
     if (!modules.gps.hasCoordinates(transport.pickup)) reasons.push("missing pickup GPS coordinates");
+    if (transportRequiresEscrow(transport)) {
+      const escrow = modules.escrow.getForTransport(transport.id);
+      if (!escrow || escrow.status !== "reserved" || transport.paymentStatus !== PaymentStatuses.RESERVED) {
+        reasons.push("secured escrow is required before transport activation");
+      }
+    }
   }
   if (actionType === ActionTypes.ARRIVE_DELIVERY || actionType === ActionTypes.START_UNLOADING) {
     if (!modules.gps.hasCoordinates(transport.delivery)) reasons.push("missing delivery GPS coordinates");
@@ -516,6 +525,10 @@ function validateTransition(transport, actionType, modules, reasons) {
   if (actionType === ActionTypes.START_UNLOADING && !modules.security.isCleared(transport.id, "delivery")) {
     reasons.push("delivery security check must be cleared before unloading");
   }
+}
+
+function transportRequiresEscrow(transport) {
+  return Number(transport?.price || 0) > 0;
 }
 
 function validateCustomsTransition(transport, actionType, modules, reasons) {

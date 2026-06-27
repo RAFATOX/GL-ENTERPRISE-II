@@ -136,7 +136,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "gps") return renderGps(state, engine, selected);
   if (view === "parking") return renderParking(state, engine, selected);
   if (view === "documents") return renderDocuments(state, engine, selected);
-  if (view === "platform_wallet") return renderPlatformWallet(state, engine, selected);
+  if (view === "wallet") return renderPlatformWallet(state, engine, selected);
   if (view === "billing") return renderBillingModule(state, "billing");
   if (view === "invoices") return renderBillingModule(state, "invoices");
   if (view === "policies") return renderPolicies(state);
@@ -582,10 +582,13 @@ function renderPayments(state, engine, selected) {
 }
 
 function renderPlatformWallet(state, engine, selected) {
-  if (!state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("Portfel platformy", "Pelny portfel GL jest dostepny tylko dla operatora platformy GL i finansow platformy.");
+  if (state.access?.canViewPlatformWallet) {
+    return renderFintechModule(state, engine, selected, "dashboard");
   }
-  return renderFintechModule(state, engine, selected, "dashboard");
+  if (state.access?.canViewOwnWallet) {
+    return renderOwnWalletRoute(state);
+  }
+  return renderAccessDenied("Portfel", "Ta rola nie ma aktywnych rozliczen ani dostepu do portfela platformy GL.");
 }
 
 function renderWallets(state) {
@@ -675,6 +678,128 @@ function renderBillingModule(state, mode) {
       ` : ""}
     </section>
   `;
+}
+
+function renderOwnWalletRoute(state) {
+  const scope = state.access.financialScope;
+  if (["insurance", "service"].includes(scope)) {
+    return renderBillingModule(state, "wallet");
+  }
+
+  const copy = ownWalletCopy(scope);
+  const totals = financialTotals(state);
+  const wallet = (state.wallets || [])[0] || null;
+  const escrows = state.escrows || [];
+  const transactions = state.walletTransactions || [];
+
+  return `
+    <section class="finance-shell own-finance-shell">
+      <div class="finance-hero">
+        <div>
+          <span class="finance-demo">DEMO MODE</span>
+          <h2>${copy.title}</h2>
+          <p>${copy.description}</p>
+        </div>
+        <div class="finance-hero-balance">
+          <span>${copy.balanceLabel}</span>
+          <strong>${formatMoney(totals.available, wallet?.currency || "EUR")}</strong>
+          <small>${wallet?.glWalletId || "brak aktywnego portfela"}</small>
+        </div>
+      </div>
+
+      <div class="finance-metrics">
+        ${financeMetric(copy.metricA, totals.available, wallet?.currency || "EUR", "success")}
+        ${financeMetric(copy.metricB, totals.blocked, wallet?.currency || "EUR", "warning")}
+        ${financeMetric(copy.metricC, totals.pending, wallet?.currency || "EUR", "info")}
+        ${financeMetric(copy.metricD, totals.inTransit, wallet?.currency || "EUR", "info")}
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">${copy.accountEyebrow}</span>
+              <h2>${copy.accountTitle}</h2>
+            </div>
+            <span class="finance-pill">owner: ${wallet?.ownerType || "brak"}/${wallet?.ownerId || "brak"}</span>
+          </div>
+          <div class="wallet-card-grid">
+            ${wallet ? renderWalletAccount(state, wallet) : `<p class="finance-muted">Brak portfela przypisanego do tej roli.</p>`}
+          </div>
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Zakres dostepu</span>
+              <h2>Wlasne dane finansowe</h2>
+            </div>
+          </div>
+          <div class="finance-list">
+            ${copy.allowed.map((item) => `<div><strong>${item}</strong><span>zakres wlasny</span></div>`).join("")}
+            <div><strong>Brak dostepu</strong><span>PlatformWallet, saldo GL, cudze portfele i cudze rozliczenia</span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="finance-grid">
+        <article class="finance-panel finance-wide">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Historia transakcji</span>
+              <h2>${copy.historyTitle}</h2>
+            </div>
+            <span class="finance-pill">hash demo + audit id</span>
+          </div>
+          ${renderTransactionHistory(state, transactions)}
+        </article>
+
+        <article class="finance-panel">
+          <div class="finance-head">
+            <div>
+              <span class="eyebrow">Escrow</span>
+              <h2>${copy.escrowTitle}</h2>
+            </div>
+          </div>
+          ${renderEscrowRows({ ...state, escrows })}
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function ownWalletCopy(scope) {
+  const byScope = {
+    client: {
+      title: "Moj portfel klienta",
+      description: "Klient widzi saldo wlasnego portfela, blokady pod transporty, platnosci, faktury i escrow swoich transportow. Nie widzi salda GL ani portfeli innych firm.",
+      balanceLabel: "Saldo wlasnego portfela",
+      metricA: "Dostepne",
+      metricB: "Zablokowane",
+      metricC: "Oczekujace",
+      metricD: "Platnosci w drodze",
+      accountEyebrow: "UserWallet / CompanyWallet",
+      accountTitle: "Portfel klienta",
+      historyTitle: "Platnosci klienta",
+      escrowTitle: "Escrow wlasnych transportow",
+      allowed: ["saldo wlasnego portfela", "doladowanie demo", "escrow transportow", "historia platnosci"]
+    },
+    carrier: {
+      title: "Moj portfel przewoznika",
+      description: "Przewoznik widzi saldo wlasnego portfela, naleznosci za transporty, srodki oczekujace na wyplate, potracone prowizje GL i historie rozliczen.",
+      balanceLabel: "Saldo przewoznika",
+      metricA: "Dostepne",
+      metricB: "Blokady",
+      metricC: "Oczekujace",
+      metricD: "W drodze",
+      accountEyebrow: "CompanyWallet",
+      accountTitle: "Portfel przewoznika",
+      historyTitle: "Naleznosci i wyplaty",
+      escrowTitle: "Transporty zabezpieczone escrow",
+      allowed: ["saldo wlasnego portfela", "naleznosci", "status wyplat", "potracone prowizje GL"]
+    }
+  };
+  return byScope[scope] || byScope.client;
 }
 
 function billingCopy(scope, mode) {

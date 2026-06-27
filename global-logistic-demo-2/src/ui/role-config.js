@@ -147,11 +147,12 @@ export function menuForRole(role) {
   return getVisibleModules({ role }, role).map((module) => ({
     id: module.view,
     moduleId: module.id,
-    label: module.label,
+    label: module.labelByRole?.[role] || module.label,
     icon: module.icon,
     route: module.route,
     requiredPermissions: module.requiredPermissions,
-    allowedRoles: module.allowedRoles
+    allowedRoles: module.allowedRoles,
+    description: module.descriptionByRole?.[role] || module.description
   }));
 }
 

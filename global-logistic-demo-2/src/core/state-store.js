@@ -16,7 +16,7 @@ export class StateStore {
 
     try {
       const parsed = JSON.parse(saved);
-      if (parsed?.schemaVersion !== 6 || parsed?.demoDataVersion !== DEMO_DATA_VERSION) {
+      if (parsed?.schemaVersion !== 10 || parsed?.demoDataVersion !== DEMO_DATA_VERSION) {
         window.localStorage.removeItem(this.storageKey);
         return createDemoState();
       }

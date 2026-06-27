@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ActionTypes, DEMO_DATA_VERSION, Roles } from "../src/core/constants.js";
+import { ActionTypes, DEMO_DATA_VERSION, PaymentStatuses, Roles, TransportStatuses } from "../src/core/constants.js";
 import { GLCoreEngine } from "../src/core/gl-core-engine.js";
 import { FinancePermissions, getVisibleModules, modulesConfig, permissionsForRole } from "../src/core/modules-config.js";
 import { StateStore } from "../src/core/state-store.js";
@@ -35,6 +35,12 @@ function renderRoleView(role, view = "dashboard", route = "/dashboard") {
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
   engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
   return renderApp(engine.getSnapshot(), engine);
+}
+
+function snapshotForRole(role) {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
+  return engine.getSnapshot();
 }
 
 test("permissions deny a driver from releasing payment", () => {
@@ -94,12 +100,12 @@ test("roleConfig drives one menu and hides unrelated modules", () => {
 
   assert.ok(driverMenu.includes("gps"));
   assert.ok(driverMenu.includes("documents"));
-  assert.equal(driverMenu.includes("platform_wallet"), false);
+  assert.equal(driverMenu.includes("wallet"), false);
   assert.equal(driverMenu.includes("billing"), false);
   assert.equal(driverMenu.includes("invoices"), false);
   assert.equal(driverMenu.includes("audit"), false);
-  assert.ok(ownerMenu.includes("platform_wallet"));
-  assert.equal(viewAllowedForRole(Roles.DRIVER, "platform_wallet", "/wallet"), false);
+  assert.ok(ownerMenu.includes("wallet"));
+  assert.equal(viewAllowedForRole(Roles.DRIVER, "wallet", "/wallet"), false);
 });
 
 test("every role lands on the same main Dashboard", () => {
@@ -142,8 +148,8 @@ test("insurer sees policy, claim, risk, document and policy billing modules", ()
   const modules = moduleIdsFor(Roles.INSURANCE_PARTNER);
   const html = renderRoleView(Roles.INSURANCE_PARTNER);
 
-  assert.deepEqual(modules, ["dashboard", "documents", "billing", "invoices", "policies", "claims", "risk", "profile"]);
-  ["transports", "photos", "chat", "trust", "company", "wallet"].forEach((moduleId) => {
+  assert.deepEqual(modules, ["dashboard", "documents", "wallet", "billing", "invoices", "policies", "claims", "risk", "profile"]);
+  ["transports", "photos", "chat", "trust", "company"].forEach((moduleId) => {
     assert.equal(modules.includes(moduleId), false, moduleId);
   });
   assert.equal(html.includes("Panel ubezpieczen"), false);
@@ -153,8 +159,8 @@ test("workshop sees service orders, invoices and billing without a separate pane
   const modules = moduleIdsFor(Roles.WORKSHOP);
   const html = renderRoleView(Roles.WORKSHOP);
 
-  assert.deepEqual(modules, ["dashboard", "billing", "invoices", "service-orders", "profile"]);
-  ["transports", "map", "gps", "chat", "trust", "company", "wallet"].forEach((moduleId) => {
+  assert.deepEqual(modules, ["dashboard", "wallet", "billing", "invoices", "service-orders", "profile"]);
+  ["transports", "map", "gps", "chat", "trust", "company"].forEach((moduleId) => {
     assert.equal(modules.includes(moduleId), false, moduleId);
   });
   assert.equal(html.includes("Panel warsztatu"), false);
@@ -176,11 +182,11 @@ test("academy student sees academy and profile only with dashboard", () => {
 test("permission guard blocks direct route access", () => {
   const engine = new GLCoreEngine({ store: memoryStore() });
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
-  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "platform_wallet", route: "/wallet" });
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "wallet", route: "/wallet" });
   const html = renderApp(engine.getSnapshot(), engine);
 
   assert.equal(result.ok, false);
-  assert.equal(engine.state.session.deniedView, "platform_wallet");
+  assert.equal(engine.state.session.deniedView, "wallet");
   assert.ok(html.includes("Brak dostępu"));
   assert.ok(html.includes("Brak dostepu do modulu"));
 });
@@ -211,7 +217,7 @@ test("changing active role changes visible modules without changing dashboard st
 test("platform owner sees full GL Wallet with platform permissions", () => {
   const modules = moduleIdsFor(Roles.PLATFORM_OWNER);
   const permissions = permissionsForRole(Roles.PLATFORM_OWNER);
-  const html = renderRoleView(Roles.PLATFORM_OWNER, "platform_wallet", "/wallet");
+  const html = renderRoleView(Roles.PLATFORM_OWNER, "wallet", "/wallet");
 
   assert.ok(modules.includes("wallet"));
   assert.ok(permissions.includes(FinancePermissions.WALLET_PLATFORM_READ));
@@ -221,25 +227,117 @@ test("platform owner sees full GL Wallet with platform permissions", () => {
   assert.ok(html.includes("GLW-SYSTEM"));
 });
 
-test("GL Wallet is visible only for platform finance roles", () => {
-  const allowed = [Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.ADMIN_FINANCE];
-  const blocked = [
-    Roles.ADMIN,
-    Roles.SUPER_ADMIN,
-    Roles.PAYMENT_OPERATOR,
+test("wallet route is visible only for platform finance roles and own-wallet roles", () => {
+  const platformAllowed = [Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.ADMIN_FINANCE];
+  const ownWalletAllowed = [
     Roles.CARRIER_OWNER,
     Roles.CLIENT_OWNER,
     Roles.INSURANCE_PARTNER,
     Roles.WORKSHOP,
+    Roles.MOBILE_SERVICE,
+    Roles.ROADSIDE_ASSISTANCE
+  ];
+  const blocked = [
+    Roles.ADMIN,
+    Roles.SUPER_ADMIN,
+    Roles.PAYMENT_OPERATOR,
+    Roles.WAREHOUSE_WORKER,
     Roles.DRIVER
   ];
 
-  allowed.forEach((role) => {
+  platformAllowed.forEach((role) => {
     assert.ok(moduleIdsFor(role).includes("wallet"), role);
+    assert.ok(permissionsForRole(role).includes(FinancePermissions.WALLET_PLATFORM_READ), role);
+  });
+  ownWalletAllowed.forEach((role) => {
+    assert.ok(moduleIdsFor(role).includes("wallet"), role);
+    assert.equal(permissionsForRole(role).includes(FinancePermissions.WALLET_PLATFORM_READ), false, role);
   });
   blocked.forEach((role) => {
     assert.equal(moduleIdsFor(role).includes("wallet"), false, role);
   });
+});
+
+test("client sees only own CompanyWallet and never PlatformWallet", () => {
+  const snapshot = snapshotForRole(Roles.CLIENT_OWNER);
+
+  assert.equal(snapshot.access.walletView, "CompanyWallet");
+  assert.equal(snapshot.wallets.length, 1);
+  assert.equal(snapshot.wallets[0].modelType, "CompanyWallet");
+  assert.equal(snapshot.wallets[0].ownerType, "company");
+  assert.equal(snapshot.wallets[0].ownerId, "co-client-a");
+  assert.equal(snapshot.wallets.some((wallet) => wallet.ownerType === "platform"), false);
+  assert.equal(snapshot.wallets.some((wallet) => wallet.glWalletId === "GLW-SYSTEM-0001"), false);
+});
+
+test("/wallet routes role to platform wallet, own wallet or partner settlement view", () => {
+  const platformHtml = renderRoleView(Roles.PLATFORM_OWNER, "wallet", "/wallet");
+  const clientHtml = renderRoleView(Roles.CLIENT_OWNER, "wallet", "/wallet");
+  const carrierHtml = renderRoleView(Roles.CARRIER_OWNER, "wallet", "/wallet");
+  const insurerHtml = renderRoleView(Roles.INSURANCE_PARTNER, "wallet", "/wallet");
+  const workshopHtml = renderRoleView(Roles.WORKSHOP, "wallet", "/wallet");
+
+  assert.ok(platformHtml.includes("Saldo systemu"));
+  assert.ok(clientHtml.includes("Moj portfel klienta"));
+  assert.ok(carrierHtml.includes("Moj portfel przewoznika"));
+  assert.ok(insurerHtml.includes("Rozliczenia polis"));
+  assert.ok(workshopHtml.includes("Rozliczenia serwisu"));
+  [clientHtml, carrierHtml, insurerHtml, workshopHtml].forEach((html) => {
+    assert.equal(html.includes("Saldo systemu"), false);
+    assert.equal(html.includes("GLW-SYSTEM"), false);
+  });
+});
+
+test("partner and carrier snapshots do not expose GL platform balance", () => {
+  [Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER, Roles.WORKSHOP].forEach((role) => {
+    const snapshot = snapshotForRole(role);
+    assert.equal(snapshot.access.canViewPlatformWallet, false, role);
+    assert.equal(snapshot.wallets.some((wallet) => wallet.ownerType === "platform"), false, role);
+    assert.equal(snapshot.wallets.some((wallet) => wallet.glWalletId === "GLW-SYSTEM-0001"), false, role);
+  });
+});
+
+test("carrier acceptance reserves client funds in transport escrow without crediting carrier", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const clientWallet = engine.state.wallets.find((wallet) => wallet.id === "wal-client-a");
+  const carrierWallet = engine.state.wallets.find((wallet) => wallet.id === "wal-carrier-a");
+  const beforeClientBalance = clientWallet.balance;
+  const beforeClientHeld = clientWallet.heldBalance;
+  const beforeCarrierBalance = carrierWallet.balance;
+
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER }, { demoOnly: true });
+  engine.dispatchAction(ActionTypes.SELECT_TRANSPORT, { transportId: "tr-1003" });
+  const result = engine.dispatchAction(ActionTypes.ACCEPT_CARRIER, {
+    transportId: "tr-1003",
+    carrierCompanyId: "co-carrier-a"
+  });
+
+  const escrow = engine.state.escrows.find((item) => item.transportId === "tr-1003");
+  const payment = engine.state.payments.find((item) => item.transportId === "tr-1003");
+  assert.equal(result.ok, true);
+  assert.equal(escrow.status, "reserved");
+  assert.equal(escrow.modelType, "TransportEscrow");
+  assert.equal(clientWallet.balance, beforeClientBalance - 980);
+  assert.equal(clientWallet.heldBalance, beforeClientHeld + 980);
+  assert.equal(carrierWallet.balance, beforeCarrierBalance);
+  assert.equal(payment.status, PaymentStatuses.RESERVED);
+  assert.ok(engine.state.walletLedger.some((entry) => entry.walletId === "wal-client-a" && entry.transportId === "tr-1003" && entry.type === "hold"));
+  assert.ok(engine.state.audit.some((entry) => entry.action === "ESCROW_RESERVED" && entry.transportId === "tr-1003"));
+  assert.ok(engine.state.audit.some((entry) => entry.action === "WALLET_HOLD_CREATED" && entry.transportId === "tr-1003"));
+});
+
+test("transport cannot start without secured escrow when payment is required", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const transport = engine.state.transports.find((item) => item.id === "tr-1001");
+  transport.status = TransportStatuses.DRIVER_ASSIGNED;
+  transport.paymentStatus = PaymentStatuses.PENDING;
+  engine.state.escrows = engine.state.escrows.filter((item) => item.transportId !== "tr-1001");
+
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
+  const result = engine.explainAction(ActionTypes.START_PICKUP_NAVIGATION, { transportId: "tr-1001" });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.join(" ").includes("secured escrow"));
 });
 
 test("carrier and client use billing modules instead of separate panels", () => {
@@ -250,8 +348,10 @@ test("carrier and client use billing modules instead of separate panels", () => 
 
   assert.ok(carrierModules.includes("billing"));
   assert.ok(carrierModules.includes("invoices"));
+  assert.ok(carrierModules.includes("wallet"));
   assert.ok(clientModules.includes("billing"));
   assert.ok(clientModules.includes("invoices"));
+  assert.ok(clientModules.includes("wallet"));
   assert.equal(carrierHtml.includes("Panel przewoznika"), false);
   assert.equal(clientHtml.includes("Panel klienta"), false);
   assert.equal(carrierHtml.includes("Saldo systemu"), false);
@@ -264,6 +364,7 @@ test("main menu is the single entry point for visible functions", () => {
   assert.ok(html.includes('data-module-route="/policies"'));
   assert.ok(html.includes('data-module-route="/claims"'));
   assert.ok(html.includes('data-module-route="/risk"'));
+  assert.ok(html.includes('data-module-route="/wallet"'));
   assert.ok(html.includes('data-module-route="/billing"'));
   assert.equal(html.includes("/insurance/dashboard"), false);
   assert.equal(html.includes("/workshop/dashboard"), false);
@@ -286,6 +387,7 @@ test("module routes stay flat without role dashboard routes", () => {
     "/jobs",
     "/academy",
     "/trust",
+    "/wallet",
     "/billing",
     "/policies",
     "/claims",
@@ -311,7 +413,7 @@ test("module routes stay flat without role dashboard routes", () => {
 });
 
 test("UI labels are localized through Translation Engine", () => {
-  const walletHtml = renderRoleView(Roles.PLATFORM_OWNER, "platform_wallet", "/wallet");
+  const walletHtml = renderRoleView(Roles.PLATFORM_OWNER, "wallet", "/wallet");
   const driverHtml = renderRoleView(Roles.DRIVER, "dashboard", "/dashboard");
 
   [

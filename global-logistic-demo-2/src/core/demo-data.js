@@ -12,7 +12,7 @@ const baseTime = "2026-05-27T07:00:00.000Z";
 
 export function createDemoState() {
   const state = {
-    schemaVersion: 9,
+    schemaVersion: 10,
     demoDataVersion: DEMO_DATA_VERSION,
     revision: 1,
     session: {
@@ -252,23 +252,36 @@ export function createDemoState() {
       payment("pay-5", "tr-1005", PaymentStatuses.PENDING, 2400),
       payment("pay-6", "tr-1006", PaymentStatuses.RESERVED, 5100)
     ],
+    financeModels: {
+      platformWallet: "PlatformWallet",
+      userWallet: "UserWallet",
+      companyWallet: "CompanyWallet",
+      partnerWallet: "PartnerWallet",
+      transportEscrow: "TransportEscrow",
+      walletTransaction: "WalletTransaction",
+      invoice: "Invoice",
+      settlement: "Settlement",
+      payout: "Payout",
+      paymentStatus: "PaymentStatus",
+      auditLog: "AuditLog"
+    },
     wallets: [
-      wallet("wal-client-a", "co-client-a", 52000, 4280, { walletType: "Client Wallet", pendingBalance: 2400, glWalletId: "GLW-CLIENT-0001" }),
-      wallet("wal-client-b", "co-client-b", 18000, 11200, { walletType: "Client Wallet", pendingBalance: 980, glWalletId: "GLW-CLIENT-0002" }),
-      wallet("wal-client-c", "co-client-c", 7600, 3650, { walletType: "Client Wallet", blockedBalance: 3650, glWalletId: "GLW-CLIENT-0003" }),
-      wallet("wal-carrier-a", "co-carrier-a", 9400, 0, { walletType: "Carrier Wallet", pendingBalance: 4280, paymentsInTransit: 5100, glWalletId: "GLW-CARRIER-0001" }),
-      wallet("wal-carrier-b", "co-carrier-b", 6800, 0, { walletType: "Carrier Wallet", glWalletId: "GLW-CARRIER-0002" }),
-      wallet("wal-carrier-c", "co-carrier-c", 2100, 0, { walletType: "Carrier Wallet", glWalletId: "GLW-CARRIER-0003" }),
-      wallet("wal-driver-1", "co-carrier-a", 1260, 0, { walletType: "Driver Wallet", ownerUserId: "u-driver-1", pendingBalance: 180, glWalletId: "GLW-DRIVER-0001" }),
-      wallet("wal-warehouse-a", "co-client-b", 820, 0, { walletType: "Warehouse Wallet", ownerUserId: "u-warehouse", glWalletId: "GLW-WAREHOUSE-0001" }),
-      wallet("wal-insurance-a", "co-insurance-a", 12400, 0, { walletType: "Insurance Wallet", ownerUserId: "u-insurance", pendingBalance: 320, glWalletId: "GLW-INSURANCE-0001" }),
-      wallet("wal-customs-a", "co-customs-a", 1200, 0, { walletType: "Customs Wallet", glWalletId: "GLW-CUSTOMS-0001" }),
-      wallet("wal-ferry-dfds", "co-ferry-dfds", 5200, 0, { walletType: "Ferry Wallet", paymentsInTransit: 430, glWalletId: "GLW-FERRY-0001" }),
-      wallet("wal-workshop-a", "co-workshop-a", 2400, 0, { walletType: "Workshop Wallet", glWalletId: "GLW-SERVICE-0001" }),
-      wallet("wal-mobile-service-a", "co-mobile-service-a", 3100, 0, { walletType: "Mobile Service Wallet", paymentsInTransit: 280, glWalletId: "GLW-SERVICE-0002" }),
-      wallet("wal-roadside-a", "co-roadside-a", 900, 0, { walletType: "Roadside Assistance Wallet", glWalletId: "GLW-SERVICE-0003" }),
-      wallet("wal-admin", "platform", 0, 0, { walletType: "Administrator Wallet", ownerUserId: "u-admin", glWalletId: "GLW-ADMIN-0001" }),
-      wallet("wal-platform", "platform", 7850, 0, { walletType: "GL System Wallet", glWalletId: "GLW-SYSTEM-0001" })
+      wallet("wal-client-a", "co-client-a", 52000, 4280, { walletType: "Client Wallet", ownerType: "company", modelType: "CompanyWallet", pendingBalance: 2400, glWalletId: "GLW-CLIENT-0001" }),
+      wallet("wal-client-b", "co-client-b", 18000, 11200, { walletType: "Client Wallet", ownerType: "company", modelType: "CompanyWallet", pendingBalance: 980, glWalletId: "GLW-CLIENT-0002" }),
+      wallet("wal-client-c", "co-client-c", 7600, 3650, { walletType: "Client Wallet", ownerType: "company", modelType: "CompanyWallet", blockedBalance: 3650, glWalletId: "GLW-CLIENT-0003" }),
+      wallet("wal-carrier-a", "co-carrier-a", 9400, 0, { walletType: "Carrier Wallet", ownerType: "company", modelType: "CompanyWallet", pendingBalance: 4280, paymentsInTransit: 5100, glWalletId: "GLW-CARRIER-0001" }),
+      wallet("wal-carrier-b", "co-carrier-b", 6800, 0, { walletType: "Carrier Wallet", ownerType: "company", modelType: "CompanyWallet", glWalletId: "GLW-CARRIER-0002" }),
+      wallet("wal-carrier-c", "co-carrier-c", 2100, 0, { walletType: "Carrier Wallet", ownerType: "company", modelType: "CompanyWallet", glWalletId: "GLW-CARRIER-0003" }),
+      wallet("wal-driver-1", "co-carrier-a", 1260, 0, { walletType: "Driver Wallet", ownerType: "user", modelType: "UserWallet", ownerUserId: "u-driver-1", pendingBalance: 180, glWalletId: "GLW-DRIVER-0001" }),
+      wallet("wal-warehouse-a", "co-client-b", 820, 0, { walletType: "Warehouse Wallet", ownerType: "user", modelType: "UserWallet", ownerUserId: "u-warehouse", glWalletId: "GLW-WAREHOUSE-0001" }),
+      wallet("wal-insurance-a", "co-insurance-a", 12400, 0, { walletType: "Insurance Wallet", ownerType: "partner", modelType: "PartnerWallet", ownerUserId: "u-insurance", pendingBalance: 320, glWalletId: "GLW-INSURANCE-0001" }),
+      wallet("wal-customs-a", "co-customs-a", 1200, 0, { walletType: "Customs Wallet", ownerType: "partner", modelType: "PartnerWallet", glWalletId: "GLW-CUSTOMS-0001" }),
+      wallet("wal-ferry-dfds", "co-ferry-dfds", 5200, 0, { walletType: "Ferry Wallet", ownerType: "partner", modelType: "PartnerWallet", paymentsInTransit: 430, glWalletId: "GLW-FERRY-0001" }),
+      wallet("wal-workshop-a", "co-workshop-a", 2400, 0, { walletType: "Workshop Wallet", ownerType: "partner", modelType: "PartnerWallet", glWalletId: "GLW-SERVICE-0001" }),
+      wallet("wal-mobile-service-a", "co-mobile-service-a", 3100, 0, { walletType: "Mobile Service Wallet", ownerType: "partner", modelType: "PartnerWallet", paymentsInTransit: 280, glWalletId: "GLW-SERVICE-0002" }),
+      wallet("wal-roadside-a", "co-roadside-a", 900, 0, { walletType: "Roadside Assistance Wallet", ownerType: "partner", modelType: "PartnerWallet", glWalletId: "GLW-SERVICE-0003" }),
+      wallet("wal-admin", "platform", 0, 0, { walletType: "Administrator Wallet", ownerType: "user", ownerId: "u-admin", modelType: "UserWallet", ownerUserId: "u-admin", glWalletId: "GLW-ADMIN-0001" }),
+      wallet("wal-platform", "platform", 7850, 0, { walletType: "GL System Wallet", ownerType: "platform", ownerId: "platform", modelType: "PlatformWallet", glWalletId: "GLW-SYSTEM-0001" })
     ],
     walletLedger: [
       ledger("led-1", "wal-client-a", "tr-1001", "hold", -4280, "escrow reserved for GL2-1001"),
@@ -287,6 +300,24 @@ export function createDemoState() {
       walletTransaction("gtx-1006", "2026-05-27T08:44:00.000Z", 280, "EUR", "co-carrier-a", "co-mobile-service-a", "Serwis mobilny - kontrola hamulca", "Completed", "hash-demo-srv-280", "aud-srv-1001", "tr-1001"),
       walletTransaction("gtx-1007", "2026-05-27T09:15:00.000Z", 980, "PLN", "co-client-a", "escrow:draft", "Oczekujaca rezerwacja po publikacji ladunku", "Pending", "hash-demo-pending-980", "aud-pay-1003", "tr-1003"),
       walletTransaction("gtx-1008", "2026-05-27T10:10:00.000Z", 5100, "EUR", "co-client-a", "escrow:esc-6", "Transport intermodalny na promie", "Reserved", "hash-demo-interop-5100", "aud-esc-1006", "tr-1006")
+    ],
+    invoices: [
+      invoice("inv-client-1001", "co-client-a", "tr-1001", 4280, "EUR", "issued", "faktura klienta za transport"),
+      invoice("inv-client-1006", "co-client-a", "tr-1006", 5100, "EUR", "issued", "faktura klienta za transport intermodalny"),
+      invoice("inv-carrier-1001", "co-carrier-a", "tr-1001", 4152, "EUR", "pending_payout", "rozliczenie przewoznika po prowizji GL"),
+      invoice("inv-ins-1001", "co-insurance-a", "tr-1001", 72, "EUR", "policy_active", "skladka polisy transportowej"),
+      invoice("inv-service-1006", "co-workshop-a", "tr-1006", 320, "EUR", "paid_demo", "faktura za usluge serwisowa")
+    ],
+    settlements: [
+      settlement("set-carrier-1001", "co-carrier-a", "tr-1001", 4152, "EUR", "waiting_for_documents", "carrier_transport"),
+      settlement("set-platform-1001", "platform", "tr-1001", 128, "EUR", "fee_reserved", "platform_fee"),
+      settlement("set-ins-1001", "co-insurance-a", "tr-1001", 72, "EUR", "premium_reserved", "insurance_premium"),
+      settlement("set-service-1006", "co-workshop-a", "tr-1006", 320, "EUR", "completed", "service_order")
+    ],
+    payouts: [
+      payout("payout-carrier-1001", "co-carrier-a", "tr-1001", 4152, "EUR", "pending"),
+      payout("payout-ins-1001", "co-insurance-a", "tr-1001", 72, "EUR", "scheduled"),
+      payout("payout-service-1006", "co-workshop-a", "tr-1006", 320, "EUR", "completed_demo")
     ],
     walletRiskAlerts: [
       walletRiskAlert("risk-wallet-1", "HIGH", "Escrow zablokowane przez dispute", "Transport GL2-1004 ma aktywny spor, srodki pozostaja zamrozone.", "gtx-1003"),
@@ -663,15 +694,21 @@ function photo(id, transportId, type, label, uploadedBy, state) {
 }
 
 function payment(id, transportId, status, amount) {
-  return { id, transportId, status, amount, currency: "EUR", updatedAt: baseTime };
+  return { id, modelType: "PaymentStatus", transportId, status, amount, currency: "EUR", updatedAt: baseTime };
 }
 
 function wallet(id, ownerCompanyId, balance, heldBalance, options = {}) {
+  const ownerType = options.ownerType || (options.ownerUserId ? "user" : ownerCompanyId === "platform" ? "platform" : "company");
+  const ownerId = options.ownerId || (ownerType === "user" ? options.ownerUserId : ownerType === "platform" ? "platform" : ownerCompanyId);
   return {
     id,
+    modelType: options.modelType || walletModelForOwnerType(ownerType),
     glWalletId: options.glWalletId || `GLW-DEMO-${id.toUpperCase()}`,
     walletType: options.walletType || "Company Wallet",
-    ownerType: ownerCompanyId === "platform" ? "platform" : "company",
+    ownerType,
+    ownerId,
+    owner_type: ownerType,
+    owner_id: ownerId,
     ownerCompanyId,
     ownerUserId: options.ownerUserId || null,
     currency: "EUR",
@@ -685,15 +722,25 @@ function wallet(id, ownerCompanyId, balance, heldBalance, options = {}) {
   };
 }
 
+function walletModelForOwnerType(ownerType) {
+  if (ownerType === "platform") return "PlatformWallet";
+  if (ownerType === "user") return "UserWallet";
+  if (ownerType === "partner") return "PartnerWallet";
+  if (ownerType === "transport_escrow") return "TransportEscrow";
+  return "CompanyWallet";
+}
+
 function ledger(id, walletId, transportId, type, amount, reason) {
   return {
     id,
+    modelType: "WalletLedgerEntry",
     walletId,
     transportId,
     type,
     amount,
     currency: "EUR",
     reason,
+    auditId: `audit-${id}`,
     at: baseTime
   };
 }
@@ -701,6 +748,7 @@ function ledger(id, walletId, transportId, type, amount, reason) {
 function walletTransaction(id, at, amount, currency, senderId, receiverId, reason, status, hash, auditId, transportId) {
   return {
     id,
+    modelType: "WalletTransaction",
     at,
     amount,
     currency,
@@ -741,6 +789,11 @@ function exchangeRate(currency, demoRateToEur) {
 function escrow(id, transportId, payerCompanyId, payeeCompanyId, amount, status) {
   return {
     id,
+    modelType: "TransportEscrow",
+    ownerType: "transport_escrow",
+    ownerId: transportId,
+    owner_type: "transport_escrow",
+    owner_id: transportId,
     transportId,
     payerCompanyId,
     payeeCompanyId,
@@ -749,6 +802,48 @@ function escrow(id, transportId, payerCompanyId, payeeCompanyId, amount, status)
     status,
     createdAt: baseTime,
     releasedAt: null
+  };
+}
+
+function invoice(id, ownerCompanyId, transportId, amount, currency, status, reason) {
+  return {
+    id,
+    modelType: "Invoice",
+    ownerCompanyId,
+    transportId,
+    amount,
+    currency,
+    status,
+    reason,
+    issuedAt: baseTime
+  };
+}
+
+function settlement(id, ownerCompanyId, transportId, amount, currency, status, type) {
+  return {
+    id,
+    modelType: "Settlement",
+    ownerCompanyId,
+    transportId,
+    amount,
+    currency,
+    status,
+    type,
+    createdAt: baseTime
+  };
+}
+
+function payout(id, ownerCompanyId, transportId, amount, currency, status) {
+  return {
+    id,
+    modelType: "Payout",
+    ownerCompanyId,
+    recipientCompanyId: ownerCompanyId,
+    transportId,
+    amount,
+    currency,
+    status,
+    createdAt: baseTime
   };
 }
 
