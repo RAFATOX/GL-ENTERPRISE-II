@@ -10,6 +10,7 @@
     "lan": "node server.js 4288 0.0.0.0",
     "build": "node scripts/build-static.js",
     "preview": "npm run build && node server.js 4289 127.0.0.1 dist",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "node --test tests/e2e/*.test.js"
   }
 }

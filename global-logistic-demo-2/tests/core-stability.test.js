@@ -28,6 +28,8 @@ import { roleDocumentRequirements } from "../src/roles/role-verification-engine.
 import { parsePayload } from "../src/ui/action-handler.js";
 import { menuForRole, viewAllowedForRole } from "../src/ui/role-config.js";
 import { renderApp, selectedTransport } from "../src/ui/renderers.js";
+import { EscrowEngine } from "../src/escrow/escrow-engine.js";
+import { WalletEngine } from "../src/wallets/wallet-engine.js";
 
 function memoryStore() {
   let state = null;
@@ -123,9 +125,9 @@ test("new user sees registration onboarding before the application", () => {
   const html = renderApp(engine.getSnapshot(), engine);
 
   assert.ok(html.includes("Rejestracja GL Enterprise"));
-  assert.ok(html.includes("GL Registration / Onboarding Engine"));
-  assert.equal(html.includes("Menu modulow"), false);
-  assert.equal(html.includes("Jedna aplikacja modulowa"), false);
+  assert.ok(html.includes("Silnik rejestracji i wdrożenia GL"));
+  assert.equal(html.includes("Menu modułów"), false);
+  assert.equal(html.includes("Jedna aplikacja modułowa"), false);
 });
 
 test("onboarding requires language, phone and consents", () => {
@@ -146,7 +148,7 @@ test("onboarding requires language, phone and consents", () => {
   });
 
   assert.equal(missingLanguage.ok, false);
-  assert.ok(missingLanguage.reasons.join(" ").includes("jezyk"));
+  assert.ok(missingLanguage.reasons.join(" ").includes("język"));
   assert.equal(missingPhone.ok, false);
   assert.ok(missingPhone.reasons.join(" ").includes("telefon"));
 });
@@ -181,7 +183,7 @@ test("identity document and selfie are required before role approval", () => {
   });
 
   assert.equal(missingIdentity.ok, false);
-  assert.ok(missingIdentity.reasons.join(" ").includes("dokument tozsamosci"));
+  assert.ok(missingIdentity.reasons.join(" ").includes("dokument tożsamości"));
 });
 
 test("browser onboarding form flow moves from language and phone to OTP and account step", () => {
@@ -211,7 +213,7 @@ test("browser onboarding form flow moves from language and phone to OTP and acco
   html = renderApp(engine.getSnapshot(), engine);
 
   assert.equal(otp.ok, true);
-  assert.ok(html.includes("Konto uzytkownika"));
+  assert.ok(html.includes("Konto użytkownika"));
   assert.ok(html.includes(`data-form-action="${ActionTypes.ONBOARDING_CREATE_ACCOUNT}"`));
 });
 
@@ -480,8 +482,8 @@ test("every role lands on the same main Dashboard", () => {
     Roles.PLATFORM_OWNER
   ].forEach((role) => {
     const html = renderRoleView(role);
-    assert.ok(html.includes("Jedna aplikacja modulowa"), role);
-    assert.ok(html.includes("Menu modulow"), role);
+    assert.ok(html.includes("Jedna aplikacja modułowa"), role);
+    assert.ok(html.includes("Menu modułów"), role);
     assert.equal(html.includes("Panel kierowcy"), false, role);
     assert.equal(html.includes("Panel przewoznika"), false, role);
     assert.equal(html.includes("Panel ubezpieczen"), false, role);
@@ -549,7 +551,7 @@ test("permission guard blocks direct route access", () => {
   assert.equal(result.ok, false);
   assert.equal(engine.state.session.deniedView, "wallet");
   assert.ok(html.includes("Brak dostępu"));
-  assert.ok(html.includes("Brak dostepu do modulu"));
+  assert.ok(html.includes("Brak dostępu do modułu"));
 });
 
 test("legacy role panel routes are blocked by PermissionGuard", () => {
@@ -571,8 +573,8 @@ test("changing active role changes visible modules without changing dashboard st
   assert.equal(driverModules.includes("wallet"), false);
   assert.equal(ownerModules.includes("wallet"), true);
   assert.ok(ownerModules.length > driverModules.length);
-  assert.ok(driverDashboard.includes("Jedna aplikacja modulowa"));
-  assert.ok(ownerDashboard.includes("Jedna aplikacja modulowa"));
+  assert.ok(driverDashboard.includes("Jedna aplikacja modułowa"));
+  assert.ok(ownerDashboard.includes("Jedna aplikacja modułowa"));
 });
 
 test("platform owner sees full GL Wallet with platform permissions", () => {
@@ -753,7 +755,7 @@ test("module menu and direct route are blocked when permission is removed from m
   assert.equal(modules.includes("photos"), false);
   assert.equal(route.ok, false);
   assert.equal(engine.state.session.deniedView, "photos");
-  assert.ok(html.includes("Brak dostepu"));
+  assert.ok(html.includes("Brak dostępu"));
 });
 
 test("carrier owner sees company and transports through permissions", () => {
@@ -890,6 +892,168 @@ test("carrier acceptance reserves client funds in transport escrow without credi
   assert.ok(engine.state.walletLedger.some((entry) => entry.walletId === "wal-client-a" && entry.transportId === "tr-1003" && entry.type === "hold"));
   assert.ok(engine.state.audit.some((entry) => entry.action === "ESCROW_RESERVED" && entry.transportId === "tr-1003"));
   assert.ok(engine.state.audit.some((entry) => entry.action === "WALLET_HOLD_CREATED" && entry.transportId === "tr-1003"));
+
+  const escrowOperation = engine.state.escrowOperations.find((entry) => entry.transportId === "tr-1003" && entry.operationType === "reserve");
+  const walletTransaction = engine.state.walletTransactions.find((entry) => entry.transportId === "tr-1003" && entry.status === "Escrow");
+  assert.ok(escrowOperation.audit_log_id);
+  assert.ok(walletTransaction.audit_log_id);
+  assert.equal(escrowOperation.auditId, escrowOperation.audit_log_id);
+  assert.equal(walletTransaction.auditId, walletTransaction.audit_log_id);
+  assert.ok(engine.state.audit.some((entry) => entry.id === escrowOperation.audit_log_id && entry.action === "ESCROW_RESERVED"));
+  assert.ok(engine.state.audit.some((entry) => entry.id === walletTransaction.audit_log_id && entry.action === "WALLET_HOLD_CREATED"));
+  assert.ok(result.events.some((event) => event.type === "ESCROW_RESERVED" && event.audit_log_id === escrowOperation.audit_log_id));
+  assert.ok(result.events.some((event) => event.type === "WALLET_HOLD_CREATED" && event.audit_log_id === walletTransaction.audit_log_id));
+});
+
+test("wallet, escrow, payout and revenue demo records all point to real audit log rows", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const auditIds = new Set(engine.state.audit.map((entry) => entry.id));
+  const linkedCollections = [
+    engine.state.walletLedger,
+    engine.state.walletTransactions,
+    engine.state.escrowOperations,
+    engine.state.revenueLedger,
+    engine.state.payouts,
+    engine.state.payments,
+    engine.state.invoices,
+    engine.state.settlements,
+    engine.state.disputes,
+    engine.state.disputeEvidencePacks
+  ];
+
+  linkedCollections.flat().forEach((entry) => {
+    const auditLogId = entry.audit_log_id || entry.auditLogId || entry.auditId;
+    assert.ok(auditLogId, entry.id);
+    assert.equal(entry.auditId, auditLogId, entry.id);
+    assert.ok(auditIds.has(auditLogId), entry.id);
+  });
+});
+
+test("wallet transaction without Audit Service fails before financial write", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const walletEngine = new WalletEngine(engine.state);
+  const beforeLedger = engine.state.walletLedger.length;
+  const beforeTransactions = engine.state.walletTransactions.length;
+
+  assert.throws(
+    () => walletEngine.hold("co-client-a", "tr-1003", 980, "test without audit service"),
+    /Audit Service is required/
+  );
+  assert.equal(engine.state.walletLedger.length, beforeLedger);
+  assert.equal(engine.state.walletTransactions.length, beforeTransactions);
+});
+
+test("escrow operation without Audit Service fails before escrow write", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const escrowEngine = new EscrowEngine(engine.state);
+  const transport = {
+    ...engine.state.transports.find((item) => item.id === "tr-1003"),
+    carrierCompanyId: "co-carrier-a"
+  };
+  const beforeOperations = engine.state.escrowOperations.length;
+  const beforeEscrows = engine.state.escrows.length;
+
+  assert.throws(
+    () => escrowEngine.reserve(transport),
+    /Audit Service is required/
+  );
+  assert.equal(engine.state.escrowOperations.length, beforeOperations);
+  assert.equal(engine.state.escrows.length, beforeEscrows);
+});
+
+test("payment status changes create a real linked audit log record", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const transport = engine.state.transports.find((item) => item.id === "tr-1003");
+  const payment = engine.state.payments.find((item) => item.transportId === "tr-1003");
+  const previousAuditLogId = payment.audit_log_id;
+
+  engine.modules.payments.setStatus(transport, PaymentStatuses.BLOCKED, { reason: "test payment audit" });
+
+  assert.ok(payment.audit_log_id);
+  assert.notEqual(payment.audit_log_id, previousAuditLogId);
+  assert.ok(engine.state.audit.some((entry) => (
+    entry.id === payment.audit_log_id
+    && entry.objectType === "payment"
+    && entry.newState === PaymentStatuses.BLOCKED
+  )));
+});
+
+test("dispute decision and evidence pack have real audit log records", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.PLATFORM_OWNER }, { demoOnly: true });
+
+  const result = engine.dispatchAction(ActionTypes.ADMIN_RESOLVE_DISPUTE, {
+    transportId: "tr-1004",
+    decision: "release",
+    reason: "test dispute decision"
+  });
+  const dispute = engine.state.disputes.find((item) => item.id === "dis-1");
+  const evidencePack = engine.state.disputeEvidencePacks.find((item) => item.disputeId === "dis-1");
+  const auditIds = new Set(engine.state.audit.map((entry) => entry.id));
+
+  assert.equal(result.ok, true);
+  assert.ok(dispute.audit_log_id);
+  assert.ok(dispute.decisionAudit_log_id);
+  assert.ok(evidencePack.audit_log_id);
+  assert.ok(auditIds.has(dispute.audit_log_id));
+  assert.ok(auditIds.has(dispute.decisionAudit_log_id));
+  assert.ok(auditIds.has(evidencePack.audit_log_id));
+});
+
+test("driver and non-finance roles cannot see escrow operation history in snapshots", () => {
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const security = engineForUserContext("u-security", "co-security-a");
+  const driverSnapshot = driver.getSnapshot();
+  const securitySnapshot = security.getSnapshot();
+
+  assert.equal(driverSnapshot.access.canViewFinancials, false);
+  assert.equal(driverSnapshot.escrowOperations.length, 0);
+  assert.equal(securitySnapshot.access.canViewFinancials, false);
+  assert.equal(securitySnapshot.escrowOperations.length, 0);
+  assert.equal(securitySnapshot.escrows.length, 0);
+});
+
+test("payment release creates audited wallet settlement, platform fee and escrow release records", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const transport = engine.state.transports.find((item) => item.id === "tr-1001");
+  const payment = engine.state.payments.find((item) => item.transportId === "tr-1001");
+  transport.status = TransportStatuses.PAYMENT_PENDING;
+  transport.paymentStatus = PaymentStatuses.RESERVED;
+  payment.status = PaymentStatuses.RESERVED;
+  if (!engine.state.documents.some((doc) => doc.transportId === "tr-1001" && doc.type === "delivery_confirmation")) {
+    engine.state.documents.push({
+      id: "doc-test-delivery-release",
+      transportId: "tr-1001",
+      type: "delivery_confirmation",
+      label: "Potwierdzenie rozładunku test",
+      integrityHash: "hash-test-delivery-release"
+    });
+    transport.documentIds.unshift("doc-test-delivery-release");
+  }
+
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.PLATFORM_OWNER }, { demoOnly: true });
+  const result = engine.dispatchAction(ActionTypes.RELEASE_PAYMENT, { transportId: "tr-1001" });
+
+  assert.equal(result.ok, true);
+  const auditIds = new Set(engine.state.audit.map((entry) => entry.id));
+  const releaseOperation = engine.state.escrowOperations.find((entry) => entry.transportId === "tr-1001" && entry.operationType === "release");
+  const settlementRows = engine.state.walletLedger.filter((entry) => (
+    entry.transportId === "tr-1001"
+    && ["hold_release", "settlement_credit", "platform_fee", "insurance_premium"].includes(entry.type)
+  ));
+  const settlementTransactions = engine.state.walletTransactions.filter((entry) => (
+    entry.transportId === "tr-1001"
+    && settlementRows.some((row) => row.walletTransactionId === entry.id)
+  ));
+
+  assert.ok(releaseOperation);
+  assert.ok(auditIds.has(releaseOperation.audit_log_id));
+  assert.ok(engine.state.audit.some((entry) => entry.id === releaseOperation.audit_log_id && entry.action === "ESCROW_RELEASED"));
+  assert.equal(settlementRows.length, 4);
+  assert.equal(settlementTransactions.length, 4);
+  settlementRows.forEach((entry) => assert.ok(auditIds.has(entry.audit_log_id), entry.type));
+  settlementTransactions.forEach((entry) => assert.ok(auditIds.has(entry.audit_log_id), entry.type));
+  assert.ok(settlementRows.some((entry) => entry.type === "platform_fee" && engine.state.audit.some((audit) => audit.id === entry.audit_log_id && audit.action === "WALLET_CREDITED")));
 });
 
 test("transport cannot start without secured escrow when payment is required", () => {
@@ -1073,10 +1237,13 @@ test("module routes stay flat without role dashboard routes", () => {
 test("UI labels are localized through Translation Engine", () => {
   const walletHtml = renderRoleView(Roles.PLATFORM_OWNER, "wallet", "/wallet");
   const driverHtml = renderRoleView(Roles.DRIVER, "dashboard", "/dashboard");
+  const rendererSource = readFileSync(new URL("../src/ui/renderers.js", import.meta.url), "utf8");
+  const translationSource = readFileSync(new URL("../src/translation/ui-translation-engine.js", import.meta.url), "utf8");
 
   [
     "Reset demo data",
     "Permission Engine",
+    "Company Engine",
     "AppNavigation / Permission Guard",
     "module.dashboard",
     "Dashboard Wallet",
@@ -1088,7 +1255,10 @@ test("UI labels are localized through Translation Engine", () => {
     assert.equal(walletHtml.includes(text) || driverHtml.includes(text), false, text);
   });
 
-  assert.ok(walletHtml.includes("Portfel GL"));
   assert.ok(walletHtml.includes("Pulpit portfela"));
+  assert.ok(walletHtml.includes("Saldo dostępne"));
   assert.ok(driverHtml.includes("Nawigacja aplikacji / strażnik uprawnień"));
+  assert.equal(rendererSource.includes("localizeHtml"), false);
+  assert.equal(translationSource.includes("localizeHtml"), false);
+  assert.ok(translationSource.includes("export function t("));
 });

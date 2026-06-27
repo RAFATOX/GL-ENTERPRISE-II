@@ -13,6 +13,11 @@ import {
   onboardingActionTypes,
   roleForOperationalAction
 } from "../onboarding/registration-onboarding-engine.js";
+import { validation as validationMessage } from "../translation/ui-translation-engine.js";
+
+function v(key, params = {}) {
+  return validationMessage(key, params);
+}
 
 const nextStatusByAction = {
   [ActionTypes.START_PICKUP_NAVIGATION]: [TransportStatuses.DRIVER_ASSIGNED, TransportStatuses.PICKUP_NAVIGATION_STARTED, EventTypes.GPS_COORDINATES_CONFIRMED, "pickup navigation started"],
@@ -40,142 +45,142 @@ export class WorkflowEngine {
     const selectedTransport = modules.transports.getById(payload.transportId || state.session.selectedTransportId);
 
     if (!isAccountApproved(actor) && !sessionOnly(actionType) && !onboardingActions.has(actionType) && !authActions.has(actionType)) {
-      reasons.push(`konto wymaga pelnej weryfikacji: ${actor.accountStatus}`);
+      reasons.push(v("account_not_verified", { status: actor.accountStatus }));
     }
 
     const verificationRole = actor.permissionsSource === "company_engine"
       ? actor.role
       : roleForOperationalAction(actionType, ActionTypes, actor.role);
     if (requiresVerifiedRole(actionType) && !modules.onboarding.canUseRole(actor, verificationRole)) {
-      reasons.push("rola wymaga osobnej weryfikacji dokumentow");
+      reasons.push(v("role_documents_required"));
     }
 
     if (requiresVerifiedCompany(actionType) && actor.companyId && !companyVerified(actor)) {
-      reasons.push(`firma wymaga weryfikacji: ${actor.companyVerificationStatus}`);
+      reasons.push(v("company_not_verified", { status: actor.companyVerificationStatus }));
     }
 
     if (CriticalTransportActions.has(actionType) && selectedTransport) {
-      if (selectedTransport.activeDisputeId) reasons.push("active dispute blocks the next workflow step");
-      if (selectedTransport.riskFlagged) reasons.push("AI Control Agent marked transport as risk_flagged");
+      if (selectedTransport.activeDisputeId) reasons.push(v("active_dispute_blocks"));
+      if (selectedTransport.riskFlagged) reasons.push(v("ai_risk_blocks"));
     }
 
     switch (actionType) {
       case ActionTypes.SELECT_CONTEXT:
-        if (!payload.contextType) reasons.push("typ kontekstu jest wymagany");
-        if (payload.contextType === "company" && !payload.companyId) reasons.push("company_id jest wymagany");
+        if (!payload.contextType) reasons.push(v("context_type_required"));
+        if (payload.contextType === "company" && !payload.companyId) reasons.push(v("company_id_required"));
         break;
       case ActionTypes.SELECT_ROLE:
-        if (!payload.role) reasons.push("missing target role");
+        if (!payload.role) reasons.push(v("target_role_required"));
         break;
       case ActionTypes.SELECT_VIEW:
-        if (!payload.view) reasons.push("missing target view");
+        if (!payload.view) reasons.push(v("target_view_required"));
         break;
       case ActionTypes.SELECT_TRANSPORT:
-        if (!modules.transports.getById(payload.transportId)) reasons.push("transport not found");
+        if (!modules.transports.getById(payload.transportId)) reasons.push(v("transport_not_found"));
         break;
       case ActionTypes.REGISTER_USER:
-        if (!payload.phone) reasons.push("phone number is required");
-        if (!payload.role) reasons.push("role is required");
+        if (!payload.phone) reasons.push(v("phone_required"));
+        if (!payload.role) reasons.push(v("role_required"));
         break;
       case ActionTypes.VERIFY_ACCOUNT:
       case ActionTypes.CHANGE_PHONE:
-        if (!payload.userId) reasons.push("user id is required");
-        if (actionType === ActionTypes.CHANGE_PHONE && !payload.phone) reasons.push("new phone is required");
+        if (!payload.userId) reasons.push(v("user_id_required"));
+        if (actionType === ActionTypes.CHANGE_PHONE && !payload.phone) reasons.push(v("phone_required"));
         break;
       case ActionTypes.AUTH_LOGIN_START:
-        if (!payload.identifier && !payload.phone && !payload.email) reasons.push("login albo telefon/e-mail jest wymagany");
+        if (!payload.identifier && !payload.phone && !payload.email) reasons.push(v("login_required"));
         break;
       case ActionTypes.AUTH_LOGIN_VERIFY_OTP:
-        if (!payload.challengeId) reasons.push("challenge_id OTP jest wymagany");
-        if (!payload.otpCode) reasons.push("kod OTP jest wymagany");
+        if (!payload.challengeId) reasons.push(v("otp_challenge_required"));
+        if (!payload.otpCode) reasons.push(v("otp_code_required"));
         break;
       case ActionTypes.AUTH_LOGOUT:
         break;
       case ActionTypes.AUTH_PASSWORD_RESET_START:
-        if (!payload.identifier && !payload.phone && !payload.email) reasons.push("login albo telefon/e-mail jest wymagany");
+        if (!payload.identifier && !payload.phone && !payload.email) reasons.push(v("login_required"));
         break;
       case ActionTypes.AUTH_PASSWORD_RESET_CONFIRM:
-        if (!payload.challengeId) reasons.push("challenge_id OTP jest wymagany");
-        if (!payload.otpCode) reasons.push("kod OTP jest wymagany");
-        if (!payload.newPassword) reasons.push("nowe haslo jest wymagane");
+        if (!payload.challengeId) reasons.push(v("otp_challenge_required"));
+        if (!payload.otpCode) reasons.push(v("otp_code_required"));
+        if (!payload.newPassword) reasons.push(v("new_password_required"));
         break;
       case ActionTypes.CREATE_COMPANY:
         validateCreateCompany(payload, reasons);
         break;
       case ActionTypes.UPDATE_COMPANY:
-        if (!payload.companyId && !actor.companyId) reasons.push("company_id jest wymagany");
+        if (!payload.companyId && !actor.companyId) reasons.push(v("company_id_required"));
         break;
       case ActionTypes.INVITE_COMPANY_USER:
-        if (!payload.userId) reasons.push("user_id zapraszanego jest wymagany");
-        if (!payload.companyId && !actor.companyId) reasons.push("company_id jest wymagany");
-        if (!payload.roleName) reasons.push("rola firmowa jest wymagana");
+        if (!payload.userId) reasons.push(v("user_id_required"));
+        if (!payload.companyId && !actor.companyId) reasons.push(v("company_id_required"));
+        if (!payload.roleName) reasons.push(v("role_required"));
         break;
       case ActionTypes.ACCEPT_COMPANY_INVITATION:
-        if (!payload.userCompanyRoleId && !payload.companyId) reasons.push("zaproszenie albo company_id jest wymagane");
+        if (!payload.userCompanyRoleId && !payload.companyId) reasons.push(v("company_id_required"));
         break;
       case ActionTypes.CHANGE_COMPANY_USER_ROLE:
-        if (!payload.userId && !payload.userCompanyRoleId) reasons.push("user_id albo userCompanyRoleId jest wymagany");
-        if (!payload.roleName) reasons.push("nowa rola firmowa jest wymagana");
+        if (!payload.userId && !payload.userCompanyRoleId) reasons.push(v("user_id_required"));
+        if (!payload.roleName) reasons.push(v("role_required"));
         break;
       case ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS:
-        if (!payload.userId && !payload.userCompanyRoleId) reasons.push("user_id albo userCompanyRoleId jest wymagany");
+        if (!payload.userId && !payload.userCompanyRoleId) reasons.push(v("user_id_required"));
         break;
       case ActionTypes.REMOVE_COMPANY_USER:
-        if (!payload.userId && !payload.userCompanyRoleId) reasons.push("user_id albo userCompanyRoleId jest wymagany");
+        if (!payload.userId && !payload.userCompanyRoleId) reasons.push(v("user_id_required"));
         break;
       case ActionTypes.UPLOAD_COMPANY_DOCUMENT:
-        if (!payload.companyId && !actor.companyId) reasons.push("company_id jest wymagany");
-        if (!payload.type) reasons.push("typ dokumentu firmy jest wymagany");
+        if (!payload.companyId && !actor.companyId) reasons.push(v("company_id_required"));
+        if (!payload.type) reasons.push(v("identity_document_required"));
         break;
       case ActionTypes.VERIFY_COMPANY:
       case ActionTypes.REJECT_COMPANY_VERIFICATION:
       case ActionTypes.SUSPEND_COMPANY:
-        if (!payload.companyId) reasons.push("company_id jest wymagany");
+        if (!payload.companyId) reasons.push(v("company_id_required"));
         break;
       case ActionTypes.ONBOARDING_START:
         validateOnboardingStart(payload, reasons);
         break;
       case ActionTypes.ONBOARDING_VERIFY_PHONE:
-        if (!payload.userId) reasons.push("user_id jest wymagany");
-        if (!payload.otpCode) reasons.push("kod OTP jest wymagany");
+        if (!payload.userId) reasons.push(v("user_id_required"));
+        if (!payload.otpCode) reasons.push(v("otp_code_required"));
         break;
       case ActionTypes.ONBOARDING_CREATE_ACCOUNT:
         validateOnboardingAccount(payload, reasons);
         break;
       case ActionTypes.ONBOARDING_SELECT_ROLE:
-        if (!payload.userId) reasons.push("user_id jest wymagany");
-        if (!payload.role) reasons.push("rola jest wymagana");
+        if (!payload.userId) reasons.push(v("user_id_required"));
+        if (!payload.role) reasons.push(v("role_required"));
         break;
       case ActionTypes.ONBOARDING_SUBMIT_IDENTITY:
         validateOnboardingIdentity(payload, reasons);
         break;
       case ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS:
-        if (!payload.userId) reasons.push("user_id jest wymagany");
-        if (!payload.role) reasons.push("rola jest wymagana");
+        if (!payload.userId) reasons.push(v("user_id_required"));
+        if (!payload.role) reasons.push(v("role_required"));
         break;
       case ActionTypes.ONBOARDING_SUBMIT_COMPANY:
-        if (!payload.userId) reasons.push("user_id jest wymagany");
-        if (!payload.companyName) reasons.push("nazwa firmy jest wymagana");
+        if (!payload.userId) reasons.push(v("user_id_required"));
+        if (!payload.companyName) reasons.push(v("company_name_required"));
         break;
       case ActionTypes.ONBOARDING_APPROVE:
       case ActionTypes.ONBOARDING_REJECT:
-        if (!payload.userId) reasons.push("user_id jest wymagany");
+        if (!payload.userId) reasons.push(v("user_id_required"));
         break;
       case ActionTypes.ADD_VEHICLE:
         validateAddVehicle(actor, payload, reasons);
         break;
       case ActionTypes.CREATE_LOAD:
-        if (!actor.companyId && !payload.clientCompanyId) reasons.push("client company is required");
-        if (!payload.description) reasons.push("load description is required");
-        if (!payload.pickupAddress) reasons.push("pickup address is required");
-        if (!payload.deliveryAddress) reasons.push("delivery address is required");
+        if (!actor.companyId && !payload.clientCompanyId) reasons.push(v("client_company_required"));
+        if (!payload.description) reasons.push(v("load_description_required"));
+        if (!payload.pickupAddress) reasons.push(v("pickup_address_required"));
+        if (!payload.deliveryAddress) reasons.push(v("delivery_address_required"));
         break;
       case ActionTypes.ADD_LOAD_PHOTO:
         requireTransport(selectedTransport, reasons);
         break;
       case ActionTypes.CONFIRM_GPS:
         requireTransport(selectedTransport, reasons);
-        if (!payload.pickupGps && !payload.deliveryGps) reasons.push("at least one GPS point is required");
+        if (!payload.pickupGps && !payload.deliveryGps) reasons.push(v("gps_point_required"));
         break;
       case ActionTypes.PUBLISH_LOAD:
         validatePublish(selectedTransport, modules, reasons);
@@ -189,7 +194,7 @@ export class WorkflowEngine {
       case ActionTypes.START_TRANSIT:
         validateTransition(selectedTransport, actionType, modules, reasons);
         if (!modules.documents.hasDocumentType(selectedTransport, "pickup_confirmation")) {
-          reasons.push("pickup confirmation document is required before transit");
+          reasons.push(v("pickup_confirmation_required"));
         }
         break;
       case ActionTypes.RELEASE_PAYMENT:
@@ -197,14 +202,14 @@ export class WorkflowEngine {
         break;
       case ActionTypes.SEND_MESSAGE:
         requireTransport(selectedTransport, reasons);
-        if (!payload.body) reasons.push("message body is required");
+        if (!payload.body) reasons.push(v("message_required"));
         break;
       case ActionTypes.REQUEST_TRANSLATION:
-        if (!payload.messageId) reasons.push("message id is required");
-        if (payload.messageId && !modules.communication.getMessage(payload.messageId)) reasons.push("message not found");
+        if (!payload.messageId) reasons.push(v("message_id_required"));
+        if (payload.messageId && !modules.communication.getMessage(payload.messageId)) reasons.push(v("message_not_found"));
         break;
       case ActionTypes.SCAN_LICENSE_PLATE:
-        if (!payload.licensePlate) reasons.push("license plate is required");
+        if (!payload.licensePlate) reasons.push(v("license_plate_required"));
         break;
       case ActionTypes.RECORD_SECURITY_CHECK:
         requireTransport(selectedTransport, reasons);
@@ -440,7 +445,7 @@ export class WorkflowEngine {
         return { events: [statusEvent(modules, transport, actor, TransportStatuses.IN_TRANSIT, EventTypes.BREAK_FINISHED, "driver break finished")] };
       case ActionTypes.RELEASE_PAYMENT: {
         const previous = transport.status;
-        const paymentEvent = modules.payments.release(transport);
+        const paymentEvent = modules.payments.release(transport, { actor });
         modules.transports.setStatus(transport, TransportStatuses.PAID, actor, "payment released");
         paymentEvent.previousState = previous;
         paymentEvent.newState = transport.status;
@@ -531,7 +536,10 @@ export class WorkflowEngine {
       case ActionTypes.AI_RUN_CHECK:
         return { events: modules.ai.inspectTransport(transport, modules).events };
       case ActionTypes.ADMIN_BLOCK_TRANSPORT:
-        modules.payments.setStatus(transport, PaymentStatuses.BLOCKED);
+        modules.payments.setStatus(transport, PaymentStatuses.BLOCKED, {
+          actor,
+          reason: payload.reason || "manual admin block"
+        });
         return { events: [statusEvent(modules, transport, actor, TransportStatuses.BLOCKED, EventTypes.TRANSPORT_BLOCKED, payload.reason || "manual admin block")] };
       case ActionTypes.ADMIN_RESOLVE_DISPUTE:
         return modules.disputes.resolve(transport, actor, payload, modules);
@@ -682,43 +690,43 @@ function companyVerified(actor) {
 }
 
 function validateCreateCompany(payload, reasons) {
-  if (!payload.name && !payload.companyName) reasons.push("nazwa firmy jest wymagana");
-  if (!payload.country) reasons.push("kraj firmy jest wymagany");
-  if (!payload.vatEu && !payload.vat) reasons.push("NIP / VAT EU jest wymagany");
-  if (!payload.address) reasons.push("adres firmy jest wymagany");
-  if (!payload.type && !payload.companyType) reasons.push("typ firmy jest wymagany");
+  if (!payload.name && !payload.companyName) reasons.push(v("company_name_required"));
+  if (!payload.country) reasons.push(v("company_country_required"));
+  if (!payload.vatEu && !payload.vat) reasons.push(v("vat_required"));
+  if (!payload.address) reasons.push(v("company_address_required"));
+  if (!payload.type && !payload.companyType) reasons.push(v("company_type_required"));
 }
 
 function validateOnboardingStart(payload, reasons) {
-  if (!payload.language) reasons.push("jezyk jest wymagany");
-  if (!payload.country) reasons.push("kraj jest wymagany");
-  if (!payload.phone) reasons.push("telefon jest wymagany");
-  if (!consent(payload.termsConsent)) reasons.push("zgoda regulaminowa jest wymagana");
-  if (!consent(payload.identityConsent)) reasons.push("zgoda na weryfikacje tozsamosci jest wymagana");
-  if (!consent(payload.documentsConsent)) reasons.push("zgoda na przetwarzanie dokumentow jest wymagana");
+  if (!payload.language) reasons.push(v("language_required"));
+  if (!payload.country) reasons.push(v("country_required"));
+  if (!payload.phone) reasons.push(v("phone_required"));
+  if (!consent(payload.termsConsent)) reasons.push(v("terms_required"));
+  if (!consent(payload.identityConsent)) reasons.push(v("identity_consent_required"));
+  if (!consent(payload.documentsConsent)) reasons.push(v("documents_consent_required"));
 }
 
 function validateOnboardingAccount(payload, reasons) {
-  if (!payload.userId) reasons.push("user_id jest wymagany");
-  if (!payload.firstName) reasons.push("imie jest wymagane");
-  if (!payload.lastName) reasons.push("nazwisko jest wymagane");
-  if (!payload.email) reasons.push("e-mail jest wymagany");
-  if (!payload.passwordMethod) reasons.push("haslo lub passkey jest wymagane");
-  if (!payload.countryOfResidence) reasons.push("kraj zamieszkania jest wymagany");
-  if (!payload.userType) reasons.push("typ uzytkownika jest wymagany");
+  if (!payload.userId) reasons.push(v("user_id_required"));
+  if (!payload.firstName) reasons.push(v("first_name_required"));
+  if (!payload.lastName) reasons.push(v("last_name_required"));
+  if (!payload.email) reasons.push(v("email_required"));
+  if (!payload.passwordMethod) reasons.push(v("password_method_required"));
+  if (!payload.countryOfResidence) reasons.push(v("country_of_residence_required"));
+  if (!payload.userType) reasons.push(v("user_type_required"));
 }
 
 function validateOnboardingIdentity(payload, reasons) {
-  if (!payload.userId) reasons.push("user_id jest wymagany");
-  if (!payload.documentType) reasons.push("dokument tozsamosci jest wymagany");
-  if (!payload.documentCountry) reasons.push("kraj wydania dokumentu jest wymagany");
-  if (!payload.documentExpiresAt) reasons.push("data waznosci dokumentu jest wymagana");
-  if (!consent(payload.selfieConfirmed)) reasons.push("selfie i porownanie twarzy jest wymagane");
+  if (!payload.userId) reasons.push(v("user_id_required"));
+  if (!payload.documentType) reasons.push(v("identity_document_required"));
+  if (!payload.documentCountry) reasons.push(v("document_country_required"));
+  if (!payload.documentExpiresAt) reasons.push(v("document_expiry_required"));
+  if (!consent(payload.selfieConfirmed)) reasons.push(v("selfie_required"));
 }
 
 function validateAddVehicle(actor, payload, reasons) {
-  if (!actor.companyId) reasons.push("firma przewoznika jest wymagana");
-  if (!payload.plate) reasons.push("numer rejestracyjny pojazdu jest wymagany");
+  if (!actor.companyId) reasons.push(v("carrier_company_required"));
+  if (!payload.plate) reasons.push(v("vehicle_plate_required"));
 }
 
 function consent(value) {
@@ -726,20 +734,20 @@ function consent(value) {
 }
 
 function requireTransport(transport, reasons) {
-  if (!transport) reasons.push("transport not found");
+  if (!transport) reasons.push(v("transport_not_found"));
 }
 
 function validatePublish(transport, modules, reasons) {
   requireTransport(transport, reasons);
   if (!transport) return;
   if (![TransportStatuses.READY_TO_PUBLISH, TransportStatuses.PENDING_WAREHOUSE_PHOTO].includes(transport.status)) {
-    reasons.push(`transport status must be ready_to_publish, current: ${transport.status}`);
+    reasons.push(v("transport_status_expected", { expected: "ready_to_publish", current: transport.status }));
   }
-  if (!modules.gps.hasCoordinates(transport.pickup)) reasons.push("missing pickup GPS coordinates");
-  if (!modules.gps.hasCoordinates(transport.delivery)) reasons.push("missing delivery GPS coordinates");
-  if (!transport.cargo.prePublishPhotoId) reasons.push("missing load photo before publication");
+  if (!modules.gps.hasCoordinates(transport.pickup)) reasons.push(v("gps_point_required"));
+  if (!modules.gps.hasCoordinates(transport.delivery)) reasons.push(v("gps_point_required"));
+  if (!transport.cargo.prePublishPhotoId) reasons.push(v("load_photo_required"));
   if (!modules.wallets.getForCompany(transport.clientCompanyId)) {
-    reasons.push("portfel klienta jest wymagany przed aktywacja ladunku");
+    reasons.push(v("client_wallet_required"));
   }
 }
 
@@ -747,14 +755,14 @@ function validateCarrierAccept(transport, payload, modules, reasons) {
   requireTransport(transport, reasons);
   if (!transport) return;
   if (![TransportStatuses.PUBLISHED, TransportStatuses.CARRIER_OFFER_RECEIVED].includes(transport.status)) {
-    reasons.push(`transport must be published before carrier acceptance, current: ${transport.status}`);
+    reasons.push(v("transport_status_expected", { expected: "published", current: transport.status }));
   }
-  if (!payload.carrierCompanyId) reasons.push("carrier company is required");
+  if (!payload.carrierCompanyId) reasons.push(v("carrier_company_required"));
   if (payload.carrierCompanyId && modules.companies.trustScore(payload.carrierCompanyId) < 70) {
     reasons.push("carrier trust score below 70");
   }
   if (Number(transport.price || 0) > 0 && !modules.wallets.canReserve(transport.clientCompanyId, transport.price)) {
-    reasons.push("client wallet must secure funds before carrier acceptance");
+    reasons.push(v("secured_escrow_required"));
   }
 }
 
@@ -762,17 +770,17 @@ function validateDriverAssignment(transport, payload, modules, reasons) {
   requireTransport(transport, reasons);
   if (!transport) return;
   if (transport.status !== TransportStatuses.CARRIER_ACCEPTED) {
-    reasons.push(`transport must be carrier_accepted before driver assignment, current: ${transport.status}`);
+    reasons.push(v("transport_status_expected", { expected: "carrier_accepted", current: transport.status }));
   }
-  if (!transport.carrierCompanyId) reasons.push("carrier is not assigned");
+  if (!transport.carrierCompanyId) reasons.push(v("carrier_company_required"));
   const driver = modules.users.getById(payload.driverId);
   const vehicle = modules.state.vehicles.find((item) => item.id === payload.vehicleId);
-  if (!driver) reasons.push("driver is required");
+  if (!driver) reasons.push(v("driver_required"));
   if (driver && driver.companyId !== transport.carrierCompanyId) reasons.push("driver must belong to assigned carrier");
-  if (driver && !driver.documentsValid) reasons.push("driver documents are not valid");
-  if (!vehicle) reasons.push("vehicle is required");
+  if (driver && !driver.documentsValid) reasons.push(v("driver_documents_invalid"));
+  if (!vehicle) reasons.push(v("vehicle_required"));
   if (vehicle && vehicle.companyId !== transport.carrierCompanyId) reasons.push("vehicle must belong to assigned carrier");
-  if (vehicle && !vehicle.documentsValid) reasons.push("vehicle documents are not valid");
+  if (vehicle && !vehicle.documentsValid) reasons.push(v("vehicle_documents_invalid"));
   if (driver) {
     const driverTime = modules.driverTime.canAssign(driver.id);
     if (!driverTime.ok) reasons.push(driverTime.reason);

@@ -18,6 +18,14 @@ export class EventBus {
       const transport = this.state.transports.find((item) => item.id === transportId);
       if (transport) transport.eventIds.unshift(event.id);
     }
-    this.listeners.forEach((listener) => listener(event));
+    this.listeners.forEach((listener) => {
+      const result = listener(event);
+      const auditLogId = typeof result === "string" ? result : result?.id || result?.auditLogId || result?.audit_log_id;
+      if (auditLogId && !event.auditLogId) {
+        event.auditLogId = auditLogId;
+        event.audit_log_id = auditLogId;
+      }
+    });
+    return event;
   }
 }

@@ -13,12 +13,23 @@ import {
   menuForRole,
   viewAllowedForRole
 } from "./role-config.js";
-import { localizeHtml } from "../translation/ui-translation-engine.js";
+import { t, translateValue } from "../translation/ui-translation-engine.js";
+
+let uiLanguage = "pl";
+
+function ui(key, params = {}) {
+  return t(key, params, uiLanguage);
+}
+
+function valueLabel(value) {
+  return translateValue(value, uiLanguage);
+}
 
 export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
+  uiLanguage = state.session.language || "pl";
   if (shouldRenderOnboarding(state)) {
-    return localizeHtml(renderOnboardingApp(state, engine), state.session.language || "pl");
+    return renderOnboardingApp(state, engine);
   }
   const selected = selectedTransport(state);
   const accessActor = state.access?.actor || { role: state.session.role };
@@ -28,7 +39,7 @@ export function renderApp(state, engine) {
     : viewAllowedForRole(state.session.role, state.session.view, null, accessActor)
     ? state.session.view
     : "dashboard";
-  return localizeHtml(`
+  return `
     <div class="app-shell role-${state.session.role}">
       <aside class="side">
         <div class="brand">
@@ -40,8 +51,8 @@ export function renderApp(state, engine) {
         </div>
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
-          <span>Aktywna przestrzen</span>
-          <strong>${state.access?.activeContextLabel || roleConfig.workspace}: moduly wynikaja z Company Engine i Permission Engine.</strong>
+          <span>${ui("app.active_space")}</span>
+          <strong>${ui("app.core_seal", { context: state.access?.activeContextLabel || roleConfig.workspace })}</strong>
         </div>
       </aside>
       <main class="main">
@@ -51,7 +62,7 @@ export function renderApp(state, engine) {
       </main>
       ${renderContextRail(state, engine, selected, roleConfig)}
     </div>
-  `, state.session.language);
+  `;
 }
 
 function shouldRenderOnboarding(state) {
@@ -63,16 +74,29 @@ function shouldRenderOnboarding(state) {
 
 function renderOnboardingApp(state, engine) {
   const user = onboardingUser(state);
-  const missing = user ? onboardingMissing(state, engine, user) : ["jezyk", "kraj", "telefon", "zgody"];
+  const missing = user ? onboardingMissing(state, engine, user) : [
+    ui("onboarding.language"),
+    ui("onboarding.country"),
+    ui("onboarding.field.phone"),
+    "zgody"
+  ];
   return `
     <div class="app-shell onboarding-app">
       <main class="main onboarding-main">
         <section class="panel onboarding-hero">
-          <span class="eyebrow">GL Registration / Onboarding Engine</span>
-          <h1>Rejestracja GL Enterprise</h1>
-          <p class="muted">Najpierw identyfikacja uzytkownika, potem rola, dokumenty i dopiero dostep do funkcji. GL Identity, Role Verification, Compliance oraz Wallet/Escrow sa osobnymi silnikami polaczonymi przez user_id, company_id i verification_status.</p>
+          <span class="eyebrow">${ui("onboarding.engine")}</span>
+          <h1>${ui("onboarding.title")}</h1>
+          <p class="muted">${ui("onboarding.description")}</p>
           <div class="pipeline">
-            ${["JEZYK", "TELEFON OTP", "KONTO", "ROLA", "TOZSAMOSC", "DOKUMENTY ROLI", "ZGODA"].map((step) => `<span>${step}</span>`).join("")}
+            ${[
+              "onboarding.step.language",
+              "onboarding.step.phone",
+              "onboarding.step.account",
+              "onboarding.step.role",
+              "onboarding.step.identity",
+              "onboarding.step.role_documents",
+              "onboarding.step.approval"
+            ].map((step) => `<span>${ui(step)}</span>`).join("")}
           </div>
         </section>
 
@@ -82,16 +106,16 @@ function renderOnboardingApp(state, engine) {
             ${renderOnboardingStep(state, engine, user)}
           </article>
           <article class="panel">
-            <span class="eyebrow">Status weryfikacji</span>
-            <h2>${user ? user.accountStatus : "brak konta"}</h2>
+            <span class="eyebrow">${ui("onboarding.status.title")}</span>
+            <h2>${user ? valueLabel(user.accountStatus) : ui("onboarding.no_account")}</h2>
             <div class="detail-grid">
-              <div><span>Telefon</span><strong>${user?.phoneVerified ? "potwierdzony" : "wymagany"}</strong></div>
-              <div><span>Tozsamosc</span><strong>${user?.documentVerified && user?.faceVerified ? "potwierdzona" : "wymagana"}</strong></div>
-              <div><span>Rola</span><strong>${user?.selectedRole || "nie wybrano"}</strong></div>
-              <div><span>Portfel / firma</span><strong>${user?.walletReady ? "gotowe" : "wymagane, jesli dotyczy"}</strong></div>
+              <div><span>${ui("onboarding.field.phone")}</span><strong>${user?.phoneVerified ? ui("onboarding.status.confirmed") : ui("onboarding.status.required")}</strong></div>
+              <div><span>${ui("onboarding.field.identity")}</span><strong>${user?.documentVerified && user?.faceVerified ? ui("onboarding.status.confirmed") : ui("onboarding.status.required")}</strong></div>
+              <div><span>${ui("onboarding.field.role")}</span><strong>${user?.selectedRole ? valueLabel(user.selectedRole) : ui("onboarding.status.not_selected")}</strong></div>
+              <div><span>${ui("onboarding.field.wallet_company")}</span><strong>${user?.walletReady ? ui("onboarding.status.ready") : ui("onboarding.status.required_if_applicable")}</strong></div>
             </div>
             <div class="finance-list">
-              ${missing.map((item) => `<div><strong>${item}</strong><span>brakujacy element onboardingu</span></div>`).join("") || `<div><strong>Gotowe</strong><span>konto moze wejsc do aplikacji</span></div>`}
+              ${missing.map((item) => `<div><strong>${valueLabel(item)}</strong><span>${ui("onboarding.missing_item")}</span></div>`).join("") || `<div><strong>${ui("onboarding.ready_title")}</strong><span>${ui("onboarding.ready_message")}</span></div>`}
             </div>
           </article>
         </section>
@@ -114,56 +138,56 @@ function renderOnboardingStep(state, engine, user) {
 
 function renderOnboardingStartForm() {
   return `
-    <span class="eyebrow">Krok 1</span>
-    <h2>Jezyk, kraj, telefon i zgody</h2>
+    <span class="eyebrow">${ui("onboarding.step1.eyebrow")}</span>
+    <h2>${ui("onboarding.step1.title")}</h2>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_START}">
-      <label>Jezyk<select name="language">
+      <label>${ui("onboarding.language")}<select name="language">
         <option value="pl">Polski</option>
         <option value="en">English</option>
         <option value="de">Deutsch</option>
       </select></label>
-      <label>Kraj<select name="country">
+      <label>${ui("onboarding.country")}<select name="country">
         <option value="PL">Polska</option>
         <option value="DE">Niemcy</option>
         <option value="NL">Holandia</option>
         <option value="CZ">Czechy</option>
       </select></label>
-      <label>Numer telefonu<input name="phone" value="+48500111222" /></label>
-      <label><input type="checkbox" name="termsConsent" value="true" checked /> Akceptuje regulamin GL</label>
-      <label><input type="checkbox" name="identityConsent" value="true" checked /> Zgadzam sie na weryfikacje tozsamosci</label>
-      <label><input type="checkbox" name="documentsConsent" value="true" checked /> Zgadzam sie na przetwarzanie dokumentow</label>
-      <button class="action ready" type="submit"><strong>Rozpocznij rejestracje</strong><span>Telefon przejdzie do OTP</span></button>
+      <label>${ui("onboarding.phone_number")}<input name="phone" value="+48500111222" /></label>
+      <label><input type="checkbox" name="termsConsent" value="true" checked /> ${ui("onboarding.terms")}</label>
+      <label><input type="checkbox" name="identityConsent" value="true" checked /> ${ui("onboarding.identity_consent")}</label>
+      <label><input type="checkbox" name="documentsConsent" value="true" checked /> ${ui("onboarding.documents_consent")}</label>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.start")}</strong><span>${ui("onboarding.start_hint")}</span></button>
     </form>
   `;
 }
 
 function renderOtpForm(user) {
   return `
-    <span class="eyebrow">Krok 2</span>
-    <h2>Weryfikacja telefonu</h2>
-    <p class="muted">Kod SMS / OTP jest wymagany przed zalozeniem konta.</p>
+    <span class="eyebrow">${ui("onboarding.step2.eyebrow")}</span>
+    <h2>${ui("onboarding.step2.title")}</h2>
+    <p class="muted">${ui("onboarding.step2.description")}</p>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_VERIFY_PHONE}">
       <input type="hidden" name="userId" value="${user.id}" />
-      <label>Telefon<input name="phone" value="${user.phone}" disabled /></label>
-      <label>Kod OTP<input name="otpCode" value="123456" inputmode="numeric" /></label>
-      <button class="action ready" type="submit"><strong>Potwierdz telefon</strong><span>Bez OTP system nie pusci dalej</span></button>
+      <label>${ui("onboarding.field.phone")}<input name="phone" value="${user.phone}" disabled /></label>
+      <label>${ui("onboarding.otp_code")}<input name="otpCode" value="123456" inputmode="numeric" /></label>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.confirm_phone")}</strong><span>${ui("onboarding.confirm_phone_hint")}</span></button>
     </form>
   `;
 }
 
 function renderAccountForm(user) {
   return `
-    <span class="eyebrow">Krok 3</span>
-    <h2>Konto uzytkownika</h2>
+    <span class="eyebrow">${ui("onboarding.step3.eyebrow")}</span>
+    <h2>${ui("onboarding.step3.title")}</h2>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_CREATE_ACCOUNT}">
       <input type="hidden" name="userId" value="${user.id}" />
-      <label>Imie<input name="firstName" value="Jan" /></label>
-      <label>Nazwisko<input name="lastName" value="Nowak" /></label>
-      <label>E-mail<input name="email" value="jan.nowak@demo.gl" /></label>
-      <label>Haslo / passkey<input name="passwordMethod" value="passkey_demo" /></label>
-      <label>Kraj zamieszkania<input name="countryOfResidence" value="${user.country || "PL"}" /></label>
-      <label>Typ uzytkownika<input name="userType" value="transport" /></label>
-      <button class="action ready" type="submit"><strong>Utworz konto</strong><span>Po tym wybierzesz role</span></button>
+      <label>${ui("onboarding.first_name")}<input name="firstName" value="Jan" /></label>
+      <label>${ui("onboarding.last_name")}<input name="lastName" value="Nowak" /></label>
+      <label>${ui("onboarding.email")}<input name="email" value="jan.nowak@demo.gl" /></label>
+      <label>${ui("onboarding.password")}<input name="passwordMethod" value="passkey_demo" /></label>
+      <label>${ui("onboarding.country_of_residence")}<input name="countryOfResidence" value="${user.country || "PL"}" /></label>
+      <label>${ui("onboarding.user_type")}<input name="userType" value="transport" /></label>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.create_account")}</strong><span>${ui("onboarding.create_account_hint")}</span></button>
     </form>
   `;
 }
@@ -171,79 +195,79 @@ function renderAccountForm(user) {
 function renderRoleSelectionForm(engine, user) {
   const options = engine.modules.onboarding.roleOptions();
   return `
-    <span class="eyebrow">Krok 4</span>
-    <h2>Wybierz role</h2>
-    <p class="muted">Jedna osoba moze pozniej miec wiele rol, ale kazda rola wymaga osobnej weryfikacji.</p>
+    <span class="eyebrow">${ui("onboarding.step4.eyebrow")}</span>
+    <h2>${ui("onboarding.step4.title")}</h2>
+    <p class="muted">${ui("onboarding.step4.description")}</p>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SELECT_ROLE}">
       <input type="hidden" name="userId" value="${user.id}" />
-      <label>Rola<select name="role">
+      <label>${ui("onboarding.role")}<select name="role">
         ${options.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}
       </select></label>
-      <button class="action ready" type="submit"><strong>Zapisz role</strong><span>System pokaze dokumenty roli</span></button>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.save_role")}</strong><span>${ui("onboarding.save_role_hint")}</span></button>
     </form>
   `;
 }
 
 function renderIdentityForm(user) {
   return `
-    <span class="eyebrow">Krok 5</span>
-    <h2>Weryfikacja tozsamosci</h2>
+    <span class="eyebrow">${ui("onboarding.step5.eyebrow")}</span>
+    <h2>${ui("onboarding.step5.title")}</h2>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SUBMIT_IDENTITY}">
       <input type="hidden" name="userId" value="${user.id}" />
-      <label>Dokument tozsamosci<select name="documentType">
-        <option value="identity_card">Dowod osobisty</option>
-        <option value="passport">Paszport</option>
-        <option value="residence_card">Karta pobytu</option>
+      <label>${ui("onboarding.identity_document")}<select name="documentType">
+        <option value="identity_card">${ui("onboarding.identity_card")}</option>
+        <option value="passport">${ui("onboarding.passport")}</option>
+        <option value="residence_card">${ui("onboarding.residence_card")}</option>
       </select></label>
-      <label>Kraj wydania<input name="documentCountry" value="${user.country || "PL"}" /></label>
-      <label>Data waznosci<input name="documentExpiresAt" value="2030-12-31" /></label>
-      <label><input type="checkbox" name="selfieConfirmed" value="true" checked /> Selfie i porownanie twarzy wykonane</label>
-      <button class="action ready" type="submit"><strong>Dodaj dokument i selfie</strong><span>Bez tego konto zostaje niezweryfikowane</span></button>
+      <label>${ui("onboarding.document_country")}<input name="documentCountry" value="${user.country || "PL"}" /></label>
+      <label>${ui("onboarding.document_expires")}<input name="documentExpiresAt" value="2030-12-31" /></label>
+      <label><input type="checkbox" name="selfieConfirmed" value="true" checked /> ${ui("onboarding.selfie_confirmed")}</label>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.submit_identity")}</strong><span>${ui("onboarding.submit_identity_hint")}</span></button>
     </form>
   `;
 }
 
 function renderRoleDocumentsForm(engine, user, missingDocs) {
   return `
-    <span class="eyebrow">Krok 6</span>
-    <h2>Dokumenty roli</h2>
-    <p class="muted">Rola ${user.selectedRole} wymaga osobnego zestawu dokumentow.</p>
+    <span class="eyebrow">${ui("onboarding.step6.eyebrow")}</span>
+    <h2>${ui("onboarding.step6.title")}</h2>
+    <p class="muted">${ui("onboarding.step6.description", { role: valueLabel(user.selectedRole) })}</p>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS}">
       <input type="hidden" name="userId" value="${user.id}" />
       <input type="hidden" name="role" value="${user.selectedRole}" />
       ${engine.modules.onboarding.requirementsForRole(user.selectedRole).map((doc) => `
-        <label><input type="checkbox" name="${doc}" value="true" ${missingDocs.includes(doc) ? "checked" : "checked"} /> ${doc}</label>
+        <label><input type="checkbox" name="${doc}" value="true" ${missingDocs.includes(doc) ? "checked" : "checked"} /> ${valueLabel(doc)}</label>
       `).join("")}
-      <button class="action ready" type="submit"><strong>Dodaj dokumenty roli</strong><span>Braki zatrzymaja dostep do funkcji</span></button>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.submit_role_documents")}</strong><span>${ui("onboarding.submit_role_documents_hint")}</span></button>
     </form>
   `;
 }
 
 function renderCompanyForm(user) {
   return `
-    <span class="eyebrow">Krok 7</span>
-    <h2>Firma, rozliczenia i portfel</h2>
+    <span class="eyebrow">${ui("onboarding.step7.eyebrow")}</span>
+    <h2>${ui("onboarding.step7.title")}</h2>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SUBMIT_COMPANY}">
       <input type="hidden" name="userId" value="${user.id}" />
       <input type="hidden" name="role" value="${user.selectedRole}" />
-      <label>Nazwa firmy<input name="companyName" value="Demo Company GL" /></label>
-      <label>NIP / VAT EU<input name="vatEu" value="PL1234567890" /></label>
-      <label><input type="checkbox" name="companyDocuments" value="true" checked /> Dokumenty firmy dodane</label>
-      <label><input type="checkbox" name="walletReady" value="true" checked /> Konto rozliczeniowe / portfel gotowy</label>
-      <button class="action ready" type="submit"><strong>Zapisz firme</strong><span>Po tym mozna zatwierdzic konto demo</span></button>
+      <label>${ui("onboarding.company_name")}<input name="companyName" value="Demo Company GL" /></label>
+      <label>${ui("onboarding.vat")}<input name="vatEu" value="PL1234567890" /></label>
+      <label><input type="checkbox" name="companyDocuments" value="true" checked /> ${ui("onboarding.company_documents")}</label>
+      <label><input type="checkbox" name="walletReady" value="true" checked /> ${ui("onboarding.wallet_ready")}</label>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.save_company")}</strong><span>${ui("onboarding.save_company_hint")}</span></button>
     </form>
   `;
 }
 
 function renderOnboardingApprovalForm(user) {
   return `
-    <span class="eyebrow">Gotowe do zatwierdzenia</span>
-    <h2>Konto moze wejsc do GL</h2>
-    <p class="muted">W produkcji decyzje podejmie GL Compliance / operator roli. W demo przycisk zatwierdza proces.</p>
+    <span class="eyebrow">${ui("onboarding.approval.eyebrow")}</span>
+    <h2>${ui("onboarding.approval.title")}</h2>
+    <p class="muted">${ui("onboarding.approval.description")}</p>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_APPROVE}">
       <input type="hidden" name="userId" value="${user.id}" />
       <input type="hidden" name="role" value="${user.selectedRole}" />
-      <button class="action ready" type="submit"><strong>Zatwierdz konto demo</strong><span>Odblokuj aplikacje</span></button>
+      <button class="action ready" type="submit"><strong>${ui("onboarding.approve_demo")}</strong><span>${ui("onboarding.approve_demo_hint")}</span></button>
     </form>
   `;
 }
@@ -292,7 +316,7 @@ function renderAppNavigation(state, activeView) {
       ${buttons}
     </nav>
     <details class="mobile-menu">
-      <summary>Menu</summary>
+      <summary>${ui("app.menu")}</summary>
       <nav class="nav">${buttons}</nav>
     </details>
   `;
@@ -309,8 +333,8 @@ function renderTopbar(state, activeView, roleConfig) {
       <div class="role-login">
         ${contexts.length ? `
           <label>
-            <span>Aktywny kontekst</span>
-            <select data-context-select aria-label="Aktywny kontekst">
+            <span>${ui("topbar.active_context")}</span>
+            <select data-context-select aria-label="${ui("topbar.active_context")}">
               ${contexts.map((context) => `
                 <option value="${context.contextType}|${context.companyId || ""}|${context.userCompanyRoleId || ""}" ${contextSelected(state, context) ? "selected" : ""}>${context.label}</option>
               `).join("")}
@@ -318,14 +342,14 @@ function renderTopbar(state, activeView, roleConfig) {
           </label>
         ` : ""}
         <label>
-          <span>Aktywna rola</span>
-          <select data-role-select aria-label="Aktywna rola">
+          <span>${ui("topbar.active_role")}</span>
+          <select data-role-select aria-label="${ui("topbar.active_role")}">
             ${AllRoles.map((role) => `
               <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role]}</option>
             `).join("")}
           </select>
         </label>
-        <button class="reset-demo" data-reset-demo="true">Przywroc dane demo</button>
+        <button class="reset-demo" data-reset-demo="true">${ui("topbar.reset_demo")}</button>
       </div>
     </header>
   `;
@@ -336,18 +360,18 @@ function renderLastResult(state) {
   if (!result) {
     return `
       <section class="result ok">
-        <strong>Rdzen GL gotowy</strong>
-        <span>Wybierz akcje. System sprawdzi uprawnienia, walidacje, workflow i audit log.</span>
+        <strong>${ui("result.ready_title")}</strong>
+        <span>${ui("result.ready_message")}</span>
       </section>
     `;
   }
   const statusLabel = result.result === "error"
-    ? "Blad akcji"
-    : result.ok ? "Akcja wykonana" : "Akcja zablokowana";
+    ? ui("result.error")
+    : result.ok ? ui("result.success") : ui("result.blocked");
   return `
     <section class="result ${result.ok ? "ok" : "blocked"}">
       <strong>${statusLabel}</strong>
-      <span>${result.ok ? result.events.join(", ") : result.reasons.join("; ")}</span>
+      <span>${result.ok ? result.events.map(valueLabel).join(", ") : result.reasons.map(valueLabel).join("; ")}</span>
     </section>
   `;
 }
@@ -413,23 +437,23 @@ function renderDashboard(state, engine, selected) {
   const dashboardModules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   return `
     <section class="metrics">
-      ${metric("Moduly", dashboardModules.length, "widoczne dla roli")}
-      ${metric("Transporty", state.transports.length, `${dashboardBlocked} blokad/ryzyk`)}
-      ${metric("Dokumenty", state.documents.length, "w dostepnym zakresie")}
-      ${metric("Zdarzenia", state.events.length, "event bus")}
-      ${metric("Audit", state.audit.length, "read only")}
+      ${metric(ui("dashboard.metrics.modules"), dashboardModules.length, ui("dashboard.metrics.modules_scope"))}
+      ${metric(ui("dashboard.metrics.transports"), state.transports.length, ui("dashboard.metrics.blocked_risks", { count: dashboardBlocked }))}
+      ${metric(ui("dashboard.metrics.documents"), state.documents.length, ui("dashboard.metrics.documents_scope"))}
+      ${metric(ui("dashboard.metrics.events"), state.events.length, ui("dashboard.metrics.event_bus"))}
+      ${metric(ui("dashboard.metrics.audit"), state.audit.length, ui("dashboard.metrics.read_only"))}
     </section>
     <section class="grid two">
       <article class="panel">
         <div class="panel-head">
           <div>
-            <span class="eyebrow">Pulpit</span>
-            <h2>Jedna aplikacja modulowa</h2>
+            <span class="eyebrow">${ui("dashboard.eyebrow")}</span>
+            <h2>${ui("dashboard.title")}</h2>
           </div>
         </div>
-        <p class="muted">Ten sam pulpit jest uzywany przez kazda role. Rola zmienia tylko widoczne moduly i dozwolone akcje przez silnik uprawnien.</p>
+        <p class="muted">${ui("dashboard.description")}</p>
         <div class="pipeline">
-          ${["MENU MODULOW", "SILNIK UPRAWNIEN", "STRAZNIK TRAS", "SILNIK", "BAZA DANYCH", "ZDARZENIA", "DZIENNIK AUDYTU"].map((step) => `<span>${step}</span>`).join("")}
+          ${["dashboard.pipeline.menu", "dashboard.pipeline.permissions", "dashboard.pipeline.route_guard", "dashboard.pipeline.engine", "dashboard.pipeline.database", "dashboard.pipeline.events", "dashboard.pipeline.audit"].map((key) => `<span>${ui(key)}</span>`).join("")}
         </div>
       </article>
       ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
@@ -442,18 +466,18 @@ function renderModuleMenuPanel(state) {
   const modules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   return `
     <section class="panel module-menu-panel">
-      <div class="panel-head">
+        <div class="panel-head">
         <div>
-          <span class="eyebrow">Nawigacja aplikacji / strażnik uprawnień</span>
-          <h2>Menu modulow</h2>
+          <span class="eyebrow">${ui("ui.permission_guard")}</span>
+          <h2>${ui("app.module_menu")}</h2>
         </div>
       </div>
       <div class="module-tile-grid">
         ${modules.map((module) => `
           <button class="module-tile" data-module-route="${module.route}" data-view="${module.id}">
             <span class="module-icon">${module.icon}</span>
-            <strong>${module.label}</strong>
-            <small>Dostep wedlug roli</small>
+            <strong>${valueLabel(module.label)}</strong>
+            <small>${ui("app.available_for_role")}</small>
           </button>
         `).join("")}
       </div>
@@ -464,9 +488,9 @@ function renderModuleMenuPanel(state) {
 function renderModuleAccessDenied(state) {
   return `
     <section class="panel access-panel">
-      <span class="eyebrow">Brak dostępu / strażnik uprawnień</span>
-      <h2>Brak dostepu do modulu</h2>
-      <p class="muted">Rola ${RoleLabels[state.session.role] || state.session.role} nie ma dostepu do trasy ${state.session.deniedRoute || state.session.deniedView}. Wejscie zostalo zablokowane przez silnik uprawnien.</p>
+      <span class="eyebrow">${ui("ui.permission_guard")}</span>
+      <h2>${ui("access.module_title")}</h2>
+      <p class="muted">${ui("access.module_message")}</p>
     </section>
   `;
 }
@@ -478,24 +502,24 @@ function renderAuth(state, engine) {
       <article class="panel">
         <div class="panel-head">
           <div>
-            <span class="eyebrow">Auth system</span>
-            <h2>Phone login, register, verify, recover</h2>
+            <span class="eyebrow">${ui("ui.auth_engine")}</span>
+            <h2>${ui("auth.title")}</h2>
           </div>
         </div>
         <div class="actions">
-          ${actionButton(engine, ActionTypes.REGISTER_USER, "Zarejestruj przez telefon", { phone: "+48500777111", role: Roles.CLIENT_DISPATCHER, language: "pl", companyId: "co-client-a", name: "Uzytkownik demo telefonu" })}
-          ${actionButton(engine, ActionTypes.VERIFY_ACCOUNT, "Zweryfikuj dokument i twarz", { userId: pending.id })}
-          ${actionButton(engine, ActionTypes.CHANGE_PHONE, "Bezpiecznie zmien telefon", { userId: pending.id, phone: "+48500777222" })}
+          ${actionButton(engine, ActionTypes.REGISTER_USER, ui("auth.register_phone"), { phone: "+48500777111", role: Roles.CLIENT_DISPATCHER, language: "pl", companyId: "co-client-a", name: "Użytkownik demo telefonu" })}
+          ${actionButton(engine, ActionTypes.VERIFY_ACCOUNT, ui("auth.verify_identity"), { userId: pending.id })}
+          ${actionButton(engine, ActionTypes.CHANGE_PHONE, ui("auth.change_phone"), { userId: pending.id, phone: "+48500777222" })}
         </div>
       </article>
       <article class="panel">
-        <h2>Accounts</h2>
+        <h2>${ui("auth.accounts")}</h2>
         <div class="list">
           ${state.users.slice(0, 10).map((user) => `
             <div class="row">
               <strong>${user.name}</strong>
               <span>${user.phone}</span>
-              <mark class="${tone(user.accountStatus)}">${user.accountStatus}</mark>
+              <mark class="${tone(user.accountStatus)}">${valueLabel(user.accountStatus)}</mark>
             </div>
           `).join("")}
         </div>
@@ -507,10 +531,10 @@ function renderAuth(state, engine) {
 function renderRoles(state, engine) {
   return `
     <section class="panel">
-      <div class="panel-head">
+        <div class="panel-head">
         <div>
-          <span class="eyebrow">Permissions engine</span>
-          <h2>Osobne uprawnienia dla kazdej roli</h2>
+          <span class="eyebrow">${ui("ui.permission_engine")}</span>
+          <h2>${ui("roles.title")}</h2>
         </div>
       </div>
       <div class="role-grid">
@@ -829,26 +853,26 @@ function renderPlatformWallet(state, engine, selected) {
   if (state.access?.canViewOwnWallet) {
     return renderOwnWalletRoute(state);
   }
-  return renderAccessDenied("Portfel", "Ta rola nie ma aktywnych rozliczen ani dostepu do portfela platformy GL.");
+  return renderAccessDenied("wallet", "access.wallet_no_active");
 }
 
 function renderWallets(state) {
   if (!state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("Portfel platformy", "Salda portfela platformy nie sa udostepniane tej roli.");
+    return renderAccessDenied("ui.platform_wallet", "access.platform_balance_restricted");
   }
   return renderFintechModule(state, null, selectedTransport(state), "accounts");
 }
 
 function renderEscrow(state) {
   if (!state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("Escrow Engine", "Escrow details are restricted for this role.");
+    return renderAccessDenied("ui.escrow_engine", "access.escrow_restricted");
   }
   return renderFintechModule(state, null, selectedTransport(state), "escrow");
 }
 
 function renderBillingModule(state, mode) {
   if (!state.access?.canViewFinancials || state.access?.canViewPlatformWallet) {
-    return renderAccessDenied("Rozliczenia", "Ten widok pokazuje wylacznie rozliczenia wlasne, nie portfel platformy.");
+    return renderAccessDenied("billing", "access.billing_own_only");
   }
   const scope = state.access.financialScope;
   const copy = billingCopy(scope, mode);
@@ -862,14 +886,14 @@ function renderBillingModule(state, mode) {
     <section class="finance-shell own-finance-shell">
       <div class="finance-hero">
         <div>
-          <span class="finance-demo">DEMO MODE</span>
+          <span class="finance-demo">${ui("finance.demo_mode")}</span>
           <h2>${copy.title}</h2>
           <p>${copy.description}</p>
         </div>
         <div class="finance-hero-balance">
           <span>${copy.balanceLabel}</span>
           <strong>${formatMoney(copy.balanceValue(state, totals), "EUR")}</strong>
-          <small>saldo informacyjne / dane symulowane</small>
+          <small>${valueLabel("saldo informacyjne / dane symulowane")}</small>
         </div>
       </div>
 
@@ -895,13 +919,13 @@ function renderBillingModule(state, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Silnik uprawnien</span>
-              <h2>Zakres dostepu</h2>
+              <span class="eyebrow">${ui("ui.permission_engine")}</span>
+              <h2>${valueLabel("Zakres dostepu")}</h2>
             </div>
           </div>
           <div class="finance-list">
-            ${copy.allowed.map((item) => `<div><strong>${item}</strong><span>dane wlasne</span></div>`).join("")}
-            <div><strong>Brak dostepu</strong><span>saldo platformy, prowizje systemowe, ID portfela GL, cudze rozliczenia</span></div>
+            ${copy.allowed.map((item) => `<div><strong>${valueLabel(item)}</strong><span>${valueLabel("dane wlasne")}</span></div>`).join("")}
+            <div><strong>${ui("access.generic_title")}</strong><span>${valueLabel("saldo platformy, prowizje systemowe, ID portfela GL, cudze rozliczenia")}</span></div>
           </div>
         </article>
       </div>
@@ -910,8 +934,8 @@ function renderBillingModule(state, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Escrow transportu</span>
-              <h2>Depozyty przypisane do wlasnych transportow</h2>
+              <span class="eyebrow">${valueLabel("Escrow transportu")}</span>
+              <h2>${valueLabel("Depozyty przypisane do wlasnych transportow")}</h2>
             </div>
           </div>
           ${renderEscrowRows({ ...state, escrows })}
@@ -937,14 +961,14 @@ function renderOwnWalletRoute(state) {
     <section class="finance-shell own-finance-shell">
       <div class="finance-hero">
         <div>
-          <span class="finance-demo">DEMO MODE</span>
+          <span class="finance-demo">${ui("finance.demo_mode")}</span>
           <h2>${copy.title}</h2>
           <p>${copy.description}</p>
         </div>
         <div class="finance-hero-balance">
           <span>${copy.balanceLabel}</span>
           <strong>${formatMoney(totals.available, wallet?.currency || "EUR")}</strong>
-          <small>${wallet?.glWalletId || "brak aktywnego portfela"}</small>
+          <small>${wallet?.glWalletId || valueLabel("brak aktywnego portfela")}</small>
         </div>
       </div>
 
@@ -962,23 +986,23 @@ function renderOwnWalletRoute(state) {
               <span class="eyebrow">${copy.accountEyebrow}</span>
               <h2>${copy.accountTitle}</h2>
             </div>
-            <span class="finance-pill">owner: ${wallet?.ownerType || "brak"}/${wallet?.ownerId || "brak"}</span>
+             <span class="finance-pill">${valueLabel("właściciel")}: ${valueLabel(wallet?.ownerType || "brak")}/${wallet?.ownerId || valueLabel("brak")}</span>
           </div>
           <div class="wallet-card-grid">
-            ${wallet ? renderWalletAccount(state, wallet) : `<p class="finance-muted">Brak portfela przypisanego do tej roli.</p>`}
+            ${wallet ? renderWalletAccount(state, wallet) : `<p class="finance-muted">${valueLabel("Brak portfela przypisanego do tej roli.")}</p>`}
           </div>
         </article>
 
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Zakres dostepu</span>
-              <h2>Wlasne dane finansowe</h2>
+              <span class="eyebrow">${valueLabel("Zakres dostepu")}</span>
+              <h2>${valueLabel("Wlasne dane finansowe")}</h2>
             </div>
           </div>
           <div class="finance-list">
-            ${copy.allowed.map((item) => `<div><strong>${item}</strong><span>zakres wlasny</span></div>`).join("")}
-            <div><strong>Brak dostepu</strong><span>PlatformWallet, saldo GL, cudze portfele i cudze rozliczenia</span></div>
+            ${copy.allowed.map((item) => `<div><strong>${valueLabel(item)}</strong><span>${valueLabel("zakres wlasny")}</span></div>`).join("")}
+            <div><strong>${ui("access.generic_title")}</strong><span>${valueLabel("saldo GL, cudze portfele i cudze rozliczenia")}</span></div>
           </div>
         </article>
       </div>
@@ -987,10 +1011,10 @@ function renderOwnWalletRoute(state) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Historia transakcji</span>
+              <span class="eyebrow">${ui("finance.transaction_history")}</span>
               <h2>${copy.historyTitle}</h2>
             </div>
-            <span class="finance-pill">hash demo + audit id</span>
+            <span class="finance-pill">${ui("finance.hash_audit")}</span>
           </div>
           ${renderTransactionHistory(state, transactions)}
         </article>
@@ -1201,39 +1225,39 @@ function renderFintechModule(state, engine, selected, mode) {
   const policy = selected ? state.insurancePolicies.find((item) => item.id === selected.insuranceId) : null;
   const activeTransactions = (state.walletTransactions || []).slice(0, 8);
   const sortedTransactions = [...(state.walletTransactions || [])].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-  const sectionTitle = mode === "accounts" ? "Konta portfela GL" : mode === "escrow" ? "Escrow i spory" : "Pulpit portfela";
+  const sectionTitle = mode === "accounts" ? valueLabel("Konta portfela GL") : mode === "escrow" ? valueLabel("Escrow i spory") : ui("ui.wallet_dashboard");
 
   return `
     <section class="finance-shell">
       <div class="finance-hero">
         <div>
-          <span class="finance-demo">DEMO MODE</span>
+          <span class="finance-demo">${ui("finance.demo_mode")}</span>
           <h2>${sectionTitle}</h2>
-          <p>Brak rzeczywistych operacji finansowych. Dane, salda, hash transakcji i API sa symulowane pod przyszla integracje z licencjonowanym operatorem.</p>
+          <p>${valueLabel("Brak rzeczywistych operacji finansowych. Dane, salda, hash transakcji i API sa symulowane pod przyszla integracje z licencjonowanym operatorem.")}</p>
         </div>
         <div class="finance-hero-balance">
-          <span>Saldo systemu</span>
+          <span>${valueLabel("Saldo systemu")}</span>
           <strong>${formatMoney(totals.totalSystem, "EUR")}</strong>
-          <small>symulowany portfel GL</small>
+          <small>${valueLabel("symulowany portfel GL")}</small>
         </div>
       </div>
 
       <div class="finance-metrics">
-        ${financeMetric("Saldo dostepne", totals.available, "EUR", "success")}
-        ${financeMetric("Saldo zablokowane", totals.blocked, "EUR", "warning")}
-        ${financeMetric("Saldo oczekujace", totals.pending, "EUR", "info")}
-        ${financeMetric("Srodki w escrow", totals.escrow, "EUR", "warning")}
-        ${financeMetric("Platnosci w drodze", totals.inTransit, "EUR", "info")}
+        ${financeMetric("finance.available_balance", totals.available, "EUR", "success")}
+        ${financeMetric("finance.blocked_balance", totals.blocked, "EUR", "warning")}
+        ${financeMetric("finance.pending_balance", totals.pending, "EUR", "info")}
+        ${financeMetric("finance.escrow_funds", totals.escrow, "EUR", "warning")}
+        ${financeMetric("finance.in_transit", totals.inTransit, "EUR", "info")}
       </div>
 
       <div class="finance-grid">
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Historia transakcji</span>
-              <h2>Niezmienna ksiega demo</h2>
+              <span class="eyebrow">${ui("finance.transaction_history")}</span>
+              <h2>${ui("finance.ledger_title")}</h2>
             </div>
-            <span class="finance-pill">hash + audit id</span>
+            <span class="finance-pill">${ui("finance.hash_audit")}</span>
           </div>
           ${renderTransactionHistory(state, activeTransactions)}
         </article>
@@ -1241,8 +1265,8 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Ostatnie operacje</span>
-              <h2>Operacje portfela</h2>
+              <span class="eyebrow">${valueLabel("Ostatnie operacje")}</span>
+              <h2>${valueLabel("Operacje portfela")}</h2>
             </div>
           </div>
           <div class="finance-list">
@@ -1252,7 +1276,7 @@ function renderFintechModule(state, engine, selected, mode) {
                 <span>${formatMoney(entry.amount, entry.currency)} / ${transportNumber(state, entry.transportId)}</span>
                 <small>${entry.reason}</small>
               </div>
-            `).join("") || `<p class="finance-muted">Brak operacji.</p>`}
+            `).join("") || `<p class="finance-muted">${valueLabel("Brak operacji.")}</p>`}
           </div>
         </article>
       </div>
@@ -1261,26 +1285,26 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Konta</span>
-              <h2>Portfele uzytkownikow i firm</h2>
+              <span class="eyebrow">${ui("finance.accounts")}</span>
+              <h2>${ui("finance.wallet_accounts")}</h2>
             </div>
-            <span class="finance-pill">${(state.wallets || []).length} ID portfela GL</span>
+            <span class="finance-pill">${(state.wallets || []).length} ${valueLabel("ID portfela GL")}</span>
           </div>
           <div class="wallet-card-grid">
-            ${(state.wallets || []).map((wallet) => renderWalletAccount(state, wallet)).join("") || `<p class="finance-muted">Brak widocznych portfeli.</p>`}
+            ${(state.wallets || []).map((wallet) => renderWalletAccount(state, wallet)).join("") || `<p class="finance-muted">${ui("ui.no_visible_wallets")}</p>`}
           </div>
         </article>
 
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Statusy</span>
-              <h2>Cykl platnosci</h2>
+              <span class="eyebrow">${ui("finance.statuses")}</span>
+              <h2>${ui("finance.payment_cycle")}</h2>
             </div>
           </div>
           <div class="status-cloud">
             ${["Pending", "Reserved", "Escrow", "Released", "Completed", "Rejected", "Blocked", "Refunded", "Cancelled", "Disputed"].map((status) => `
-              <mark class="${financeTone(status)}">${status}</mark>
+              <mark class="${financeTone(status)}">${valueLabel(status.toLowerCase())}</mark>
             `).join("")}
           </div>
           <div class="status-cloud currencies">
@@ -1293,10 +1317,10 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Escrow Engine</span>
-              <h2>Blokada, dowody, zwolnienie</h2>
+              <span class="eyebrow">${ui("ui.escrow_engine")}</span>
+              <h2>${ui("finance.escrow_release")}</h2>
             </div>
-            ${engine && selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, "Zwolnij platnosc", { transportId: selected.id }) : ""}
+            ${engine && selected ? actionButton(engine, ActionTypes.RELEASE_PAYMENT, ui("finance.release_payment"), { transportId: selected.id }) : ""}
           </div>
           ${renderEscrowFlow()}
           ${renderEscrowRows(state)}
@@ -1305,8 +1329,8 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Spory</span>
-              <h2>Decyzje administratora</h2>
+              <span class="eyebrow">${valueLabel("Spory")}</span>
+              <h2>${ui("finance.admin_decisions")}</h2>
             </div>
           </div>
           ${renderDisputeFinance(state)}
@@ -1317,24 +1341,24 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">GL Fee</span>
-              <h2>Kalkulacja prowizji</h2>
+              <span class="eyebrow">${ui("finance.gl_fee")}</span>
+              <h2>${ui("finance.fee_calculation")}</h2>
             </div>
           </div>
           <div class="finance-kv">
-            <div><span>Kwota brutto</span><strong>${formatMoney(fee.gross, fee.currency)}</strong></div>
-            <div><span>Prowizja GL</span><strong>${formatMoney(fee.feeGross, fee.currency)}</strong></div>
-            <div><span>Kwota netto prowizji</span><strong>${formatMoney(fee.feeNet, fee.currency)}</strong></div>
-            <div><span>Podatek</span><strong>${formatMoney(fee.tax, fee.currency)}</strong></div>
-            <div><span>Kwota dla przewoznika</span><strong>${formatMoney(fee.carrierAmount, fee.currency)}</strong></div>
+            <div><span>${ui("finance.gross_amount")}</span><strong>${formatMoney(fee.gross, fee.currency)}</strong></div>
+            <div><span>${ui("finance.gl_fee")}</span><strong>${formatMoney(fee.feeGross, fee.currency)}</strong></div>
+            <div><span>${ui("finance.fee_net")}</span><strong>${formatMoney(fee.feeNet, fee.currency)}</strong></div>
+            <div><span>${ui("finance.tax")}</span><strong>${formatMoney(fee.tax, fee.currency)}</strong></div>
+            <div><span>${ui("finance.carrier_amount")}</span><strong>${formatMoney(fee.carrierAmount, fee.currency)}</strong></div>
           </div>
         </article>
 
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Ubezpieczenie</span>
-              <h2>Polisa transportu</h2>
+              <span class="eyebrow">${ui("finance.insurance")}</span>
+              <h2>${ui("finance.policy")}</h2>
             </div>
           </div>
           ${policy ? `
@@ -1343,7 +1367,7 @@ function renderFintechModule(state, engine, selected, mode) {
               <div><span>Firma</span><strong>${policy.partner}</strong></div>
               <div><span>Zakres</span><strong>${policy.scope}</strong></div>
               <div><span>Kwota</span><strong>${formatMoney(policy.cost, "EUR")}</strong></div>
-              <div><span>Status</span><strong>${policy.status}</strong></div>
+              <div><span>${valueLabel("Status")}</span><strong>${valueLabel(policy.status)}</strong></div>
             </div>
           ` : `<p class="finance-muted">Ten transport nie ma aktywnej polisy.</p>`}
         </article>
@@ -1353,8 +1377,8 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Pulpit administratora</span>
-              <h2>Ryzyko, naduzycia i najwieksze transakcje</h2>
+              <span class="eyebrow">${ui("finance.admin_dashboard")}</span>
+              <h2>${ui("finance.risk_title")}</h2>
             </div>
           </div>
           <div class="finance-admin-grid">
@@ -1371,8 +1395,8 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Silnik ryzyka AI</span>
-              <h2>AML / naduzycia demo</h2>
+              <span class="eyebrow">${ui("finance.ai_risk")}</span>
+              <h2>${ui("finance.aml_fraud")}</h2>
             </div>
           </div>
           <div class="finance-list">
@@ -1382,7 +1406,7 @@ function renderFintechModule(state, engine, selected, mode) {
                 <span><mark class="${financeTone(alert.level)}">${alert.level}</mark> ${alert.source}</span>
                 <small>${alert.description}</small>
               </div>
-            `).join("") || `<p class="finance-muted">Brak alertow.</p>`}
+            `).join("") || `<p class="finance-muted">${valueLabel("Brak alertow.")}</p>`}
           </div>
         </article>
       </div>
@@ -1391,8 +1415,8 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Raporty</span>
-              <h2>Eksport demo</h2>
+              <span class="eyebrow">${ui("finance.reports")}</span>
+              <h2>${ui("finance.export_demo")}</h2>
             </div>
           </div>
           <div class="report-grid">
@@ -1408,10 +1432,10 @@ function renderFintechModule(state, engine, selected, mode) {
         <article class="finance-panel finance-wide">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">Architektura API</span>
-              <h2>Endpointy przygotowane pod integracje</h2>
+              <span class="eyebrow">${ui("finance.api_architecture")}</span>
+              <h2>${ui("finance.api_ready")}</h2>
             </div>
-            <span class="finance-pill">backend nieaktywny w demo</span>
+            <span class="finance-pill">${ui("finance.backend_inactive")}</span>
           </div>
           <div class="api-grid">
             ${(state.walletApiEndpoints || []).map((endpoint) => `
@@ -1444,7 +1468,7 @@ function renderTransactionHistory(state, transactions) {
             <strong>${formatMoney(entry.amount, entry.currency)}</strong>
             <span>${entityName(state, entry.senderId)}</span>
             <span>${entityName(state, entry.receiverId)}</span>
-            <span><mark class="${financeTone(entry.status)}">${entry.status}</mark></span>
+            <span><mark class="${financeTone(entry.status)}">${valueLabel(entry.status)}</mark></span>
             <small>${entry.hash}</small>
             <small>${entry.auditId}</small>
           </div>
@@ -1457,15 +1481,15 @@ function renderTransactionHistory(state, transactions) {
 function renderWalletAccount(state, wallet) {
   return `
     <div class="wallet-card">
-      <span>${wallet.walletType}</span>
+      <span>${valueLabel(wallet.walletType)}</span>
       <strong>${wallet.glWalletId}</strong>
       <p>${walletOwnerName(state, wallet)}</p>
       <div>
-        <small>Dostepne</small>
+        <small>${ui("finance.available_balance")}</small>
         <b>${formatMoney(wallet.balance, wallet.currency)}</b>
       </div>
       <div>
-        <small>Zablokowane / escrow</small>
+        <small>${ui("finance.blocked_balance")} / escrow</small>
         <b>${formatMoney((wallet.heldBalance || 0) + (wallet.blockedBalance || 0), wallet.currency)}</b>
       </div>
     </div>
@@ -1482,7 +1506,7 @@ function renderEscrowFlow() {
     "Brak sporu",
     "Escrow zwolnione do przewoznika"
   ];
-  return `<div class="finance-flow">${steps.map((step, index) => `<div><span>${index + 1}</span><strong>${step}</strong></div>`).join("")}</div>`;
+  return `<div class="finance-flow">${steps.map((step, index) => `<div><span>${index + 1}</span><strong>${valueLabel(step)}</strong></div>`).join("")}</div>`;
 }
 
 function renderEscrowRows(state) {
@@ -1496,7 +1520,7 @@ function renderEscrowRows(state) {
           <span>${escrow.id}</span>
           <span>${transportNumber(state, escrow.transportId)}</span>
           <span>${companyName(state, escrow.payerCompanyId)}</span>
-          <span><mark class="${financeTone(escrow.status)}">${escrow.status}</mark></span>
+          <span><mark class="${financeTone(escrow.status)}">${valueLabel(escrow.status)}</mark></span>
           <strong>${formatMoney(escrow.amount, escrow.currency)}</strong>
           <span>${companyName(state, escrow.payeeCompanyId)}</span>
         </div>
@@ -1507,18 +1531,18 @@ function renderEscrowRows(state) {
 
 function renderDisputeFinance(state) {
   const disputes = state.disputes || [];
-  if (!disputes.length) return `<p class="finance-muted">Brak aktywnych sporow. Escrow moze przejsc do release po dokumentach.</p>`;
+  if (!disputes.length) return `<p class="finance-muted">${valueLabel("Brak aktywnych sporow. Escrow moze przejsc do release po dokumentach.")}</p>`;
   return `
     <div class="finance-list">
       ${disputes.map((dispute) => `
         <div>
           <strong>${transportNumber(state, dispute.transportId)}</strong>
-          <span>Status: ${dispute.status} / escrow zamrozone</span>
-          <small>AI analizuje historie, dokumenty, GPS i zdjecia.</small>
+          <span>${valueLabel("Status")}: ${valueLabel(dispute.status)} / ${valueLabel("escrow zamrozone")}</span>
+          <small>${valueLabel("AI analizuje historie, dokumenty, GPS i zdjecia.")}</small>
           <div class="decision-row">
-            <button type="button">Zwolnij</button>
-            <button type="button">Zwrot</button>
-            <button type="button">Platnosc dzielona</button>
+            <button type="button">${valueLabel("Zwolnij")}</button>
+            <button type="button">${valueLabel("Zwrot")}</button>
+            <button type="button">${valueLabel("Platnosc dzielona")}</button>
           </div>
         </div>
       `).join("")}
@@ -2497,11 +2521,11 @@ function renderProfile(state) {
       <h2>${user?.name || "Uzytkownik demo"}</h2>
       <div class="detail-grid">
         <div><span>Rola</span><strong>${RoleLabels[state.session.role]}</strong></div>
-        <div><span>Kontekst</span><strong>${state.access?.activeContextLabel || companyName(state, user?.companyId) || "osoba prywatna"}</strong></div>
+        <div><span>${valueLabel("Kontekst")}</span><strong>${state.access?.activeContextLabel || companyName(state, user?.companyId) || ui("ui.private_person")}</strong></div>
         <div><span>Rola w firmie</span><strong>${state.access?.actor?.companyRole || "brak"}</strong></div>
         <div><span>Status</span><strong>${user?.accountStatus || "demo"}</strong></div>
       </div>
-      <p class="muted">W trybie produkcyjnym profil, firma i uprawnienia pochodza z GL Identity, Company Engine oraz Permission Engine.</p>
+      <p class="muted">${ui("ui.profile_production_note")}</p>
     </section>
   `;
 }
@@ -2765,8 +2789,8 @@ function actionButton(engine, action, label, payload = {}) {
   const result = engine.explainAction(action, payload);
   return `
     <button class="action ${result.ok ? "ready" : "blocked"}" data-action="${action}" data-payload="${encodePayload(payload)}">
-      <strong>${label}</strong>
-      <span>${result.ok ? readinessMessage(action) : result.reasons[0]}</span>
+      <strong>${valueLabel(label)}</strong>
+      <span>${result.ok ? readinessMessage(action) : valueLabel(result.reasons[0])}</span>
     </button>
   `;
 }
@@ -2774,23 +2798,23 @@ function actionButton(engine, action, label, payload = {}) {
 function disabledAction(label, reason) {
   return `
     <button class="action blocked" type="button" aria-disabled="true">
-      <strong>${label}</strong>
-      <span>${reason}</span>
+      <strong>${valueLabel(label)}</strong>
+      <span>${valueLabel(reason)}</span>
     </button>
   `;
 }
 
 function readinessMessage(action) {
   const messages = {
-    [ActionTypes.PUBLISH_LOAD]: "Mozesz opublikowac transport",
-    [ActionTypes.ADD_LOAD_PHOTO]: "Mozesz dodac zdjecie ladunku",
-    [ActionTypes.CONFIRM_GPS]: "Mozesz zapisac GPS",
-    [ActionTypes.ASSIGN_DRIVER]: "Mozesz przypisac kierowce",
-    [ActionTypes.UPLOAD_DOCUMENT]: "Mozesz dodac dokument",
-    [ActionTypes.PARKING_REPORT]: "Mozesz zglosic parking",
-    [ActionTypes.RELEASE_PAYMENT]: "Mozesz zwolnic platnosc"
+    [ActionTypes.PUBLISH_LOAD]: "action.ready.publish_load",
+    [ActionTypes.ADD_LOAD_PHOTO]: "action.ready.add_load_photo",
+    [ActionTypes.CONFIRM_GPS]: "action.ready.confirm_gps",
+    [ActionTypes.ASSIGN_DRIVER]: "action.ready.assign_driver",
+    [ActionTypes.UPLOAD_DOCUMENT]: "action.ready.upload_document",
+    [ActionTypes.PARKING_REPORT]: "action.ready.parking_report",
+    [ActionTypes.RELEASE_PAYMENT]: "action.ready.release_payment"
   };
-  return messages[action] || "Akcja dostepna";
+  return ui(messages[action] || "action.ready.generic");
 }
 
 function renderNoTransport() {
@@ -2924,9 +2948,9 @@ function renderParkingReportForm(state) {
 function metric(label, value, sub) {
   return `
     <article class="metric">
-      <span>${label}</span>
+      <span>${valueLabel(label)}</span>
       <strong>${value}</strong>
-      <small>${sub}</small>
+      <small>${valueLabel(sub)}</small>
     </article>
   `;
 }
@@ -2934,9 +2958,9 @@ function metric(label, value, sub) {
 function renderAccessDenied(title, message) {
   return `
     <section class="panel access-panel">
-      <span class="eyebrow">Silnik uprawnien</span>
-      <h2>${title}</h2>
-      <p class="muted">${message}</p>
+      <span class="eyebrow">${ui("access.engine")}</span>
+      <h2>${valueLabel(title)}</h2>
+      <p class="muted">${valueLabel(message)}</p>
     </section>
   `;
 }
@@ -2985,9 +3009,9 @@ function calculateGlFee(transport) {
 function financeMetric(label, amount, currency, toneName) {
   return `
     <article class="finance-metric ${toneName}">
-      <span>${label}</span>
+      <span>${valueLabel(label)}</span>
       <strong>${formatMoney(amount, currency)}</strong>
-      <small>DEMO ledger</small>
+      <small>${ui("finance.demo_ledger")}</small>
     </article>
   `;
 }

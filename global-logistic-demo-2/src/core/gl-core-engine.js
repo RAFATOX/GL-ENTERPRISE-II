@@ -7,6 +7,7 @@ import {
 import { clone, createId, nowIso } from "./id.js";
 import { StateStore } from "./state-store.js";
 import { AuditEngine } from "../audit/audit-engine.js";
+import { FinancialAuditService } from "../audit/financial-audit-service.js";
 import { ApiEngine } from "../api/api-engine.js";
 import { AuthEngine } from "../auth/auth-engine.js";
 import { AiControlAgent } from "../ai-control/ai-control-agent.js";
@@ -55,8 +56,11 @@ export class GLCoreEngine {
   }
 
   buildModules() {
+    this.audit = new AuditEngine(this.state);
+    this.financialAudit = new FinancialAuditService(this.state);
     this.modules = {
       state: this.state,
+      financialAudit: this.financialAudit,
       users: new UserEngine(this.state),
       companies: new CompanyEngine(this.state),
       api: new ApiEngine(this.state),
@@ -70,15 +74,15 @@ export class GLCoreEngine {
       photos: new PhotoEngine(this.state),
       documents: new DocumentEngine(this.state),
       cmr: new DigitalCmrEngine(this.state),
-      payments: new PaymentEngine(this.state),
-      wallets: new WalletEngine(this.state),
-      escrow: new EscrowEngine(this.state),
-      revenue: new RevenueEngine(this.state),
+      payments: new PaymentEngine(this.state, this.financialAudit),
+      wallets: new WalletEngine(this.state, this.financialAudit),
+      escrow: new EscrowEngine(this.state, this.financialAudit),
+      revenue: new RevenueEngine(this.state, this.financialAudit),
       integrations: new IntegrationEngine(this.state),
       resilience: new ResilienceEngine(this.state),
       compliance: new ComplianceEngine(this.state),
       globalExpansion: new GlobalExpansionEngine(this.state),
-      disputes: new DisputeEngine(this.state),
+      disputes: new DisputeEngine(this.state, this.financialAudit),
       insurance: new InsuranceEngine(this.state),
       trust: new TrustEngine(this.state),
       parking: new ParkingEngine(this.state),
@@ -96,7 +100,6 @@ export class GLCoreEngine {
       workflow: new WorkflowEngine()
     };
     this.eventBus = new EventBus(this.state);
-    this.audit = new AuditEngine(this.state);
     this.eventBus.subscribe((event) => this.audit.handleEvent(event));
     this.eventBus.subscribe((event) => this.modules.notifications.handleEvent(event));
     this.eventBus.subscribe((event) => this.modules.compliance.handleEvent(event));
@@ -433,7 +436,13 @@ export class GLCoreEngine {
       device: context.meta.device || "demo-browser",
       reason: partial.reason || "not provided",
       source: partial.source || SourceTypes.USER,
-      result: partial.result || "success"
+      result: partial.result || "success",
+      auditLogId: partial.auditLogId || partial.audit_log_id || null,
+      audit_log_id: partial.audit_log_id || partial.auditLogId || null,
+      walletLedgerId: partial.walletLedgerId || null,
+      walletTransactionId: partial.walletTransactionId || null,
+      escrowOperationId: partial.escrowOperationId || null,
+      revenueLedgerId: partial.revenueLedgerId || null
     };
   }
 }

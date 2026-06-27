@@ -379,6 +379,12 @@ export function createDemoState() {
       escrow("esc-4", "tr-1004", "co-client-c", "co-carrier-a", 3650, "blocked"),
       escrow("esc-6", "tr-1006", "co-client-a", "co-carrier-a", 5100, "reserved")
     ],
+    escrowOperations: [
+      escrowOperation("escop-1001", "esc-1", "tr-1001", "reserve", "reserved", "aud-escop-1001", 4280),
+      escrowOperation("escop-1002", "esc-2", "tr-1002", "block", "blocked", "aud-escop-1002", 11200),
+      escrowOperation("escop-1004", "esc-4", "tr-1004", "block", "blocked", "aud-escop-1004", 3650),
+      escrowOperation("escop-1006", "esc-6", "tr-1006", "reserve", "reserved", "aud-escop-1006", 5100)
+    ],
     revenueLedger: [
       revenue("rev-1", "tr-1001", "transport_fee", 1, "demo transport fee"),
       revenue("rev-2", "tr-1002", "transport_fee", 1, "demo transport fee"),
@@ -490,7 +496,11 @@ export function createDemoState() {
         transportId: "tr-1004",
         status: "open",
         reason: "damage after unloading",
-        createdBy: "u-client-owner"
+        createdBy: "u-client-owner",
+        auditId: "audit-dis-1",
+        auditLogId: "audit-dis-1",
+        audit_log_id: "audit-dis-1",
+        auditIds: ["audit-dis-1"]
       }
     ],
     claims: [],
@@ -602,6 +612,7 @@ export function createDemoState() {
   buildCompanyAccessSeed(state);
   tuneDemoCompanyRoles(state);
   seedEvents(state);
+  seedFinancialAuditRecords(state);
   return state;
 }
 
@@ -780,7 +791,20 @@ function photo(id, transportId, type, label, uploadedBy, state) {
 }
 
 function payment(id, transportId, status, amount) {
-  return { id, modelType: "PaymentStatus", transportId, status, amount, currency: "EUR", updatedAt: baseTime };
+  const auditLogId = `audit-${id}`;
+  return {
+    id,
+    modelType: "PaymentStatus",
+    transportId,
+    status,
+    amount,
+    currency: "EUR",
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
+    auditIds: [auditLogId],
+    updatedAt: baseTime
+  };
 }
 
 function wallet(id, ownerCompanyId, balance, heldBalance, options = {}) {
@@ -817,6 +841,7 @@ function walletModelForOwnerType(ownerType) {
 }
 
 function ledger(id, walletId, transportId, type, amount, reason) {
+  const auditLogId = `audit-${id}`;
   return {
     id,
     modelType: "WalletLedgerEntry",
@@ -826,7 +851,9 @@ function ledger(id, walletId, transportId, type, amount, reason) {
     amount,
     currency: "EUR",
     reason,
-    auditId: `audit-${id}`,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
     at: baseTime
   };
 }
@@ -844,6 +871,8 @@ function walletTransaction(id, at, amount, currency, senderId, receiverId, reaso
     status,
     hash,
     auditId,
+    auditLogId: auditId,
+    audit_log_id: auditId,
     transportId
   };
 }
@@ -886,12 +915,35 @@ function escrow(id, transportId, payerCompanyId, payeeCompanyId, amount, status)
     amount,
     currency: "EUR",
     status,
+    auditIds: [],
+    lastAuditLogId: null,
+    lastAudit_log_id: null,
     createdAt: baseTime,
     releasedAt: null
   };
 }
 
+function escrowOperation(id, escrowId, transportId, operationType, newState, auditLogId, amount) {
+  return {
+    id,
+    modelType: "EscrowOperation",
+    escrowId,
+    transportId,
+    operationType,
+    previousState: null,
+    newState,
+    amount,
+    currency: "EUR",
+    reason: `${operationType} demo escrow operation`,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
+    at: baseTime
+  };
+}
+
 function invoice(id, ownerCompanyId, transportId, amount, currency, status, reason) {
+  const auditLogId = `audit-${id}`;
   return {
     id,
     modelType: "Invoice",
@@ -901,11 +953,15 @@ function invoice(id, ownerCompanyId, transportId, amount, currency, status, reas
     currency,
     status,
     reason,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
     issuedAt: baseTime
   };
 }
 
 function settlement(id, ownerCompanyId, transportId, amount, currency, status, type) {
+  const auditLogId = `audit-${id}`;
   return {
     id,
     modelType: "Settlement",
@@ -915,11 +971,15 @@ function settlement(id, ownerCompanyId, transportId, amount, currency, status, t
     currency,
     status,
     type,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
     createdAt: baseTime
   };
 }
 
 function payout(id, ownerCompanyId, transportId, amount, currency, status) {
+  const auditLogId = `audit-${id}`;
   return {
     id,
     modelType: "Payout",
@@ -929,11 +989,15 @@ function payout(id, ownerCompanyId, transportId, amount, currency, status) {
     amount,
     currency,
     status,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
     createdAt: baseTime
   };
 }
 
 function revenue(id, transportId, type, amount, reason) {
+  const auditLogId = `audit-${id}`;
   return {
     id,
     transportId,
@@ -941,6 +1005,9 @@ function revenue(id, transportId, type, amount, reason) {
     amount,
     currency: "EUR",
     reason,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId,
     at: baseTime
   };
 }
@@ -1037,6 +1104,7 @@ function securityCheck(id, transportId, checkpoint, status, officerId, reason) {
 }
 
 function evidencePack(id, disputeId, transportId, photoIds, documentIds, messageIds) {
+  const auditLogId = `audit-${id}`;
   return {
     id,
     disputeId,
@@ -1045,7 +1113,10 @@ function evidencePack(id, disputeId, transportId, photoIds, documentIds, message
     documentIds,
     messageIds,
     createdAt: baseTime,
-    locked: true
+    locked: true,
+    auditId: auditLogId,
+    auditLogId,
+    audit_log_id: auditLogId
   };
 }
 
@@ -1363,4 +1434,165 @@ function seedEvents(state) {
     state.audit.unshift(audit);
     if (transport) transport.auditIds.push(audit.id);
   });
+}
+
+function seedFinancialAuditRecords(state) {
+  const addAudit = ({ auditLogId, sourceId, action, objectType, objectId, transportId, reason, newState, at }) => {
+    if (!auditLogId || state.audit.some((row) => row.id === auditLogId)) return;
+    const audit = {
+      id: auditLogId,
+      audit_log_id: auditLogId,
+      eventId: `financial-seed-${sourceId}`,
+      at: at || baseTime,
+      actorId: "seed",
+      actorRole: "system",
+      actorCompanyId: null,
+      actorCompanyRole: null,
+      actorContextType: "system",
+      objectType,
+      objectId,
+      transportId: transportId || null,
+      action,
+      requestedAction: action,
+      result: "success",
+      previousState: null,
+      newState: newState ?? null,
+      device: "demo-seed",
+      reason,
+      source: SourceTypes.SYSTEM,
+      readOnly: true
+    };
+    state.audit.unshift(audit);
+    const transport = state.transports.find((item) => item.id === transportId);
+    if (transport && !transport.auditIds.includes(audit.id)) transport.auditIds.push(audit.id);
+  };
+
+  state.walletLedger.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "WALLET_LEDGER_RECORDED",
+    objectType: "wallet_ledger",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: entry.reason,
+    newState: entry.type,
+    at: entry.at
+  }));
+
+  state.walletTransactions.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "WALLET_TRANSACTION_RECORDED",
+    objectType: "wallet_transaction",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: entry.reason,
+    newState: entry.status,
+    at: entry.at
+  }));
+
+  state.payments.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "PAYMENT_STATUS_RECORDED",
+    objectType: "payment",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: `demo payment ${entry.status}`,
+    newState: entry.status,
+    at: entry.updatedAt
+  }));
+
+  (state.escrowOperations || []).forEach((operation) => {
+    addAudit({
+      auditLogId: operation.audit_log_id || operation.auditLogId || operation.auditId,
+      sourceId: operation.id,
+      action: `ESCROW_${String(operation.operationType).toUpperCase()}_RECORDED`,
+      objectType: "escrow_operation",
+      objectId: operation.id,
+      transportId: operation.transportId,
+      reason: operation.reason,
+      newState: operation.newState,
+      at: operation.at
+    });
+    const escrow = state.escrows.find((item) => item.id === operation.escrowId);
+    if (escrow) {
+      escrow.auditIds ||= [];
+      if (!escrow.auditIds.includes(operation.audit_log_id)) escrow.auditIds.push(operation.audit_log_id);
+      escrow.lastAuditLogId = operation.auditLogId;
+      escrow.lastAudit_log_id = operation.audit_log_id;
+    }
+  });
+
+  state.invoices.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "INVOICE_RECORDED",
+    objectType: "invoice",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: entry.reason || `demo invoice ${entry.status}`,
+    newState: entry.status,
+    at: entry.issuedAt
+  }));
+
+  state.settlements.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "SETTLEMENT_RECORDED",
+    objectType: "settlement",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: `demo settlement ${entry.type}`,
+    newState: entry.status,
+    at: entry.createdAt
+  }));
+
+  state.revenueLedger.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "PLATFORM_FEE_RECORDED",
+    objectType: "revenue",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: entry.reason,
+    newState: `${entry.amount} ${entry.currency}`,
+    at: entry.at
+  }));
+
+  state.payouts.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "PAYOUT_RECORDED",
+    objectType: "payout",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: `demo payout ${entry.status}`,
+    newState: entry.status,
+    at: entry.createdAt
+  }));
+
+  state.disputes.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "DISPUTE_OPENED",
+    objectType: "dispute",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: entry.reason,
+    newState: entry.status,
+    at: entry.createdAt || baseTime
+  }));
+
+  state.disputeEvidencePacks.forEach((entry) => addAudit({
+    auditLogId: entry.audit_log_id || entry.auditLogId || entry.auditId,
+    sourceId: entry.id,
+    action: "DISPUTE_EVIDENCE_PACK_CREATED",
+    objectType: "dispute_evidence_pack",
+    objectId: entry.id,
+    transportId: entry.transportId,
+    reason: "demo dispute evidence pack",
+    newState: entry.locked ? "locked" : "open",
+    at: entry.createdAt
+  }));
 }

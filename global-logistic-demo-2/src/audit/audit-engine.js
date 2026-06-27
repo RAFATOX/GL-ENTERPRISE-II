@@ -6,8 +6,20 @@ export class AuditEngine {
   }
 
   handleEvent(event) {
+    const auditLogId = event.auditLogId || event.audit_log_id || createId("audit");
+    const existing = this.state.audit.find((row) => row.id === auditLogId || row.audit_log_id === auditLogId);
+    if (existing) {
+      existing.eventId ||= event.id;
+      existing.requestedAction ||= event.requestedAction || event.type;
+      existing.transportId ||= event.transportId || null;
+      event.auditLogId = existing.id;
+      event.audit_log_id = existing.id;
+      return existing.id;
+    }
+
     const record = {
-      id: createId("audit"),
+      id: auditLogId,
+      audit_log_id: auditLogId,
       eventId: event.id,
       at: event.at,
       actorId: event.actorId,
@@ -29,6 +41,8 @@ export class AuditEngine {
       readOnly: true
     };
 
+    event.auditLogId = auditLogId;
+    event.audit_log_id = auditLogId;
     this.state.audit.unshift(record);
 
     if (event.objectType === "transport" || event.transportId) {
@@ -36,5 +50,7 @@ export class AuditEngine {
       const transport = this.state.transports.find((item) => item.id === transportId);
       if (transport) transport.auditIds.unshift(record.id);
     }
+
+    return auditLogId;
   }
 }

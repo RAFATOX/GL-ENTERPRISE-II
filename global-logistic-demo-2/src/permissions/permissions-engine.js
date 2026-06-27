@@ -689,6 +689,7 @@ export class PermissionsEngine {
       snapshot.walletApiEndpoints = [];
       snapshot.exchangeRates = [];
       snapshot.escrows = [];
+      snapshot.escrowOperations = [];
       snapshot.revenueLedger = [];
       snapshot.invoices = [];
       snapshot.settlements = [];
@@ -700,6 +701,12 @@ export class PermissionsEngine {
       snapshot.escrows = ["client", "carrier"].includes(scope) ? snapshot.escrows.filter((escrow) => (
         escrow.payerCompanyId === companyId || escrow.payeeCompanyId === companyId
       )) : [];
+      const escrowIds = new Set(snapshot.escrows.map((escrow) => escrow.id));
+      snapshot.escrowOperations = ["client", "carrier"].includes(scope)
+        ? (snapshot.escrowOperations || []).filter((operation) => (
+          escrowIds.has(operation.escrowId) && financialTransportIds.has(operation.transportId)
+        ))
+        : [];
       snapshot.wallets = snapshot.wallets.filter((wallet) => walletVisibleForActor(wallet, actor, scope));
       const walletIds = new Set(snapshot.wallets.map((wallet) => wallet.id));
       snapshot.walletLedger = snapshot.walletLedger.filter((entry) => walletIds.has(entry.walletId));

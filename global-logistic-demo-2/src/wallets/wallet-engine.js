@@ -1,9 +1,11 @@
 import { EventTypes } from "../core/constants.js";
 import { createId, nowIso } from "../core/id.js";
+import { requireFinancialAuditService } from "../audit/financial-audit-service.js";
 
 export class WalletEngine {
-  constructor(state) {
+  constructor(state, auditService = null) {
     this.state = state;
+    this.auditService = auditService;
   }
 
   getForCompany(companyId) {
@@ -28,6 +30,7 @@ export class WalletEngine {
   hold(companyId, transportId, amount, reason) {
     const wallet = this.getForCompany(companyId);
     if (!wallet) return null;
+    this.requireAuditService();
     const alreadyHeld = this.state.walletLedger.some((entry) => (
       entry.walletId === wallet.id
       && entry.transportId === transportId
@@ -39,10 +42,13 @@ export class WalletEngine {
     wallet.balance = Math.max(0, Number(wallet.balance || 0) - value);
     wallet.heldBalance = Number(wallet.heldBalance || 0) + value;
     wallet.escrowBalance = Number(wallet.escrowBalance || 0) + value;
-    this.addLedger(wallet.id, transportId, "hold", -value, reason, {
+    const ledgerEntry = this.addLedger(wallet.id, transportId, "hold", -value, reason, {
       senderId: companyId,
       receiverId: escrowReceiverId(this.state, transportId),
-      status: "Escrow"
+      status: "Escrow",
+      auditAction: EventTypes.WALLET_HOLD_CREATED,
+      previousState,
+      newState: walletSnapshot(wallet)
     });
     return {
       type: EventTypes.WALLET_HOLD_CREATED,
@@ -51,21 +57,29 @@ export class WalletEngine {
       transportId,
       previousState,
       newState: walletSnapshot(wallet),
-      reason
+      reason,
+      auditLogId: ledgerEntry.auditLogId,
+      audit_log_id: ledgerEntry.audit_log_id,
+      walletLedgerId: ledgerEntry.id,
+      walletTransactionId: ledgerEntry.walletTransactionId
     };
   }
 
   releaseHold(companyId, transportId, amount, reason) {
     const wallet = this.getForCompany(companyId);
     if (!wallet) return null;
+    this.requireAuditService();
     const previousState = walletSnapshot(wallet);
     const value = Number(amount || 0);
     wallet.heldBalance = Math.max(0, Number(wallet.heldBalance || 0) - value);
     wallet.escrowBalance = Math.max(0, Number(wallet.escrowBalance || 0) - value);
-    this.addLedger(wallet.id, transportId, "hold_release", value, reason, {
+    const ledgerEntry = this.addLedger(wallet.id, transportId, "hold_release", value, reason, {
       senderId: escrowReceiverId(this.state, transportId),
       receiverId: companyId,
-      status: "Released"
+      status: "Released",
+      auditAction: EventTypes.WALLET_HOLD_RELEASED,
+      previousState,
+      newState: walletSnapshot(wallet)
     });
     return {
       type: EventTypes.WALLET_HOLD_RELEASED,
@@ -74,20 +88,28 @@ export class WalletEngine {
       transportId,
       previousState,
       newState: walletSnapshot(wallet),
-      reason
+      reason,
+      auditLogId: ledgerEntry.auditLogId,
+      audit_log_id: ledgerEntry.audit_log_id,
+      walletLedgerId: ledgerEntry.id,
+      walletTransactionId: ledgerEntry.walletTransactionId
     };
   }
 
   credit(companyId, transportId, amount, reason, options = {}) {
     const wallet = this.getForCompany(companyId);
     if (!wallet) return null;
+    this.requireAuditService();
     const previousState = walletSnapshot(wallet);
     const value = Number(amount || 0);
     wallet.balance = Number(wallet.balance || 0) + value;
-    this.addLedger(wallet.id, transportId, options.type || "credit", value, reason, {
+    const ledgerEntry = this.addLedger(wallet.id, transportId, options.type || "credit", value, reason, {
       senderId: options.senderId || escrowReceiverId(this.state, transportId),
       receiverId: companyId,
-      status: options.status || "Completed"
+      status: options.status || "Completed",
+      auditAction: EventTypes.WALLET_CREDITED,
+      previousState,
+      newState: walletSnapshot(wallet)
     });
     return {
       type: EventTypes.WALLET_CREDITED,
@@ -96,20 +118,28 @@ export class WalletEngine {
       transportId,
       previousState,
       newState: walletSnapshot(wallet),
-      reason
+      reason,
+      auditLogId: ledgerEntry.auditLogId,
+      audit_log_id: ledgerEntry.audit_log_id,
+      walletLedgerId: ledgerEntry.id,
+      walletTransactionId: ledgerEntry.walletTransactionId
     };
   }
 
   creditPlatform(transportId, amount, reason) {
     const wallet = this.getPlatformWallet();
     if (!wallet || !amount) return null;
+    this.requireAuditService();
     const previousState = walletSnapshot(wallet);
     const value = Number(amount || 0);
     wallet.balance = Number(wallet.balance || 0) + value;
-    this.addLedger(wallet.id, transportId, "platform_fee", value, reason, {
+    const ledgerEntry = this.addLedger(wallet.id, transportId, "platform_fee", value, reason, {
       senderId: escrowReceiverId(this.state, transportId),
       receiverId: "platform",
-      status: "Completed"
+      status: "Completed",
+      auditAction: EventTypes.WALLET_CREDITED,
+      previousState,
+      newState: walletSnapshot(wallet)
     });
     return {
       type: EventTypes.WALLET_CREDITED,
@@ -118,7 +148,11 @@ export class WalletEngine {
       transportId,
       previousState,
       newState: walletSnapshot(wallet),
-      reason
+      reason,
+      auditLogId: ledgerEntry.auditLogId,
+      audit_log_id: ledgerEntry.audit_log_id,
+      walletLedgerId: ledgerEntry.id,
+      walletTransactionId: ledgerEntry.walletTransactionId
     };
   }
 
@@ -141,9 +175,27 @@ export class WalletEngine {
   }
 
   addLedger(walletId, transportId, type, amount, reason, options = {}) {
+    const auditService = this.requireAuditService();
     const at = nowIso();
     const id = createId("ledger");
-    const auditId = createId("audit-link");
+    const walletTransactionId = createId("gtx");
+    const status = options.status || "Completed";
+    const auditLogId = auditService.createRecord({
+      action: options.auditAction || "WALLET_TRANSACTION_RECORDED",
+      requestedAction: options.auditAction || "WALLET_TRANSACTION_RECORDED",
+      objectType: "wallet_transaction",
+      objectId: walletTransactionId,
+      transportId,
+      previousState: options.previousState || null,
+      newState: {
+        walletId,
+        type,
+        amount,
+        status,
+        ...(options.newState || {})
+      },
+      reason
+    });
     const entry = {
       id,
       modelType: "WalletLedgerEntry",
@@ -153,12 +205,15 @@ export class WalletEngine {
       amount,
       currency: "EUR",
       reason,
-      auditId,
+      auditId: auditLogId,
+      auditLogId,
+      audit_log_id: auditLogId,
+      walletTransactionId,
       at
     };
     this.state.walletLedger.unshift(entry);
     this.state.walletTransactions.unshift({
-      id: createId("gtx"),
+      id: walletTransactionId,
       modelType: "WalletTransaction",
       at,
       amount: Math.abs(Number(amount || 0)),
@@ -166,12 +221,18 @@ export class WalletEngine {
       senderId: options.senderId || "system",
       receiverId: options.receiverId || walletId,
       reason,
-      status: options.status || "Completed",
+      status,
       hash: `hash-demo-${id}`,
-      auditId,
+      auditId: auditLogId,
+      auditLogId,
+      audit_log_id: auditLogId,
       transportId
     });
     return entry;
+  }
+
+  requireAuditService() {
+    return requireFinancialAuditService(this.auditService);
   }
 }
 
