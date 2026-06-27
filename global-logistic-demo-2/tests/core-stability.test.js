@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ActionTypes, DEMO_DATA_VERSION, PaymentStatuses, Roles, TransportStatuses } from "../src/core/constants.js";
+import { AccountStatuses, ActionTypes, DEMO_DATA_VERSION, PaymentStatuses, Roles, TransportStatuses } from "../src/core/constants.js";
 import { GLCoreEngine } from "../src/core/gl-core-engine.js";
 import { FinancePermissions, getVisibleModules, modulesConfig, permissionsForRole } from "../src/core/modules-config.js";
 import { StateStore } from "../src/core/state-store.js";
+import { roleDocumentRequirements } from "../src/roles/role-verification-engine.js";
 import { parsePayload } from "../src/ui/action-handler.js";
 import { menuForRole, viewAllowedForRole } from "../src/ui/role-config.js";
 import { renderApp, selectedTransport } from "../src/ui/renderers.js";
@@ -42,6 +43,72 @@ function snapshotForRole(role) {
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
   return engine.getSnapshot();
 }
+
+test("new user sees registration onboarding before the application", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.ok(html.includes("Rejestracja GL Enterprise"));
+  assert.ok(html.includes("GL Registration / Onboarding Engine"));
+  assert.equal(html.includes("Menu modulow"), false);
+  assert.equal(html.includes("Jedna aplikacja modulowa"), false);
+});
+
+test("onboarding requires language, phone and consents", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const missingLanguage = engine.explainAction(ActionTypes.ONBOARDING_START, {
+    country: "PL",
+    phone: "+48500111222",
+    termsConsent: "true",
+    identityConsent: "true",
+    documentsConsent: "true"
+  });
+  const missingPhone = engine.explainAction(ActionTypes.ONBOARDING_START, {
+    language: "pl",
+    country: "PL",
+    termsConsent: "true",
+    identityConsent: "true",
+    documentsConsent: "true"
+  });
+
+  assert.equal(missingLanguage.ok, false);
+  assert.ok(missingLanguage.reasons.join(" ").includes("jezyk"));
+  assert.equal(missingPhone.ok, false);
+  assert.ok(missingPhone.reasons.join(" ").includes("telefon"));
+});
+
+test("identity document and selfie are required before role approval", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const start = engine.dispatchAction(ActionTypes.ONBOARDING_START, {
+    language: "pl",
+    country: "PL",
+    phone: "+48500111999",
+    termsConsent: "true",
+    identityConsent: "true",
+    documentsConsent: "true"
+  });
+  const userId = start.events.find((event) => event.type === "ONBOARDING_STARTED").objectId;
+  engine.dispatchAction(ActionTypes.ONBOARDING_VERIFY_PHONE, { userId, otpCode: "123456" });
+  engine.dispatchAction(ActionTypes.ONBOARDING_CREATE_ACCOUNT, {
+    userId,
+    firstName: "Jan",
+    lastName: "Testowy",
+    email: "jan.testowy@demo.gl",
+    passwordMethod: "passkey_demo",
+    countryOfResidence: "PL",
+    userType: "driver"
+  });
+  engine.dispatchAction(ActionTypes.ONBOARDING_SELECT_ROLE, { userId, role: "driver" });
+  const missingIdentity = engine.explainAction(ActionTypes.ONBOARDING_SUBMIT_IDENTITY, {
+    userId,
+    documentCountry: "PL",
+    documentExpiresAt: "2030-12-31",
+    selfieConfirmed: "true"
+  });
+
+  assert.equal(missingIdentity.ok, false);
+  assert.ok(missingIdentity.reasons.join(" ").includes("dokument tozsamosci"));
+});
 
 test("permissions deny a driver from releasing payment", () => {
   const engine = new GLCoreEngine({ store: memoryStore() });
@@ -338,6 +405,98 @@ test("transport cannot start without secured escrow when payment is required", (
 
   assert.equal(result.ok, false);
   assert.ok(result.reasons.join(" ").includes("secured escrow"));
+});
+
+test("driver without role documents cannot start transport work", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
+  const driver = engine.state.users.find((user) => user.id === "u-driver-1");
+  const transport = engine.state.transports.find((item) => item.id === "tr-1001");
+  driver.roleVerificationStatus[Roles.DRIVER] = AccountStatuses.ROLE_DOCUMENTS_PENDING;
+  transport.status = TransportStatuses.DRIVER_ASSIGNED;
+  transport.paymentStatus = PaymentStatuses.RESERVED;
+  let escrow = engine.state.escrows.find((item) => item.transportId === transport.id);
+  if (!escrow) {
+    escrow = { id: "esc-test", transportId: transport.id, payerCompanyId: transport.clientCompanyId, payeeCompanyId: transport.carrierCompanyId, amount: transport.price, currency: "EUR", status: "reserved" };
+    engine.state.escrows.push(escrow);
+  }
+  escrow.status = "reserved";
+
+  const result = engine.explainAction(ActionTypes.START_PICKUP_NAVIGATION, { transportId: transport.id });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.join(" ").includes("rola wymaga osobnej weryfikacji"));
+});
+
+test("carrier without company verification cannot add a vehicle", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER }, { demoOnly: true });
+  const carrier = engine.state.users.find((user) => user.id === "u-carrier-owner");
+  carrier.roleVerificationStatus[Roles.CARRIER_OWNER] = AccountStatuses.COMPANY_PENDING;
+
+  const result = engine.explainAction(ActionTypes.ADD_VEHICLE, { plate: "GL 12345", type: "ciagnik" });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.join(" ").includes("rola wymaga osobnej weryfikacji"));
+});
+
+test("client without wallet cannot activate a load", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CLIENT_OWNER }, { demoOnly: true });
+  const transport = engine.state.transports.find((item) => item.id === "tr-1003");
+  transport.status = TransportStatuses.READY_TO_PUBLISH;
+  transport.pickup.gps = { lat: 52.1, lng: 20.1 };
+  transport.delivery.gps = { lat: 53.1, lng: 21.1 };
+  transport.cargo.prePublishPhotoId = "ph-load-3";
+  engine.state.wallets = engine.state.wallets.filter((wallet) => wallet.ownerCompanyId !== transport.clientCompanyId);
+
+  const result = engine.explainAction(ActionTypes.PUBLISH_LOAD, { transportId: transport.id });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.join(" ").includes("portfel klienta"));
+});
+
+test("unapproved insurer and workshop cannot open their modules", () => {
+  const insurerEngine = new GLCoreEngine({ store: memoryStore() });
+  insurerEngine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.INSURANCE_PARTNER }, { demoOnly: true });
+  insurerEngine.state.users.find((user) => user.id === "u-insurance").accountStatus = AccountStatuses.IDENTITY_PENDING;
+  const insurerResult = insurerEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "policies", route: "/policies" });
+
+  const workshopEngine = new GLCoreEngine({ store: memoryStore() });
+  workshopEngine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.WORKSHOP }, { demoOnly: true });
+  workshopEngine.state.users.find((user) => user.id === "u-workshop").accountStatus = AccountStatuses.IDENTITY_PENDING;
+  const workshopResult = workshopEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "service_orders", route: "/service-orders" });
+
+  assert.equal(insurerResult.ok, false);
+  assert.equal(workshopResult.ok, false);
+  assert.ok(insurerEngine.state.audit.some((entry) => entry.action === "ACTION_BLOCKED"));
+  assert.ok(workshopEngine.state.audit.some((entry) => entry.action === "ACTION_BLOCKED"));
+});
+
+test("each onboarding role has its own document process", () => {
+  const driverDocs = roleDocumentRequirements(Roles.DRIVER);
+  const carrierDocs = roleDocumentRequirements(Roles.CARRIER_OWNER);
+  const workshopDocs = roleDocumentRequirements(Roles.WORKSHOP);
+  const insurerDocs = roleDocumentRequirements(Roles.INSURANCE_PARTNER);
+
+  assert.ok(driverDocs.includes("driver_license"));
+  assert.ok(carrierDocs.includes("ocp"));
+  assert.ok(workshopDocs.includes("service_scope"));
+  assert.ok(insurerDocs.includes("license"));
+  assert.notDeepEqual(driverDocs, carrierDocs);
+});
+
+test("bypass attempts are saved in audit log and compliance findings", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER }, { demoOnly: true });
+  const carrier = engine.state.users.find((user) => user.id === "u-carrier-owner");
+  carrier.accountStatus = AccountStatuses.IDENTITY_PENDING;
+
+  const result = engine.dispatchAction(ActionTypes.ADD_VEHICLE, { plate: "GL BLOCK", type: "naczepa" });
+
+  assert.equal(result.ok, false);
+  assert.ok(engine.state.audit.some((entry) => entry.action === "ACTION_BLOCKED"));
+  assert.ok(engine.state.complianceFindings.some((entry) => entry.type === "proba_obejscia_weryfikacji"));
 });
 
 test("carrier and client use billing modules instead of separate panels", () => {

@@ -1,7 +1,9 @@
-import { ActionTypes, DEMO_MODE, Roles, TransportStatuses } from "../core/constants.js";
+import { ActionTypes, AccountStatuses, DEMO_MODE, Roles, TransportStatuses } from "../core/constants.js";
 import { canAccessModuleView, platformWalletRoles } from "../core/modules-config.js";
+import { onboardingActionTypes } from "../onboarding/registration-onboarding-engine.js";
 
 const platformActions = Object.values(ActionTypes);
+const onboardingActions = new Set(onboardingActionTypes(ActionTypes));
 
 const rolePermissions = {
   [Roles.PLATFORM_OWNER]: platformActions,
@@ -137,7 +139,8 @@ const rolePermissions = {
     ActionTypes.SEND_TO_CUSTOMS,
     ActionTypes.REPORT_BREAKDOWN,
     ActionTypes.REQUEST_TECHNICAL_SERVICE,
-    ActionTypes.RUN_COMPLIANCE_CHECK
+    ActionTypes.RUN_COMPLIANCE_CHECK,
+    ActionTypes.ADD_VEHICLE
   ],
   [Roles.CARRIER_DISPATCHER]: [
     ActionTypes.SELECT_ROLE,
@@ -329,6 +332,28 @@ export class PermissionsEngine {
     // and be verified by the permissions engine, never from a UI role switcher.
     if (DEMO_MODE && [ActionTypes.SELECT_ROLE, ActionTypes.RESET_DEMO].includes(actionType)) {
       return { ok: true, reason: "demo-only action allowed" };
+    }
+
+    if (onboardingActions.has(actionType)) {
+      return { ok: true, reason: "onboarding action allowed before app access" };
+    }
+
+    if (actionType === ActionTypes.SELECT_VIEW && context.payload.view === "onboarding") {
+      return { ok: true, reason: "onboarding view allowed" };
+    }
+
+    if (context.state?.session?.onboardingRequired && actionType === ActionTypes.SELECT_VIEW) {
+      return {
+        ok: false,
+        reason: "onboarding wymagany przed dostepem do aplikacji"
+      };
+    }
+
+    if (!accountApproved(context.actor) && actionType === ActionTypes.SELECT_VIEW) {
+      return {
+        ok: false,
+        reason: `konto wymaga pelnej weryfikacji: ${context.actor.accountStatus}`
+      };
     }
 
     const allowed = rolePermissions[context.actor.role] || [];
@@ -567,6 +592,16 @@ function transportForContext(context) {
     ActionTypes.REGISTER_USER,
     ActionTypes.VERIFY_ACCOUNT,
     ActionTypes.CHANGE_PHONE,
+    ActionTypes.ONBOARDING_START,
+    ActionTypes.ONBOARDING_VERIFY_PHONE,
+    ActionTypes.ONBOARDING_CREATE_ACCOUNT,
+    ActionTypes.ONBOARDING_SELECT_ROLE,
+    ActionTypes.ONBOARDING_SUBMIT_IDENTITY,
+    ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS,
+    ActionTypes.ONBOARDING_SUBMIT_COMPANY,
+    ActionTypes.ONBOARDING_APPROVE,
+    ActionTypes.ONBOARDING_REJECT,
+    ActionTypes.ADD_VEHICLE,
     ActionTypes.CREATE_LOAD,
     ActionTypes.ADMIN_BLOCK_ACCOUNT,
     ActionTypes.PARKING_REPORT,
@@ -740,6 +775,10 @@ function filterFinanceRecords(records, actor, financialTransportIds, scope) {
 
 function platformFinanceRole(actor) {
   return platformWalletRoles.includes(actor.role);
+}
+
+function accountApproved(actor) {
+  return [AccountStatuses.APPROVED, AccountStatuses.VERIFIED].includes(actor.accountStatus);
 }
 
 function financialTransportIdsForScope(snapshot, actor, scope, visibleTransportIds) {

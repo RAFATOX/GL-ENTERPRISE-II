@@ -6,6 +6,23 @@ export class ComplianceEngine {
     this.state = state;
   }
 
+  handleEvent(event) {
+    if (!shouldRecordEvent(event)) return;
+    this.state.complianceFindings ||= [];
+    this.state.complianceFindings.unshift({
+      id: createId("compliance_signal"),
+      eventId: event.id,
+      userId: event.actorId || event.objectId || null,
+      objectType: event.objectType,
+      objectId: event.objectId,
+      transportId: event.transportId || null,
+      type: complianceType(event),
+      severity: event.type === EventTypes.ACTION_BLOCKED ? "medium" : "info",
+      reason: event.reason || "sygnal zgodnosci",
+      createdAt: nowIso()
+    });
+  }
+
   runDriverCheck(transport, modules) {
     const driverIds = new Set([transport.driverId].filter(Boolean));
     const crewPlan = this.state.crewPlans.find((plan) => plan.transportId === transport.id);
@@ -67,4 +84,33 @@ export class ComplianceEngine {
     this.state.companyComplianceEntries.unshift(entry);
     return entry;
   }
+}
+
+function complianceType(event) {
+  if (event.type === EventTypes.ACTION_BLOCKED) return "proba_obejscia_weryfikacji";
+  if (event.type === EventTypes.COMPLIANCE_SIGNAL_RECORDED) return event.newState || "sygnal_compliance";
+  if (event.type === EventTypes.DOCUMENT_REJECTED) return "odrzucony_dokument";
+  if (event.type === EventTypes.ONBOARDING_REJECTED) return "odrzucone_konto";
+  return "onboarding_compliance";
+}
+
+function shouldRecordEvent(event) {
+  if (!event) return false;
+  if ([EventTypes.COMPLIANCE_SIGNAL_RECORDED, EventTypes.DOCUMENT_REJECTED, EventTypes.ONBOARDING_REJECTED].includes(event.type)) {
+    return true;
+  }
+  if (event.type !== EventTypes.ACTION_BLOCKED) return false;
+  const reason = String(event.reason || "").toLowerCase();
+  return [
+    "weryfik",
+    "verification",
+    "dokument",
+    "document",
+    "wallet",
+    "portfel",
+    "escrow",
+    "konto",
+    "account",
+    "onboarding"
+  ].some((word) => reason.includes(word));
 }

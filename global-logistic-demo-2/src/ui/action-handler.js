@@ -4,14 +4,31 @@ const textKeys = new Set([
   "address",
   "body",
   "comment",
+  "companyName",
+  "country",
+  "countryOfResidence",
   "description",
+  "documentCountry",
+  "documentExpiresAt",
+  "documentType",
+  "email",
+  "firstName",
   "label",
+  "lastName",
   "language",
   "licensePlate",
   "name",
+  "otpCode",
+  "passwordMethod",
   "phone",
+  "plate",
   "reason",
-  "type"
+  "role",
+  "type",
+  "userId",
+  "userType",
+  "vat",
+  "vatEu"
 ]);
 
 export function parsePayload(raw) {

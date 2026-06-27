@@ -16,7 +16,14 @@ export class UserEngine {
       name: user?.name || "System",
       role: session.role || Roles.READONLY_AUDITOR,
       companyId: user?.companyId || null,
-      accountStatus: user?.accountStatus || "system"
+      accountStatus: user?.accountStatus || "draft",
+      verificationStatus: user?.verificationStatus || user?.accountStatus || "draft",
+      phoneVerified: Boolean(user?.phoneVerified),
+      documentVerified: Boolean(user?.documentVerified),
+      faceVerified: Boolean(user?.faceVerified),
+      documentsValid: Boolean(user?.documentsValid),
+      selectedRole: user?.selectedRole || null,
+      roleVerificationStatus: user?.roleVerificationStatus || {}
     };
   }
 

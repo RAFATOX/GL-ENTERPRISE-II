@@ -1,4 +1,5 @@
 import {
+  AccountStatuses,
   ActionTypes,
   AllRoles,
   DEMO_MODE,
@@ -16,6 +17,9 @@ import { localizeHtml } from "../translation/ui-translation-engine.js";
 
 export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
+  if (shouldRenderOnboarding(state)) {
+    return localizeHtml(renderOnboardingApp(state, engine), state.session.language || "pl");
+  }
   const selected = selectedTransport(state);
   const roleConfig = getRoleConfig(state.session.role);
   const activeView = state.session.deniedView
@@ -47,6 +51,230 @@ export function renderApp(state, engine) {
       ${renderContextRail(state, engine, selected, roleConfig)}
     </div>
   `, state.session.language);
+}
+
+function shouldRenderOnboarding(state) {
+  const user = onboardingUser(state);
+  if (state.session.onboardingRequired) return true;
+  if (!user) return true;
+  return ![AccountStatuses.APPROVED, AccountStatuses.VERIFIED].includes(user.accountStatus);
+}
+
+function renderOnboardingApp(state, engine) {
+  const user = onboardingUser(state);
+  const missing = user ? onboardingMissing(state, engine, user) : ["jezyk", "kraj", "telefon", "zgody"];
+  return `
+    <div class="app-shell onboarding-app">
+      <main class="main onboarding-main">
+        <section class="panel onboarding-hero">
+          <span class="eyebrow">GL Registration / Onboarding Engine</span>
+          <h1>Rejestracja GL Enterprise</h1>
+          <p class="muted">Najpierw identyfikacja uzytkownika, potem rola, dokumenty i dopiero dostep do funkcji. GL Identity, Role Verification, Compliance oraz Wallet/Escrow sa osobnymi silnikami polaczonymi przez user_id, company_id i verification_status.</p>
+          <div class="pipeline">
+            ${["JEZYK", "TELEFON OTP", "KONTO", "ROLA", "TOZSAMOSC", "DOKUMENTY ROLI", "ZGODA"].map((step) => `<span>${step}</span>`).join("")}
+          </div>
+        </section>
+
+        <section class="grid two">
+          <article class="panel">
+            ${renderOnboardingStep(state, engine, user)}
+          </article>
+          <article class="panel">
+            <span class="eyebrow">Status weryfikacji</span>
+            <h2>${user ? user.accountStatus : "brak konta"}</h2>
+            <div class="detail-grid">
+              <div><span>Telefon</span><strong>${user?.phoneVerified ? "potwierdzony" : "wymagany"}</strong></div>
+              <div><span>Tozsamosc</span><strong>${user?.documentVerified && user?.faceVerified ? "potwierdzona" : "wymagana"}</strong></div>
+              <div><span>Rola</span><strong>${user?.selectedRole || "nie wybrano"}</strong></div>
+              <div><span>Portfel / firma</span><strong>${user?.walletReady ? "gotowe" : "wymagane, jesli dotyczy"}</strong></div>
+            </div>
+            <div class="finance-list">
+              ${missing.map((item) => `<div><strong>${item}</strong><span>brakujacy element onboardingu</span></div>`).join("") || `<div><strong>Gotowe</strong><span>konto moze wejsc do aplikacji</span></div>`}
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  `;
+}
+
+function renderOnboardingStep(state, engine, user) {
+  if (!user || !state.session.onboardingUserId) return renderOnboardingStartForm();
+  if (!user.phoneVerified) return renderOtpForm(user);
+  if (!user.firstName || !user.lastName || !user.email) return renderAccountForm(user);
+  if (!user.selectedRole) return renderRoleSelectionForm(engine, user);
+  if (!user.identityDocument || !user.documentVerified || !user.faceVerified) return renderIdentityForm(user);
+  const missingDocs = onboardingRoleMissing(engine, user);
+  if (missingDocs.length) return renderRoleDocumentsForm(engine, user, missingDocs);
+  if (onboardingCompanyRequired(user) && user.accountStatus !== AccountStatuses.APPROVED) return renderCompanyForm(user);
+  return renderOnboardingApprovalForm(user);
+}
+
+function renderOnboardingStartForm() {
+  return `
+    <span class="eyebrow">Krok 1</span>
+    <h2>Jezyk, kraj, telefon i zgody</h2>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_START}">
+      <label>Jezyk<select name="language">
+        <option value="pl">Polski</option>
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+      </select></label>
+      <label>Kraj<select name="country">
+        <option value="PL">Polska</option>
+        <option value="DE">Niemcy</option>
+        <option value="NL">Holandia</option>
+        <option value="CZ">Czechy</option>
+      </select></label>
+      <label>Numer telefonu<input name="phone" value="+48500111222" /></label>
+      <label><input type="checkbox" name="termsConsent" value="true" checked /> Akceptuje regulamin GL</label>
+      <label><input type="checkbox" name="identityConsent" value="true" checked /> Zgadzam sie na weryfikacje tozsamosci</label>
+      <label><input type="checkbox" name="documentsConsent" value="true" checked /> Zgadzam sie na przetwarzanie dokumentow</label>
+      <button class="action ready" type="submit"><strong>Rozpocznij rejestracje</strong><span>Telefon przejdzie do OTP</span></button>
+    </form>
+  `;
+}
+
+function renderOtpForm(user) {
+  return `
+    <span class="eyebrow">Krok 2</span>
+    <h2>Weryfikacja telefonu</h2>
+    <p class="muted">Kod SMS / OTP jest wymagany przed zalozeniem konta.</p>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_VERIFY_PHONE}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <label>Telefon<input name="phone" value="${user.phone}" disabled /></label>
+      <label>Kod OTP<input name="otpCode" value="123456" inputmode="numeric" /></label>
+      <button class="action ready" type="submit"><strong>Potwierdz telefon</strong><span>Bez OTP system nie pusci dalej</span></button>
+    </form>
+  `;
+}
+
+function renderAccountForm(user) {
+  return `
+    <span class="eyebrow">Krok 3</span>
+    <h2>Konto uzytkownika</h2>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_CREATE_ACCOUNT}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <label>Imie<input name="firstName" value="Jan" /></label>
+      <label>Nazwisko<input name="lastName" value="Nowak" /></label>
+      <label>E-mail<input name="email" value="jan.nowak@demo.gl" /></label>
+      <label>Haslo / passkey<input name="passwordMethod" value="passkey_demo" /></label>
+      <label>Kraj zamieszkania<input name="countryOfResidence" value="${user.country || "PL"}" /></label>
+      <label>Typ uzytkownika<input name="userType" value="transport" /></label>
+      <button class="action ready" type="submit"><strong>Utworz konto</strong><span>Po tym wybierzesz role</span></button>
+    </form>
+  `;
+}
+
+function renderRoleSelectionForm(engine, user) {
+  const options = engine.modules.onboarding.roleOptions();
+  return `
+    <span class="eyebrow">Krok 4</span>
+    <h2>Wybierz role</h2>
+    <p class="muted">Jedna osoba moze pozniej miec wiele rol, ale kazda rola wymaga osobnej weryfikacji.</p>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SELECT_ROLE}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <label>Rola<select name="role">
+        ${options.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}
+      </select></label>
+      <button class="action ready" type="submit"><strong>Zapisz role</strong><span>System pokaze dokumenty roli</span></button>
+    </form>
+  `;
+}
+
+function renderIdentityForm(user) {
+  return `
+    <span class="eyebrow">Krok 5</span>
+    <h2>Weryfikacja tozsamosci</h2>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SUBMIT_IDENTITY}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <label>Dokument tozsamosci<select name="documentType">
+        <option value="identity_card">Dowod osobisty</option>
+        <option value="passport">Paszport</option>
+        <option value="residence_card">Karta pobytu</option>
+      </select></label>
+      <label>Kraj wydania<input name="documentCountry" value="${user.country || "PL"}" /></label>
+      <label>Data waznosci<input name="documentExpiresAt" value="2030-12-31" /></label>
+      <label><input type="checkbox" name="selfieConfirmed" value="true" checked /> Selfie i porownanie twarzy wykonane</label>
+      <button class="action ready" type="submit"><strong>Dodaj dokument i selfie</strong><span>Bez tego konto zostaje niezweryfikowane</span></button>
+    </form>
+  `;
+}
+
+function renderRoleDocumentsForm(engine, user, missingDocs) {
+  return `
+    <span class="eyebrow">Krok 6</span>
+    <h2>Dokumenty roli</h2>
+    <p class="muted">Rola ${user.selectedRole} wymaga osobnego zestawu dokumentow.</p>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <input type="hidden" name="role" value="${user.selectedRole}" />
+      ${engine.modules.onboarding.requirementsForRole(user.selectedRole).map((doc) => `
+        <label><input type="checkbox" name="${doc}" value="true" ${missingDocs.includes(doc) ? "checked" : "checked"} /> ${doc}</label>
+      `).join("")}
+      <button class="action ready" type="submit"><strong>Dodaj dokumenty roli</strong><span>Braki zatrzymaja dostep do funkcji</span></button>
+    </form>
+  `;
+}
+
+function renderCompanyForm(user) {
+  return `
+    <span class="eyebrow">Krok 7</span>
+    <h2>Firma, rozliczenia i portfel</h2>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_SUBMIT_COMPANY}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <input type="hidden" name="role" value="${user.selectedRole}" />
+      <label>Nazwa firmy<input name="companyName" value="Demo Company GL" /></label>
+      <label>NIP / VAT EU<input name="vatEu" value="PL1234567890" /></label>
+      <label><input type="checkbox" name="companyDocuments" value="true" checked /> Dokumenty firmy dodane</label>
+      <label><input type="checkbox" name="walletReady" value="true" checked /> Konto rozliczeniowe / portfel gotowy</label>
+      <button class="action ready" type="submit"><strong>Zapisz firme</strong><span>Po tym mozna zatwierdzic konto demo</span></button>
+    </form>
+  `;
+}
+
+function renderOnboardingApprovalForm(user) {
+  return `
+    <span class="eyebrow">Gotowe do zatwierdzenia</span>
+    <h2>Konto moze wejsc do GL</h2>
+    <p class="muted">W produkcji decyzje podejmie GL Compliance / operator roli. W demo przycisk zatwierdza proces.</p>
+    <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_APPROVE}">
+      <input type="hidden" name="userId" value="${user.id}" />
+      <input type="hidden" name="role" value="${user.selectedRole}" />
+      <button class="action ready" type="submit"><strong>Zatwierdz konto demo</strong><span>Odblokuj aplikacje</span></button>
+    </form>
+  `;
+}
+
+function onboardingUser(state) {
+  if (state.session.onboardingRequired && !state.session.onboardingUserId) return null;
+  return state.users.find((user) => user.id === state.session.onboardingUserId)
+    || state.users.find((user) => user.id === state.session.userId)
+    || null;
+}
+
+function onboardingMissing(state, engine, user) {
+  if (!engine?.modules?.onboarding) return [];
+  return engine.modules.onboarding.missingForUser(user);
+}
+
+function onboardingRoleMissing(engine, user) {
+  const submitted = user.roleDocuments?.[user.selectedRole] || [];
+  return engine.modules.onboarding.requirementsForRole(user.selectedRole).filter((doc) => !submitted.includes(doc));
+}
+
+function onboardingCompanyRequired(user) {
+  return [
+    Roles.CARRIER_OWNER,
+    Roles.CLIENT_OWNER,
+    Roles.WAREHOUSE_WORKER,
+    Roles.WORKSHOP,
+    Roles.MOBILE_SERVICE,
+    Roles.ROADSIDE_ASSISTANCE,
+    Roles.INSURANCE_PARTNER,
+    Roles.CARRIER_DISPATCHER,
+    Roles.SUPPORT_AGENT
+  ].includes(user.selectedRole);
 }
 
 function renderAppNavigation(state, activeView) {
@@ -231,7 +459,7 @@ function renderModuleAccessDenied(state) {
 }
 
 function renderAuth(state, engine) {
-  const pending = state.users.find((user) => user.accountStatus === "pending") || state.users[state.users.length - 1];
+  const pending = state.users.find((user) => user.accountStatus !== AccountStatuses.APPROVED) || state.users[state.users.length - 1];
   return `
     <section class="grid two">
       <article class="panel">

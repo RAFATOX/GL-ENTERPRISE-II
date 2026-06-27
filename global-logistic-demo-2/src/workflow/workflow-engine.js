@@ -7,6 +7,11 @@ import {
   SourceTypes,
   TransportStatuses
 } from "../core/constants.js";
+import {
+  isAccountApproved,
+  onboardingActionTypes,
+  roleForOperationalAction
+} from "../onboarding/registration-onboarding-engine.js";
 
 const nextStatusByAction = {
   [ActionTypes.START_PICKUP_NAVIGATION]: [TransportStatuses.DRIVER_ASSIGNED, TransportStatuses.PICKUP_NAVIGATION_STARTED, EventTypes.GPS_COORDINATES_CONFIRMED, "pickup navigation started"],
@@ -18,6 +23,7 @@ const nextStatusByAction = {
   [ActionTypes.START_UNLOADING]: [TransportStatuses.ARRIVED_AT_DELIVERY, TransportStatuses.UNLOADING_STARTED, EventTypes.GPS_COORDINATES_CONFIRMED, "unloading started"],
   [ActionTypes.CONFIRM_DELIVERY]: [TransportStatuses.UNLOADING_STARTED, TransportStatuses.DELIVERY_CONFIRMED, EventTypes.DELIVERY_CONFIRMED, "delivery confirmed"]
 };
+const onboardingActions = new Set(onboardingActionTypes(ActionTypes));
 
 export class WorkflowEngine {
   validate(context, modules) {
@@ -25,8 +31,12 @@ export class WorkflowEngine {
     const reasons = [];
     const selectedTransport = modules.transports.getById(payload.transportId || state.session.selectedTransportId);
 
-    if (actor.accountStatus && actor.accountStatus !== AccountStatuses.VERIFIED && !sessionOnly(actionType)) {
-      reasons.push(`account status is ${actor.accountStatus}`);
+    if (!isAccountApproved(actor) && !sessionOnly(actionType) && !onboardingActions.has(actionType)) {
+      reasons.push(`konto wymaga pelnej weryfikacji: ${actor.accountStatus}`);
+    }
+
+    if (requiresVerifiedRole(actionType) && !modules.onboarding.canUseRole(actor, roleForOperationalAction(actionType, ActionTypes, actor.role))) {
+      reasons.push("rola wymaga osobnej weryfikacji dokumentow");
     }
 
     if (CriticalTransportActions.has(actionType) && selectedTransport) {
@@ -52,6 +62,38 @@ export class WorkflowEngine {
       case ActionTypes.CHANGE_PHONE:
         if (!payload.userId) reasons.push("user id is required");
         if (actionType === ActionTypes.CHANGE_PHONE && !payload.phone) reasons.push("new phone is required");
+        break;
+      case ActionTypes.ONBOARDING_START:
+        validateOnboardingStart(payload, reasons);
+        break;
+      case ActionTypes.ONBOARDING_VERIFY_PHONE:
+        if (!payload.userId) reasons.push("user_id jest wymagany");
+        if (!payload.otpCode) reasons.push("kod OTP jest wymagany");
+        break;
+      case ActionTypes.ONBOARDING_CREATE_ACCOUNT:
+        validateOnboardingAccount(payload, reasons);
+        break;
+      case ActionTypes.ONBOARDING_SELECT_ROLE:
+        if (!payload.userId) reasons.push("user_id jest wymagany");
+        if (!payload.role) reasons.push("rola jest wymagana");
+        break;
+      case ActionTypes.ONBOARDING_SUBMIT_IDENTITY:
+        validateOnboardingIdentity(payload, reasons);
+        break;
+      case ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS:
+        if (!payload.userId) reasons.push("user_id jest wymagany");
+        if (!payload.role) reasons.push("rola jest wymagana");
+        break;
+      case ActionTypes.ONBOARDING_SUBMIT_COMPANY:
+        if (!payload.userId) reasons.push("user_id jest wymagany");
+        if (!payload.companyName) reasons.push("nazwa firmy jest wymagana");
+        break;
+      case ActionTypes.ONBOARDING_APPROVE:
+      case ActionTypes.ONBOARDING_REJECT:
+        if (!payload.userId) reasons.push("user_id jest wymagany");
+        break;
+      case ActionTypes.ADD_VEHICLE:
+        validateAddVehicle(actor, payload, reasons);
         break;
       case ActionTypes.CREATE_LOAD:
         if (!actor.companyId && !payload.clientCompanyId) reasons.push("client company is required");
@@ -206,6 +248,26 @@ export class WorkflowEngine {
         return modules.auth.verifyAccount(payload.userId);
       case ActionTypes.CHANGE_PHONE:
         return modules.auth.changePhone(payload.userId, payload.phone);
+      case ActionTypes.ONBOARDING_START:
+        return modules.onboarding.start(payload);
+      case ActionTypes.ONBOARDING_VERIFY_PHONE:
+        return modules.onboarding.verifyPhone(payload);
+      case ActionTypes.ONBOARDING_CREATE_ACCOUNT:
+        return modules.onboarding.createAccount(payload);
+      case ActionTypes.ONBOARDING_SELECT_ROLE:
+        return modules.onboarding.selectRole(payload);
+      case ActionTypes.ONBOARDING_SUBMIT_IDENTITY:
+        return modules.onboarding.submitIdentity(payload);
+      case ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS:
+        return modules.onboarding.submitRoleDocuments(payload);
+      case ActionTypes.ONBOARDING_SUBMIT_COMPANY:
+        return modules.onboarding.submitCompany(payload);
+      case ActionTypes.ONBOARDING_APPROVE:
+        return modules.onboarding.approve(payload);
+      case ActionTypes.ONBOARDING_REJECT:
+        return modules.onboarding.reject(payload);
+      case ActionTypes.ADD_VEHICLE:
+        return this.addVehicle(state, actor, payload);
       case ActionTypes.CREATE_LOAD: {
         const created = modules.transports.createDraft(actor, payload);
         return {
@@ -387,6 +449,8 @@ export class WorkflowEngine {
     const demoUser = modules.users.findDemoUserForRole(payload.role);
     state.session.role = payload.role;
     state.session.userId = demoUser.id;
+    state.session.onboardingRequired = false;
+    state.session.onboardingUserId = null;
     state.session.deniedView = null;
     state.session.deniedRoute = null;
     return {
@@ -417,6 +481,28 @@ export class WorkflowEngine {
     };
   }
 
+  addVehicle(state, actor, payload) {
+    const vehicle = {
+      id: payload.vehicleId || `veh-${Date.now()}`,
+      plate: payload.plate,
+      companyId: actor.companyId,
+      type: payload.type || "pojazd demo",
+      documentsValid: true,
+      available: true
+    };
+    state.vehicles.unshift(vehicle);
+    return {
+      events: [{
+        type: EventTypes.COMPANY_VERIFIED,
+        objectType: "vehicle",
+        objectId: vehicle.id,
+        previousState: null,
+        newState: "vehicle_added",
+        reason: "pojazd dodany po weryfikacji przewoznika"
+      }]
+    };
+  }
+
   parkingReport(actor, payload, modules) {
     const result = modules.parking.report(payload.parkingId, actor, payload);
     if (!result) return { events: [] };
@@ -433,6 +519,58 @@ function sessionOnly(actionType) {
   return [ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT].includes(actionType);
 }
 
+function requiresVerifiedRole(actionType) {
+  return [
+    ActionTypes.CREATE_LOAD,
+    ActionTypes.PUBLISH_LOAD,
+    ActionTypes.ACCEPT_CARRIER,
+    ActionTypes.ASSIGN_DRIVER,
+    ActionTypes.ADD_VEHICLE,
+    ActionTypes.START_PICKUP_NAVIGATION,
+    ActionTypes.START_TRANSIT,
+    ActionTypes.ACCEPT_SERVICE_JOB,
+    ActionTypes.COMPLETE_SERVICE_JOB,
+    ActionTypes.OPEN_CLAIM,
+    ActionTypes.RELEASE_PAYMENT
+  ].includes(actionType);
+}
+
+function validateOnboardingStart(payload, reasons) {
+  if (!payload.language) reasons.push("jezyk jest wymagany");
+  if (!payload.country) reasons.push("kraj jest wymagany");
+  if (!payload.phone) reasons.push("telefon jest wymagany");
+  if (!consent(payload.termsConsent)) reasons.push("zgoda regulaminowa jest wymagana");
+  if (!consent(payload.identityConsent)) reasons.push("zgoda na weryfikacje tozsamosci jest wymagana");
+  if (!consent(payload.documentsConsent)) reasons.push("zgoda na przetwarzanie dokumentow jest wymagana");
+}
+
+function validateOnboardingAccount(payload, reasons) {
+  if (!payload.userId) reasons.push("user_id jest wymagany");
+  if (!payload.firstName) reasons.push("imie jest wymagane");
+  if (!payload.lastName) reasons.push("nazwisko jest wymagane");
+  if (!payload.email) reasons.push("e-mail jest wymagany");
+  if (!payload.passwordMethod) reasons.push("haslo lub passkey jest wymagane");
+  if (!payload.countryOfResidence) reasons.push("kraj zamieszkania jest wymagany");
+  if (!payload.userType) reasons.push("typ uzytkownika jest wymagany");
+}
+
+function validateOnboardingIdentity(payload, reasons) {
+  if (!payload.userId) reasons.push("user_id jest wymagany");
+  if (!payload.documentType) reasons.push("dokument tozsamosci jest wymagany");
+  if (!payload.documentCountry) reasons.push("kraj wydania dokumentu jest wymagany");
+  if (!payload.documentExpiresAt) reasons.push("data waznosci dokumentu jest wymagana");
+  if (!consent(payload.selfieConfirmed)) reasons.push("selfie i porownanie twarzy jest wymagane");
+}
+
+function validateAddVehicle(actor, payload, reasons) {
+  if (!actor.companyId) reasons.push("firma przewoznika jest wymagana");
+  if (!payload.plate) reasons.push("numer rejestracyjny pojazdu jest wymagany");
+}
+
+function consent(value) {
+  return value === true || value === "true" || value === "on";
+}
+
 function requireTransport(transport, reasons) {
   if (!transport) reasons.push("transport not found");
 }
@@ -446,6 +584,9 @@ function validatePublish(transport, modules, reasons) {
   if (!modules.gps.hasCoordinates(transport.pickup)) reasons.push("missing pickup GPS coordinates");
   if (!modules.gps.hasCoordinates(transport.delivery)) reasons.push("missing delivery GPS coordinates");
   if (!transport.cargo.prePublishPhotoId) reasons.push("missing load photo before publication");
+  if (!modules.wallets.getForCompany(transport.clientCompanyId)) {
+    reasons.push("portfel klienta jest wymagany przed aktywacja ladunku");
+  }
 }
 
 function validateCarrierAccept(transport, payload, modules, reasons) {

@@ -28,6 +28,7 @@ import { InsuranceEngine } from "../insurance/insurance-engine.js";
 import { IntegrationEngine } from "../integrations/integration-engine.js";
 import { JobsEngine } from "../jobs/jobs-engine.js";
 import { NotificationEngine } from "../notifications/notification-engine.js";
+import { RegistrationOnboardingEngine } from "../onboarding/registration-onboarding-engine.js";
 import { ParkingEngine } from "../parking/parking-engine.js";
 import { PaymentEngine } from "../payments/payment-engine.js";
 import { PlateToDriverEngine } from "../plate-to-driver/plate-to-driver-engine.js";
@@ -90,6 +91,7 @@ export class GLCoreEngine {
       service: new ServiceEngine(this.state),
       ai: new AiControlAgent(this.state),
       notifications: new NotificationEngine(this.state),
+      onboarding: new RegistrationOnboardingEngine(this.state),
       permissions: new PermissionsEngine(),
       workflow: new WorkflowEngine()
     };
@@ -97,6 +99,7 @@ export class GLCoreEngine {
     this.audit = new AuditEngine(this.state);
     this.eventBus.subscribe((event) => this.audit.handleEvent(event));
     this.eventBus.subscribe((event) => this.modules.notifications.handleEvent(event));
+    this.eventBus.subscribe((event) => this.modules.compliance.handleEvent(event));
   }
 
   getSnapshot() {

@@ -12,15 +12,17 @@ const baseTime = "2026-05-27T07:00:00.000Z";
 
 export function createDemoState() {
   const state = {
-    schemaVersion: 10,
+    schemaVersion: 11,
     demoDataVersion: DEMO_DATA_VERSION,
     revision: 1,
     session: {
       userId: "u-platform",
       role: Roles.PLATFORM_OWNER,
       language: "pl",
-      view: "dashboard",
+      view: "onboarding",
       selectedTransportId: "tr-1001",
+      onboardingRequired: true,
+      onboardingUserId: null,
       lastResult: null
     },
     users: [
@@ -252,6 +254,10 @@ export function createDemoState() {
       payment("pay-5", "tr-1005", PaymentStatuses.PENDING, 2400),
       payment("pay-6", "tr-1006", PaymentStatuses.RESERVED, 5100)
     ],
+    onboardingDrafts: [],
+    identityVerifications: [],
+    roleVerifications: [],
+    complianceFindings: [],
     financeModels: {
       platformWallet: "PlatformWallet",
       userWallet: "UserWallet",
@@ -588,17 +594,53 @@ export function createDemoState() {
 }
 
 function user(id, name, phone, primaryRole, companyId, accountStatus, options = {}) {
+  const approved = accountStatus === AccountStatuses.APPROVED || accountStatus === AccountStatuses.VERIFIED;
+  const [firstName = name, ...lastNameParts] = String(name).split(" ");
   return {
     id,
     name,
+    firstName: options.firstName || firstName,
+    lastName: options.lastName || lastNameParts.join(" "),
+    email: options.email || `${id.replaceAll("-", ".")}@demo.gl`,
     phone,
     language: "pl",
+    country: options.country || "PL",
+    countryOfResidence: options.countryOfResidence || options.country || "PL",
+    userType: options.userType || primaryRole,
     companyId,
     roles: [primaryRole],
+    selectedRole: primaryRole,
     accountStatus,
+    verificationStatus: accountStatus,
+    onboardingStage: approved ? "approved" : "role_documents",
+    phoneVerified: approved,
     documentVerified: options.documentVerified ?? true,
     faceVerified: options.faceVerified ?? true,
     documentsValid: options.documentsValid ?? true,
+    identityDocument: approved ? {
+      id: `id-doc-${id}`,
+      type: "identity_card",
+      country: "PL",
+      expiresAt: "2030-12-31",
+      selfieConfirmed: true,
+      submittedAt: baseTime
+    } : null,
+    roleVerificationStatus: {
+      [primaryRole]: approved ? AccountStatuses.APPROVED : AccountStatuses.ROLE_DOCUMENTS_PENDING
+    },
+    roleDocuments: approved ? {
+      [primaryRole]: ["identity_document", "selfie", "role_documents_demo"]
+    } : {},
+    companyVerification: companyId && approved ? {
+      id: `company-ver-${id}`,
+      role: primaryRole,
+      companyName: companyId,
+      vatEu: "DEMO-VAT",
+      walletReady: true,
+      hasCompanyDocuments: true,
+      submittedAt: baseTime
+    } : null,
+    walletReady: approved,
     driverTimeLegal: options.driverTimeLegal ?? true,
     authoritySubtype: options.authoritySubtype || null,
     recoveryEnabled: true,

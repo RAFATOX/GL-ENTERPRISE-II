@@ -14,10 +14,14 @@ export class AuthEngine {
       language: payload.language || "pl",
       companyId: payload.companyId || null,
       roles: [payload.role],
-      accountStatus: AccountStatuses.PENDING,
+      accountStatus: AccountStatuses.DRAFT,
+      verificationStatus: AccountStatuses.DRAFT,
+      onboardingStage: "phone",
+      phoneVerified: false,
       documentVerified: false,
       faceVerified: false,
       documentsValid: false,
+      roleVerificationStatus: {},
       recoveryEnabled: true,
       previousPhones: []
     };
@@ -29,7 +33,7 @@ export class AuthEngine {
         objectType: "user",
         objectId: user.id,
         previousState: null,
-        newState: AccountStatuses.PENDING,
+        newState: AccountStatuses.DRAFT,
         reason: "phone registration created"
       }]
     };
@@ -39,10 +43,17 @@ export class AuthEngine {
     const user = this.state.users.find((item) => item.id === userId);
     if (!user) return null;
     const previousState = user.accountStatus;
-    user.accountStatus = AccountStatuses.VERIFIED;
+    user.accountStatus = AccountStatuses.APPROVED;
+    user.verificationStatus = AccountStatuses.APPROVED;
+    user.onboardingStage = "approved";
+    user.phoneVerified = true;
     user.documentVerified = true;
     user.faceVerified = true;
     user.documentsValid = true;
+    user.roleVerificationStatus ||= {};
+    (user.roles || []).forEach((role) => {
+      user.roleVerificationStatus[role] = AccountStatuses.APPROVED;
+    });
     return {
       user,
       events: [{
