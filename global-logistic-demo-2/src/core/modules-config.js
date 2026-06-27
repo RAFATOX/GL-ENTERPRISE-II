@@ -341,6 +341,18 @@ export const PrivateContextPermissions = Object.freeze([
   CompanyPermissions.CREATE
 ]);
 
+export const PrivateRolePermissionMap = Object.freeze({
+  [Roles.ACADEMY_STUDENT]: unique([
+    ...PrivateContextPermissions,
+    ModulePermissions.ACADEMY
+  ]),
+  [Roles.ACADEMY_TEACHER]: unique([
+    ...PrivateContextPermissions,
+    ModulePermissions.ACADEMY,
+    ModulePermissions.REPORTS
+  ])
+});
+
 export const PlatformRolePermissionMap = Object.freeze({
   [Roles.PLATFORM_OWNER]: unique([
     ...Object.values(ModulePermissions),
@@ -392,6 +404,114 @@ export const PlatformRolePermissionMap = Object.freeze({
     FinancePermissions.ESCROW_MANAGE,
     FinancePermissions.PAYOUTS_MANAGE,
     FinancePermissions.FINANCE_AUDIT_READ,
+    AdminPermissions.AUDIT_READ
+  ]),
+  [Roles.SUPER_ADMIN]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LOADS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.PARKING,
+    ModulePermissions.CHAT,
+    ModulePermissions.JOBS,
+    ModulePermissions.ACADEMY,
+    ModulePermissions.TRUST,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    ModulePermissions.SETTINGS,
+    ModulePermissions.SECURITY,
+    ModulePermissions.CUSTOMS,
+    ModulePermissions.AUTHORITY,
+    ModulePermissions.INTERMODAL,
+    ModulePermissions.AI,
+    ModulePermissions.AUDIT,
+    ModulePermissions.SYSTEM,
+    ...Object.values(CompanyPermissions),
+    ...Object.values(LoadPermissions),
+    ...Object.values(VehiclePermissions),
+    ...Object.values(DriverPermissions),
+    ...Object.values(DocumentPermissions),
+    AdminPermissions.AUDIT_READ,
+    CompliancePermissions.REVIEW,
+    CompliancePermissions.SUSPEND_COMPANY,
+    CompliancePermissions.SUSPEND_USER
+  ]),
+  [Roles.ADMIN]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LOADS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.PARKING,
+    ModulePermissions.CHAT,
+    ModulePermissions.JOBS,
+    ModulePermissions.ACADEMY,
+    ModulePermissions.TRUST,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    ModulePermissions.SETTINGS,
+    ModulePermissions.SECURITY,
+    ModulePermissions.CUSTOMS,
+    ModulePermissions.AUTHORITY,
+    ModulePermissions.INTERMODAL,
+    ModulePermissions.AI,
+    ModulePermissions.AUDIT,
+    ModulePermissions.SYSTEM,
+    CompanyPermissions.READ,
+    CompanyPermissions.MANAGE,
+    CompanyPermissions.INVITE_USERS,
+    CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
+    LoadPermissions.VIEW_COMPANY,
+    LoadPermissions.MANAGE_COMPANY,
+    DocumentPermissions.APPROVE,
+    AdminPermissions.AUDIT_READ,
+    CompliancePermissions.REVIEW,
+    CompliancePermissions.SUSPEND_COMPANY,
+    CompliancePermissions.SUSPEND_USER
+  ]),
+  [Roles.COMPLIANCE]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    ModulePermissions.AUTHORITY,
+    ModulePermissions.AI,
+    ModulePermissions.AUDIT,
+    ModulePermissions.RISK,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_COMPANY,
+    AdminPermissions.AUDIT_READ,
+    CompliancePermissions.REVIEW,
+    CompliancePermissions.SUSPEND_COMPANY,
+    CompliancePermissions.SUSPEND_USER
+  ]),
+  [Roles.SUPPORT_AGENT]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.CHAT,
+    ModulePermissions.PROFILE,
+    ModulePermissions.AI,
+    ModulePermissions.RISK,
+    LoadPermissions.VIEW_COMPANY,
+    CompliancePermissions.REVIEW
+  ]),
+  [Roles.READONLY_AUDITOR]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.PROFILE,
+    ModulePermissions.AUDIT,
+    LoadPermissions.VIEW_COMPANY,
     AdminPermissions.AUDIT_READ
   ])
 });

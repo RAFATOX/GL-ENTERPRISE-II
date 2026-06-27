@@ -1,4 +1,4 @@
-import { AccountStatuses, EventTypes, Roles } from "../core/constants.js";
+import { AccountStatuses, CompanyTypes, EventTypes, Roles } from "../core/constants.js";
 import { createId, nowIso } from "../core/id.js";
 
 export const onboardingRoleOptions = Object.freeze([
@@ -108,21 +108,32 @@ export class GlRoleVerificationEngine {
     };
   }
 
-  submitCompanyProfile(userId, roleInput, payload) {
+  submitCompanyProfile(userId, roleInput, payload, companyEngine = null) {
     const user = this.user(userId);
     if (!user) return { events: [] };
     const role = normalizeOnboardingRole(roleInput || user.selectedRole);
     const previousState = user.accountStatus;
-    const hasCompanyDocuments = Boolean(payload.companyName && (payload.vatEu || payload.vat) && payload.companyDocuments);
+    const hasCompanyDocuments = Boolean(payload.companyName && (payload.vatEu || payload.vat) && truthy(payload.companyDocuments));
+    const companyResult = companyEngine
+      ? this.createOrUpdateOnboardingCompany(user, role, payload, companyEngine, hasCompanyDocuments)
+      : { company: null, events: [], document: null };
     user.companyVerification = {
       id: createId("company_verification"),
+      companyId: companyResult.company?.id || null,
       role,
       companyName: payload.companyName,
       vatEu: payload.vatEu || payload.vat || null,
       walletReady: payload.walletReady === true || payload.walletReady === "true" || payload.walletReady === "on",
       hasCompanyDocuments,
+      companyStatus: companyResult.company?.verificationStatus || companyResult.company?.status || null,
+      companyDocumentId: companyResult.document?.id || null,
       submittedAt: nowIso()
     };
+    if (companyResult.company) {
+      user.companyId = companyResult.company.id;
+      user.company_id = companyResult.company.id;
+      user.companyIds = [...new Set([...(user.companyIds || []), companyResult.company.id])];
+    }
     user.walletReady = user.companyVerification.walletReady;
     user.accountStatus = hasCompanyDocuments ? AccountStatuses.APPROVED : AccountStatuses.COMPANY_PENDING;
     user.verificationStatus = user.accountStatus;
@@ -131,18 +142,22 @@ export class GlRoleVerificationEngine {
     user.onboardingStage = user.accountStatus === AccountStatuses.APPROVED ? "approved" : "company";
     return {
       user,
-      events: [{
-        type: EventTypes.COMPANY_PROFILE_SUBMITTED,
-        objectType: "user",
-        objectId: user.id,
-        previousState,
-        newState: user.accountStatus,
-        reason: hasCompanyDocuments ? "firma i konto rozliczeniowe zatwierdzone w demo" : "brak pelnych danych firmy"
-      }]
+      company: companyResult.company,
+      events: [
+        ...companyResult.events,
+        {
+          type: EventTypes.COMPANY_PROFILE_SUBMITTED,
+          objectType: "user",
+          objectId: user.id,
+          previousState,
+          newState: user.accountStatus,
+          reason: hasCompanyDocuments ? "firma i konto rozliczeniowe zatwierdzone w demo" : "brak pelnych danych firmy"
+        }
+      ]
     };
   }
 
-  approve(userId, roleInput) {
+  approve(userId, roleInput, companyEngine = null) {
     const user = this.user(userId);
     if (!user) return { events: [] };
     const role = normalizeOnboardingRole(roleInput || user.selectedRole || user.roles?.[0]);
@@ -154,7 +169,12 @@ export class GlRoleVerificationEngine {
     user.onboardingStage = "approved";
     this.state.session.userId = user.id;
     this.state.session.role = role || Roles.READONLY_AUDITOR;
+    const context = companyEngine?.defaultContextForUser(user) || null;
+    this.state.session.contextType = context?.contextType || "private";
+    this.state.session.companyId = context?.companyId || null;
+    this.state.session.companyRoleId = context?.userCompanyRoleId || null;
     this.state.session.onboardingRequired = false;
+    this.state.session.onboardingUserId = null;
     this.state.session.view = "dashboard";
     return {
       user,
@@ -191,6 +211,58 @@ export class GlRoleVerificationEngine {
 
   user(userId) {
     return this.state.users.find((item) => item.id === userId) || null;
+  }
+
+  createOrUpdateOnboardingCompany(user, role, payload, companyEngine, verified) {
+    const existingCompanyId = user.companyVerification?.companyId || user.companyId || null;
+    const existingCompany = existingCompanyId ? companyEngine.getById(existingCompanyId) : null;
+    const actor = {
+      userId: user.id,
+      role,
+      contextType: "private",
+      companyId: existingCompany?.id || null,
+      companyRole: null,
+      permissions: [],
+      permissionsSource: "onboarding"
+    };
+    const events = [];
+    let company = existingCompany;
+
+    if (!company) {
+      const created = companyEngine.createCompany(actor, {
+        name: payload.companyName,
+        companyName: payload.companyName,
+        country: payload.country || user.country || "PL",
+        vatEu: payload.vatEu || payload.vat,
+        vat: payload.vat || payload.vatEu,
+        address: payload.address || "adres firmy demo",
+        type: companyTypeForRole(role),
+        companyType: companyTypeForRole(role)
+      });
+      company = created.company;
+      events.push(...created.events);
+    }
+
+    let document = null;
+    if (truthy(payload.companyDocuments) && !company.documentIds?.length) {
+      const uploaded = companyEngine.uploadCompanyDocument(actor, {
+        companyId: company.id,
+        type: "company_onboarding_documents",
+        label: payload.companyDocumentLabel || "Dokumenty firmy z onboardingu"
+      });
+      document = uploaded.document;
+      events.push(...uploaded.events);
+    }
+
+    if (verified && company.verificationStatus !== "verified") {
+      const verifiedCompany = companyEngine.verifyCompany(actor, {
+        companyId: company.id,
+        reason: "firma zweryfikowana w onboardingu demo"
+      });
+      events.push(...verifiedCompany.events);
+    }
+
+    return { company, document, events };
   }
 }
 
@@ -236,6 +308,22 @@ function companyRoles() {
   ];
 }
 
+function companyTypeForRole(role) {
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(role)) return CompanyTypes.CARRIER;
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(role)) return CompanyTypes.CLIENT;
+  if (role === Roles.WAREHOUSE_WORKER) return CompanyTypes.WAREHOUSE;
+  if (role === Roles.WORKSHOP) return CompanyTypes.WORKSHOP;
+  if (role === Roles.MOBILE_SERVICE) return CompanyTypes.MOBILE_SERVICE;
+  if (role === Roles.ROADSIDE_ASSISTANCE) return CompanyTypes.ROADSIDE_ASSISTANCE;
+  if (role === Roles.INSURANCE_PARTNER) return CompanyTypes.INSURER;
+  if (role === Roles.SUPPORT_AGENT) return CompanyTypes.ACADEMY_PARTNER;
+  return CompanyTypes.CLIENT;
+}
+
 function latestRoleVerification(state, userId, role) {
   return state.roleVerifications.find((item) => item.userId === userId && item.role === role) || null;
+}
+
+function truthy(value) {
+  return value === true || value === "true" || value === "on";
 }

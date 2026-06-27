@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   AccountStatuses,
@@ -7,6 +8,7 @@ import {
   CompanyRoleNames,
   CompanyVerificationStatuses,
   DEMO_DATA_VERSION,
+  EventTypes,
   PaymentStatuses,
   Roles,
   TransportStatuses
@@ -16,6 +18,7 @@ import {
   DriverPermissions,
   FinancePermissions,
   LoadPermissions,
+  ModulePermissions,
   getVisibleModules,
   modulesConfig,
   permissionsForRole
@@ -74,6 +77,45 @@ function engineForUserContext(userId, companyId = null) {
   engine.state.session.onboardingRequired = false;
   engine.state.session.onboardingUserId = null;
   return engine;
+}
+
+function payloadFromRenderedForm(html, actionType, overrides = {}) {
+  const form = extractRenderedForm(html, actionType);
+  const payload = {};
+  for (const select of form.matchAll(/<select\b[^>]*name="([^"]+)"[^>]*>([\s\S]*?)<\/select>/g)) {
+    const selected = select[2].match(/<option\b[^>]*selected[^>]*value="([^"]*)"/)
+      || select[2].match(/<option\b[^>]*value="([^"]*)"/);
+    if (selected) payload[select[1]] = selected[1];
+  }
+  for (const input of form.matchAll(/<input\b[^>]*>/g)) {
+    const tag = input[0];
+    const name = attribute(tag, "name");
+    if (!name || tag.includes("disabled")) continue;
+    const type = attribute(tag, "type");
+    if (type === "checkbox" && !tag.includes("checked")) continue;
+    payload[name] = attribute(tag, "value") || (type === "checkbox" ? "on" : "");
+  }
+  return { ...payload, ...overrides };
+}
+
+function extractRenderedForm(html, actionType) {
+  const marker = `data-form-action="${actionType}"`;
+  const markerAt = html.indexOf(marker);
+  assert.notEqual(markerAt, -1, `missing form for ${actionType}`);
+  const formStart = html.lastIndexOf("<form", markerAt);
+  const formEnd = html.indexOf("</form>", markerAt);
+  assert.notEqual(formStart, -1, `missing form start for ${actionType}`);
+  assert.notEqual(formEnd, -1, `missing form end for ${actionType}`);
+  return html.slice(formStart, formEnd + "</form>".length);
+}
+
+function attribute(tag, name) {
+  return tag.match(new RegExp(`${name}="([^"]*)"`))?.[1] || "";
+}
+
+function submitRoleDocuments(engine, userId, role) {
+  const documents = Object.fromEntries(roleDocumentRequirements(role).map((key) => [key, "true"]));
+  return engine.dispatchAction(ActionTypes.ONBOARDING_SUBMIT_ROLE_DOCUMENTS, { userId, role, ...documents });
 }
 
 test("new user sees registration onboarding before the application", () => {
@@ -140,6 +182,226 @@ test("identity document and selfie are required before role approval", () => {
 
   assert.equal(missingIdentity.ok, false);
   assert.ok(missingIdentity.reasons.join(" ").includes("dokument tozsamosci"));
+});
+
+test("browser onboarding form flow moves from language and phone to OTP and account step", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  let html = renderApp(engine.getSnapshot(), engine);
+
+  const start = engine.dispatchAction(
+    ActionTypes.ONBOARDING_START,
+    payloadFromRenderedForm(html, ActionTypes.ONBOARDING_START, {
+      language: "pl",
+      phone: "+48500111333"
+    }),
+    { source: "browser-flow-test" }
+  );
+  const userId = start.events.find((event) => event.type === EventTypes.ONBOARDING_STARTED).objectId;
+  html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(start.ok, true);
+  assert.ok(html.includes("Weryfikacja telefonu"));
+  assert.ok(html.includes(`data-form-action="${ActionTypes.ONBOARDING_VERIFY_PHONE}"`));
+
+  const otp = engine.dispatchAction(
+    ActionTypes.ONBOARDING_VERIFY_PHONE,
+    payloadFromRenderedForm(html, ActionTypes.ONBOARDING_VERIFY_PHONE, { userId, otpCode: "123456" }),
+    { source: "browser-flow-test" }
+  );
+  html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(otp.ok, true);
+  assert.ok(html.includes("Konto uzytkownika"));
+  assert.ok(html.includes(`data-form-action="${ActionTypes.ONBOARDING_CREATE_ACCOUNT}"`));
+});
+
+test("minimal onboarding submit renders OTP screen in clickable onboarding layout", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const startHtml = renderApp(engine.getSnapshot(), engine);
+  const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  const result = engine.dispatchAction(
+    ActionTypes.ONBOARDING_START,
+    payloadFromRenderedForm(startHtml, ActionTypes.ONBOARDING_START, {
+      language: "pl",
+      phone: "+48500111555"
+    }),
+    { source: "minimal-browser-flow-test" }
+  );
+  const otpHtml = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, true);
+  assert.ok(startHtml.includes("onboarding-app"));
+  assert.match(styles, /\.onboarding-app\s*{[^}]*display:\s*block;/s);
+  assert.match(styles, /\.onboarding-main\s*{[^}]*width:\s*min\(1120px,\s*100%\);/s);
+  assert.ok(otpHtml.includes("Weryfikacja telefonu"));
+  assert.ok(otpHtml.includes(`data-form-action="${ActionTypes.ONBOARDING_VERIFY_PHONE}"`));
+  assert.equal(otpHtml.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`), false);
+});
+
+test("phone verification rejects arbitrary OTP and audits failed attempt", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const start = engine.dispatchAction(ActionTypes.ONBOARDING_START, {
+    language: "pl",
+    country: "PL",
+    phone: "+48500111666",
+    termsConsent: "true",
+    identityConsent: "true",
+    documentsConsent: "true"
+  });
+  const userId = start.events.find((event) => event.type === EventTypes.ONBOARDING_STARTED).objectId;
+
+  const wrong = engine.dispatchAction(ActionTypes.ONBOARDING_VERIFY_PHONE, { userId, otpCode: "000000" });
+  const user = engine.state.users.find((item) => item.id === userId);
+  assert.equal(user.phoneVerified, false);
+  const good = engine.dispatchAction(ActionTypes.ONBOARDING_VERIFY_PHONE, { userId, otpCode: "123456" });
+
+  assert.equal(wrong.ok, false);
+  assert.equal(user.phoneVerified, true);
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.AUTH_OTP_FAILED && entry.objectId === userId));
+  assert.equal(good.ok, true);
+});
+
+test("login OTP expires and blocks after too many failed attempts", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const expiredStart = engine.dispatchAction(ActionTypes.AUTH_LOGIN_START, { identifier: "+48500100103" });
+  const expiredChallengeId = expiredStart.events.find((event) => event.type === EventTypes.AUTH_OTP_CHALLENGE_CREATED).newState;
+  const expiredChallenge = engine.state.otpChallenges.find((challenge) => challenge.id === expiredChallengeId);
+  expiredChallenge.expiresAt = new Date(Date.now() - 1000).toISOString();
+  const expired = engine.dispatchAction(ActionTypes.AUTH_LOGIN_VERIFY_OTP, {
+    challengeId: expiredChallenge.id,
+    otpCode: engine.modules.auth.peekDemoOtp(expiredChallenge.id)
+  });
+
+  const lockStart = engine.dispatchAction(ActionTypes.AUTH_LOGIN_START, { identifier: "+48500100104" });
+  const lockChallengeId = lockStart.events.find((event) => event.type === EventTypes.AUTH_OTP_CHALLENGE_CREATED).newState;
+  const lockChallenge = engine.state.otpChallenges.find((challenge) => challenge.id === lockChallengeId);
+  engine.dispatchAction(ActionTypes.AUTH_LOGIN_VERIFY_OTP, { challengeId: lockChallenge.id, otpCode: "000000" });
+  engine.dispatchAction(ActionTypes.AUTH_LOGIN_VERIFY_OTP, { challengeId: lockChallenge.id, otpCode: "111111" });
+  const locked = engine.dispatchAction(ActionTypes.AUTH_LOGIN_VERIFY_OTP, { challengeId: lockChallenge.id, otpCode: "222222" });
+  const lockedUser = engine.state.users.find((user) => user.id === "u-client-dispatcher");
+
+  assert.equal(expiredStart.ok, true);
+  assert.equal(expired.ok, false);
+  assert.equal(expiredChallenge.status, "expired");
+  assert.equal(locked.ok, false);
+  assert.equal(lockChallenge.status, "locked");
+  assert.ok(Date.parse(lockedUser.authLockedUntil) > Date.now());
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.AUTH_OTP_LOCKED && entry.objectId === "u-client-dispatcher"));
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.AUTH_LOGIN_FAILED && entry.objectId === "u-client-dispatcher"));
+});
+
+test("login creates active auth session and logout revokes it", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const loginStart = engine.dispatchAction(ActionTypes.AUTH_LOGIN_START, { identifier: "+48500100103" });
+  const challengeId = loginStart.events.find((event) => event.type === EventTypes.AUTH_OTP_CHALLENGE_CREATED).newState;
+  const challenge = engine.state.otpChallenges.find((item) => item.id === challengeId);
+  const login = engine.dispatchAction(ActionTypes.AUTH_LOGIN_VERIFY_OTP, {
+    challengeId: challenge.id,
+    otpCode: engine.modules.auth.peekDemoOtp(challenge.id)
+  });
+  const session = engine.state.authSessions.find((item) => item.id === engine.state.session.authSessionId);
+  const logout = engine.dispatchAction(ActionTypes.AUTH_LOGOUT);
+
+  assert.equal(loginStart.ok, true);
+  assert.equal(login.ok, true);
+  assert.equal(engine.state.session.userId, null);
+  assert.equal(session.userId, "u-client-owner");
+  assert.equal(session.status, "revoked");
+  assert.equal(logout.ok, true);
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.AUTH_LOGIN_SUCCEEDED && entry.objectId === "u-client-owner"));
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.AUTH_LOGGED_OUT && entry.objectId === "u-client-owner"));
+});
+
+test("password reset requires valid OTP and new password before login", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const resetStart = engine.dispatchAction(ActionTypes.AUTH_PASSWORD_RESET_START, { identifier: "+48500100106" });
+  const challengeId = resetStart.events.find((event) => event.type === EventTypes.AUTH_OTP_CHALLENGE_CREATED).newState;
+  const challenge = engine.state.otpChallenges.find((item) => item.id === challengeId);
+  const wrong = engine.dispatchAction(ActionTypes.AUTH_PASSWORD_RESET_CONFIRM, {
+    challengeId: challenge.id,
+    otpCode: "000000",
+    newPassword: "NoweHaslo123"
+  });
+  const reset = engine.dispatchAction(ActionTypes.AUTH_PASSWORD_RESET_CONFIRM, {
+    challengeId: challenge.id,
+    otpCode: engine.modules.auth.peekDemoOtp(challenge.id),
+    newPassword: "NoweHaslo123"
+  });
+  const oldPasswordLogin = engine.dispatchAction(ActionTypes.AUTH_LOGIN_START, {
+    identifier: "+48500100106",
+    password: "stare"
+  });
+  const newPasswordLogin = engine.dispatchAction(ActionTypes.AUTH_LOGIN_START, {
+    identifier: "+48500100106",
+    password: "NoweHaslo123"
+  });
+
+  assert.equal(resetStart.ok, true);
+  assert.equal(wrong.ok, false);
+  assert.equal(reset.ok, true);
+  assert.equal(oldPasswordLogin.ok, false);
+  assert.equal(newPasswordLogin.ok, true);
+  assert.ok(engine.state.users.find((user) => user.id === "u-carrier-owner").passwordHash);
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.AUTH_PASSWORD_RESET_SUCCEEDED && entry.objectId === "u-carrier-owner"));
+});
+
+test("company onboarding creates Company Engine company, membership, document and active company context", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const start = engine.dispatchAction(ActionTypes.ONBOARDING_START, {
+    language: "pl",
+    country: "PL",
+    phone: "+48500111444",
+    termsConsent: "true",
+    identityConsent: "true",
+    documentsConsent: "true"
+  });
+  const userId = start.events.find((event) => event.type === EventTypes.ONBOARDING_STARTED).objectId;
+
+  engine.dispatchAction(ActionTypes.ONBOARDING_VERIFY_PHONE, { userId, otpCode: "123456" });
+  engine.dispatchAction(ActionTypes.ONBOARDING_CREATE_ACCOUNT, {
+    userId,
+    firstName: "Anna",
+    lastName: "Klient",
+    email: "anna.klient@demo.gl",
+    passwordMethod: "passkey_demo",
+    countryOfResidence: "PL",
+    userType: "transport"
+  });
+  engine.dispatchAction(ActionTypes.ONBOARDING_SELECT_ROLE, { userId, role: "client" });
+  engine.dispatchAction(ActionTypes.ONBOARDING_SUBMIT_IDENTITY, {
+    userId,
+    documentType: "identity_card",
+    documentCountry: "PL",
+    documentExpiresAt: "2030-12-31",
+    selfieConfirmed: "true"
+  });
+  submitRoleDocuments(engine, userId, Roles.CLIENT_OWNER);
+  const companyResult = engine.dispatchAction(ActionTypes.ONBOARDING_SUBMIT_COMPANY, {
+    userId,
+    role: "client",
+    companyName: "Demo Client Sp. z o.o.",
+    vatEu: "PL9876543210",
+    companyDocuments: "true",
+    walletReady: "true"
+  });
+  const user = engine.state.users.find((item) => item.id === userId);
+  const company = engine.modules.companies.getById(user.companyId);
+  const membership = engine.state.userCompanyRoles.find((item) => item.userId === userId && item.companyId === company.id);
+  const approve = engine.dispatchAction(ActionTypes.ONBOARDING_APPROVE, { userId, role: "client" });
+
+  assert.equal(companyResult.ok, true);
+  assert.ok(companyResult.events.some((event) => event.type === EventTypes.COMPANY_CREATED));
+  assert.ok(companyResult.events.some((event) => event.type === EventTypes.COMPANY_DOCUMENT_UPLOADED));
+  assert.ok(companyResult.events.some((event) => event.type === EventTypes.COMPANY_VERIFIED));
+  assert.equal(company.name, "Demo Client Sp. z o.o.");
+  assert.equal(company.verificationStatus, CompanyVerificationStatuses.VERIFIED);
+  assert.equal(membership.roleName, CompanyRoleNames.OWNER);
+  assert.equal(engine.state.companyDocuments.some((document) => document.companyId === company.id), true);
+  assert.equal(approve.ok, true);
+  assert.equal(engine.state.session.contextType, "company");
+  assert.equal(engine.state.session.companyId, company.id);
+  assert.equal(engine.getActor().permissionsSource, "company_engine");
 });
 
 test("permissions deny a driver from releasing payment", () => {
@@ -429,6 +691,69 @@ test("one user can belong to multiple companies with different company roles", (
   assert.ok(carrierActor.permissions.includes(LoadPermissions.ASSIGN_DRIVER));
   assert.equal(clientActor.permissions.includes(DriverPermissions.ASSIGN), false);
   assert.ok(clientActor.permissions.includes(FinancePermissions.WALLET_COMPANY_READ));
+});
+
+test("permission engine rejects raw role actors outside controlled demo mode", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const rawActor = {
+    userId: "raw-platform-owner",
+    role: Roles.PLATFORM_OWNER,
+    accountStatus: AccountStatuses.VERIFIED,
+    permissions: []
+  };
+  const rawAccess = engine.modules.permissions.canPerformAction(rawActor, ActionTypes.RELEASE_PAYMENT, {
+    actor: rawActor,
+    actionType: ActionTypes.RELEASE_PAYMENT,
+    payload: { transportId: "tr-1001" },
+    state: engine.state,
+    meta: {}
+  });
+  const uncontrolledRoleSwitch = engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER });
+  const controlledRoleSwitch = engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
+
+  assert.equal(rawAccess.ok, false);
+  assert.match(rawAccess.reason, /Company Engine/);
+  assert.equal(uncontrolledRoleSwitch.ok, false);
+  assert.equal(controlledRoleSwitch.ok, true);
+});
+
+test("company.people does not grant access without active UserCompanyRole", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const company = engine.state.companies.find((item) => item.id === "co-carrier-a");
+  const membership = engine.state.userCompanyRoles.find((item) => item.userId === "u-carrier-owner" && item.companyId === "co-carrier-a");
+
+  company.people = company.people.filter((userId) => userId !== "u-carrier-owner");
+  engine.state.session.userId = "u-carrier-owner";
+  engine.state.session.role = Roles.CARRIER_OWNER;
+  engine.state.session.contextType = "company";
+  engine.state.session.companyId = "co-carrier-a";
+  engine.state.session.companyRoleId = membership.id;
+  const actorFromMembership = engine.getActor();
+
+  membership.status = "removed";
+  company.people.push("u-carrier-owner");
+  const actorFromPeopleOnly = engine.getActor();
+
+  assert.equal(actorFromMembership.contextType, "company");
+  assert.equal(actorFromMembership.userCompanyRoleId, membership.id);
+  assert.equal(actorFromPeopleOnly.contextType, "private");
+  assert.notEqual(actorFromPeopleOnly.companyId, "co-carrier-a");
+});
+
+test("module menu and direct route are blocked when permission is removed from membership", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const membership = engine.state.userCompanyRoles.find((item) => item.userId === "u-driver-1" && item.companyId === "co-carrier-a");
+  membership.deniedPermissions = [ModulePermissions.PHOTOS];
+  const actor = engine.getActor();
+  const modules = getVisibleModules(actor, actor.role).map((item) => item.id);
+  const route = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "photos", route: "/photos" });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(actor.permissions.includes(ModulePermissions.PHOTOS), false);
+  assert.equal(modules.includes("photos"), false);
+  assert.equal(route.ok, false);
+  assert.equal(engine.state.session.deniedView, "photos");
+  assert.ok(html.includes("Brak dostepu"));
 });
 
 test("carrier owner sees company and transports through permissions", () => {

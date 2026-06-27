@@ -12,7 +12,8 @@ import {
   CompanyRolePermissionMap,
   CompanyTypePermissionMap,
   PlatformRolePermissionMap,
-  PrivateContextPermissions
+  PrivateContextPermissions,
+  PrivateRolePermissionMap
 } from "../core/modules-config.js";
 
 export class CompanyEngine {
@@ -88,6 +89,9 @@ export class CompanyEngine {
       });
 
     const user = this.state.users.find((item) => item.id === userId);
+    const privatePermissions = PrivateRolePermissionMap[user?.selectedRole]
+      || PrivateRolePermissionMap[user?.roles?.[0]]
+      || PrivateContextPermissions;
     const privateContext = {
       contextType: "private",
       id: "private",
@@ -97,7 +101,7 @@ export class CompanyEngine {
       companyRole: null,
       companyRoleId: null,
       verificationStatus: user?.accountStatus || AccountStatuses.DRAFT,
-      permissions: [...PrivateContextPermissions],
+      permissions: [...privatePermissions],
       label: "Osoba prywatna"
     };
 
@@ -401,13 +405,16 @@ export function ensureCompanyAccessState(state) {
   state.permissions ||= permissionCatalog();
   state.roles ||= companyRoleCatalog();
   state.rolePermissions ||= rolePermissionRecords();
-  state.userCompanyRoles ||= buildMembershipsFromCompanies(state);
+  state.userCompanyRoles ||= [];
   state.companyVerifications ||= buildCompanyVerifications(state);
   state.companyDocuments ||= [];
   state.companies.forEach((company) => normalizeCompany(company));
 }
 
 export function buildCompanyAccessSeed(state) {
+  if (!Array.isArray(state.userCompanyRoles) || state.userCompanyRoles.length === 0) {
+    state.userCompanyRoles = buildMembershipsFromCompanies(state);
+  }
   ensureCompanyAccessState(state);
   return state;
 }

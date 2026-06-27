@@ -78,6 +78,7 @@ function renderOnboardingApp(state, engine) {
 
         <section class="grid two">
           <article class="panel">
+            ${renderLastResult(state)}
             ${renderOnboardingStep(state, engine, user)}
           </article>
           <article class="panel">

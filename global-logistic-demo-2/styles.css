@@ -46,6 +46,15 @@ button {
   grid-template-columns: 272px minmax(0, 1fr) 320px;
 }
 
+.onboarding-app {
+  display: block;
+}
+
+.onboarding-main {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
 .side {
   position: sticky;
   top: 0;

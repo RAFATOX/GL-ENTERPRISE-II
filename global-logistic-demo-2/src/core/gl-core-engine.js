@@ -167,8 +167,10 @@ export class GLCoreEngine {
     const result = this.modules.workflow.apply(context, this.modules) || { events: [] };
     const events = (result.events || []).map((event) => this.makeEvent(event, context));
     const publishedEvents = this.publishEvents(events, context);
-    this.finishDispatch({ ok: true, events: publishedEvents });
-    return { ok: true, events: publishedEvents, reasons: [] };
+    const ok = result.ok !== false;
+    const reasons = result.reasons || [];
+    this.finishDispatch({ ok, events: publishedEvents, reasons });
+    return { ok, events: publishedEvents, reasons };
   }
 
   createContext(actionType, payload, meta = {}) {

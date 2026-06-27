@@ -1,5 +1,6 @@
 import { AccountStatuses, EventTypes, Roles } from "../core/constants.js";
 import { createId, nowIso } from "../core/id.js";
+import { createOtpChallenge, verifyOtpChallenge } from "../auth/auth-engine.js";
 
 export class GlIdentityEngine {
   constructor(state) {
@@ -43,6 +44,8 @@ export class GlIdentityEngine {
     };
 
     this.state.users.push(user);
+    const phoneChallenge = createOtpChallenge(this.state, user, "phone_verification", { code: "123456" });
+    user.phoneOtpChallengeId = phoneChallenge.id;
     this.state.session.userId = user.id;
     this.state.session.role = Roles.READONLY_AUDITOR;
     this.state.session.onboardingUserId = user.id;
@@ -81,6 +84,14 @@ export class GlIdentityEngine {
         previousState: null,
         newState: payload.phone,
         reason: "dodano telefon do weryfikacji OTP"
+      },
+      {
+        type: EventTypes.AUTH_OTP_CHALLENGE_CREATED,
+        objectType: "user",
+        objectId: user.id,
+        previousState: null,
+        newState: phoneChallenge.id,
+        reason: "utworzono OTP do weryfikacji telefonu"
       }
     ];
 
@@ -101,6 +112,8 @@ export class GlIdentityEngine {
   verifyPhone(userId, payload) {
     const user = this.user(userId);
     if (!user) return { events: [] };
+    const otp = verifyOtpChallenge(this.state, payload.challengeId || user.phoneOtpChallengeId, payload.otpCode, "phone_verification");
+    if (!otp.ok) return otp;
     const previousState = user.accountStatus;
     user.phoneVerified = true;
     user.accountStatus = AccountStatuses.PHONE_VERIFIED;

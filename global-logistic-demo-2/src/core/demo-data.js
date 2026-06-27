@@ -26,10 +26,13 @@ export function createDemoState() {
       contextType: "platform",
       companyId: null,
       companyRoleId: null,
+      authSessionId: null,
       onboardingRequired: true,
       onboardingUserId: null,
       lastResult: null
     },
+    authSessions: [],
+    otpChallenges: [],
     users: [
       user("u-platform", "Ewa Core", "+48500100100", Roles.PLATFORM_OWNER, null, AccountStatuses.VERIFIED),
       user("u-gl-operator", "Grzegorz Operator GL", "+48500100130", Roles.GL_OPERATOR, null, AccountStatuses.VERIFIED),

@@ -1,4 +1,5 @@
 import { AccountStatuses, Roles } from "../core/constants.js";
+import { CompanyEngine } from "../companies/company-engine.js";
 import { GlIdentityEngine } from "../identity/gl-identity-engine.js";
 import {
   GlRoleVerificationEngine,
@@ -13,6 +14,7 @@ export class RegistrationOnboardingEngine {
   constructor(state) {
     this.state = state;
     this.identity = new GlIdentityEngine(state);
+    this.companies = new CompanyEngine(state);
     this.roleVerification = new GlRoleVerificationEngine(state);
   }
 
@@ -41,11 +43,11 @@ export class RegistrationOnboardingEngine {
   }
 
   submitCompany(payload) {
-    return this.roleVerification.submitCompanyProfile(payload.userId, payload.role, payload);
+    return this.roleVerification.submitCompanyProfile(payload.userId, payload.role, payload, this.companies);
   }
 
   approve(payload) {
-    return this.roleVerification.approve(payload.userId, payload.role);
+    return this.roleVerification.approve(payload.userId, payload.role, this.companies);
   }
 
   reject(payload) {

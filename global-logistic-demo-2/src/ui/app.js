@@ -9,8 +9,15 @@ const engine = new GLCoreEngine();
 const root = document.querySelector("#app");
 let internalRouteChange = false;
 
+window.__glSubmitForm = (button) => {
+  const form = button?.closest?.("[data-form-action]");
+  if (form) submitDemoForm(form);
+  return false;
+};
+
 function render(snapshot = engine.getSnapshot()) {
   root.innerHTML = renderApp(snapshot, engine);
+  bindRenderedForms();
 }
 
 engine.subscribe(render);
@@ -18,37 +25,48 @@ render();
 syncRouteFromHash();
 
 root.addEventListener("click", (event) => {
-  const resetButton = event.target.closest("[data-reset-demo]");
+  const target = eventTargetElement(event);
+  if (!target) return;
+
+  const resetButton = target.closest("[data-reset-demo]");
   if (resetButton) {
     engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true });
     return;
   }
 
-  const roleButton = event.target.closest("[data-role]");
+  const roleButton = target.closest("[data-role]");
   if (roleButton) {
     engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: roleButton.dataset.role }, { demoOnly: true });
     return;
   }
 
-  const moduleButton = event.target.closest("[data-module-route]");
+  const moduleButton = target.closest("[data-module-route]");
   if (moduleButton) {
     navigateToRoute(moduleButton.dataset.moduleRoute);
     return;
   }
 
-  const viewButton = event.target.closest("[data-view]");
+  const submitButton = target.closest('button[type="submit"]');
+  const submitForm = submitButton?.closest("[data-form-action]");
+  if (submitForm) {
+    event.preventDefault();
+    submitDemoForm(submitForm);
+    return;
+  }
+
+  const viewButton = target.closest("[data-view]");
   if (viewButton) {
     navigateToView(viewButton.dataset.view);
     return;
   }
 
-  const transportButton = event.target.closest("[data-transport]");
+  const transportButton = target.closest("[data-transport]");
   if (transportButton) {
     engine.dispatchAction(ActionTypes.SELECT_TRANSPORT, { transportId: transportButton.dataset.transport });
     return;
   }
 
-  const actionButton = event.target.closest("[data-action]");
+  const actionButton = target.closest("[data-action]");
   if (actionButton) {
     const parsed = parsePayload(actionButton.dataset.payload);
     if (!parsed.ok) {
@@ -83,21 +101,53 @@ root.addEventListener("change", (event) => {
 });
 
 root.addEventListener("submit", (event) => {
-  const form = event.target.closest("[data-form-action]");
+  const target = eventTargetElement(event);
+  const form = target?.closest("[data-form-action]");
   if (!form) return;
   event.preventDefault();
-  const parsed = payloadFromForm(form);
-  if (!parsed.ok) {
-    engine.dispatchAction(form.dataset.formAction, {}, { payloadError: parsed.error });
-    return;
-  }
-  engine.dispatchAction(parsed.action, parsed.payload, { source: "demo-form" });
-});
+  submitDemoForm(form);
+}, true);
 
 window.addEventListener("hashchange", () => {
   if (internalRouteChange) return;
   syncRouteFromHash();
 });
+
+function submitDemoForm(form) {
+  const parsed = payloadFromForm(form);
+  if (!parsed.ok) {
+    engine.dispatchAction(form.dataset.formAction, {}, { payloadError: parsed.error });
+    return;
+  }
+  const result = engine.dispatchAction(parsed.action, parsed.payload, { source: "demo-form" });
+  if (result.ok && parsed.action === ActionTypes.ONBOARDING_APPROVE) {
+    setRouteHash("#/dashboard");
+  }
+}
+
+function bindRenderedForms() {
+  root.querySelectorAll("[data-form-action]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitDemoForm(form);
+    });
+    form.querySelectorAll('button[type="submit"]').forEach((button) => {
+      button.setAttribute("onclick", "return window.__glSubmitForm(this)");
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        submitDemoForm(form);
+      });
+    });
+  });
+}
+
+function eventTargetElement(event) {
+  const target = event.target;
+  if (!target) return null;
+  if (typeof target.closest === "function") return target;
+  return target.parentElement || null;
+}
 
 function navigateToRoute(route) {
   const module = moduleForRoute(route);
@@ -113,6 +163,7 @@ function navigateToView(view) {
 }
 
 function syncRouteFromHash() {
+  if (onboardingIsActive()) return;
   const route = normalizeRoute(window.location.hash);
   const module = moduleForRoute(route);
   if (!module && !window.location.hash) {
@@ -122,6 +173,11 @@ function syncRouteFromHash() {
   }
   const view = module?.view || route.slice(1);
   engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
+}
+
+function onboardingIsActive() {
+  const snapshot = engine.getSnapshot();
+  return Boolean(snapshot.session.onboardingRequired || snapshot.session.onboardingUserId);
 }
 
 function setRouteHash(route) {

@@ -25,6 +25,13 @@ const nextStatusByAction = {
   [ActionTypes.CONFIRM_DELIVERY]: [TransportStatuses.UNLOADING_STARTED, TransportStatuses.DELIVERY_CONFIRMED, EventTypes.DELIVERY_CONFIRMED, "delivery confirmed"]
 };
 const onboardingActions = new Set(onboardingActionTypes(ActionTypes));
+const authActions = new Set([
+  ActionTypes.AUTH_LOGIN_START,
+  ActionTypes.AUTH_LOGIN_VERIFY_OTP,
+  ActionTypes.AUTH_LOGOUT,
+  ActionTypes.AUTH_PASSWORD_RESET_START,
+  ActionTypes.AUTH_PASSWORD_RESET_CONFIRM
+]);
 
 export class WorkflowEngine {
   validate(context, modules) {
@@ -32,7 +39,7 @@ export class WorkflowEngine {
     const reasons = [];
     const selectedTransport = modules.transports.getById(payload.transportId || state.session.selectedTransportId);
 
-    if (!isAccountApproved(actor) && !sessionOnly(actionType) && !onboardingActions.has(actionType)) {
+    if (!isAccountApproved(actor) && !sessionOnly(actionType) && !onboardingActions.has(actionType) && !authActions.has(actionType)) {
       reasons.push(`konto wymaga pelnej weryfikacji: ${actor.accountStatus}`);
     }
 
@@ -74,6 +81,23 @@ export class WorkflowEngine {
       case ActionTypes.CHANGE_PHONE:
         if (!payload.userId) reasons.push("user id is required");
         if (actionType === ActionTypes.CHANGE_PHONE && !payload.phone) reasons.push("new phone is required");
+        break;
+      case ActionTypes.AUTH_LOGIN_START:
+        if (!payload.identifier && !payload.phone && !payload.email) reasons.push("login albo telefon/e-mail jest wymagany");
+        break;
+      case ActionTypes.AUTH_LOGIN_VERIFY_OTP:
+        if (!payload.challengeId) reasons.push("challenge_id OTP jest wymagany");
+        if (!payload.otpCode) reasons.push("kod OTP jest wymagany");
+        break;
+      case ActionTypes.AUTH_LOGOUT:
+        break;
+      case ActionTypes.AUTH_PASSWORD_RESET_START:
+        if (!payload.identifier && !payload.phone && !payload.email) reasons.push("login albo telefon/e-mail jest wymagany");
+        break;
+      case ActionTypes.AUTH_PASSWORD_RESET_CONFIRM:
+        if (!payload.challengeId) reasons.push("challenge_id OTP jest wymagany");
+        if (!payload.otpCode) reasons.push("kod OTP jest wymagany");
+        if (!payload.newPassword) reasons.push("nowe haslo jest wymagane");
         break;
       case ActionTypes.CREATE_COMPANY:
         validateCreateCompany(payload, reasons);
@@ -295,6 +319,16 @@ export class WorkflowEngine {
         return modules.auth.verifyAccount(payload.userId);
       case ActionTypes.CHANGE_PHONE:
         return modules.auth.changePhone(payload.userId, payload.phone);
+      case ActionTypes.AUTH_LOGIN_START:
+        return modules.auth.startLogin(payload);
+      case ActionTypes.AUTH_LOGIN_VERIFY_OTP:
+        return modules.auth.verifyLogin(payload, modules.companies);
+      case ActionTypes.AUTH_LOGOUT:
+        return modules.auth.logout(payload);
+      case ActionTypes.AUTH_PASSWORD_RESET_START:
+        return modules.auth.requestPasswordReset(payload);
+      case ActionTypes.AUTH_PASSWORD_RESET_CONFIRM:
+        return modules.auth.confirmPasswordReset(payload);
       case ActionTypes.CREATE_COMPANY:
         return modules.companies.createCompany(actor, payload);
       case ActionTypes.UPDATE_COMPANY:

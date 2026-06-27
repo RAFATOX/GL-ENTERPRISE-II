@@ -9,13 +9,19 @@ import {
   LoadPermissions,
   ModulePermissions,
   VehiclePermissions,
-  canAccessModuleView,
-  platformWalletRoles
+  canAccessModuleView
 } from "../core/modules-config.js";
 import { onboardingActionTypes } from "../onboarding/registration-onboarding-engine.js";
 
 const platformActions = Object.values(ActionTypes);
 const onboardingActions = new Set(onboardingActionTypes(ActionTypes));
+const authActions = new Set([
+  ActionTypes.AUTH_LOGIN_START,
+  ActionTypes.AUTH_LOGIN_VERIFY_OTP,
+  ActionTypes.AUTH_LOGOUT,
+  ActionTypes.AUTH_PASSWORD_RESET_START,
+  ActionTypes.AUTH_PASSWORD_RESET_CONFIRM
+]);
 const sessionActions = new Set([ActionTypes.SELECT_CONTEXT, ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT]);
 
 const rolePermissions = {
@@ -419,12 +425,20 @@ export class PermissionsEngine {
 
     // DEMO_MODE only: in production the role and user identity must come from backend auth
     // and be verified by the permissions engine, never from a UI role switcher.
-    if (DEMO_MODE && [ActionTypes.SELECT_ROLE, ActionTypes.RESET_DEMO].includes(actionType)) {
+    if (DEMO_MODE && actionType === ActionTypes.SELECT_ROLE && context.meta?.demoOnly) {
       return { ok: true, reason: "demo-only action allowed" };
+    }
+
+    if (DEMO_MODE && actionType === ActionTypes.RESET_DEMO) {
+      return { ok: true, reason: "demo reset allowed" };
     }
 
     if (onboardingActions.has(actionType)) {
       return { ok: true, reason: "onboarding action allowed before app access" };
+    }
+
+    if (authActions.has(actionType)) {
+      return { ok: true, reason: "identity action allowed before app access" };
     }
 
     if (actionType === ActionTypes.SELECT_VIEW && context.payload.view === "onboarding") {
@@ -463,14 +477,10 @@ export class PermissionsEngine {
 
   checkActionPermission(actionType, context) {
     if (context.actor?.permissionsSource !== "company_engine") {
-      const allowed = rolePermissions[context.actor.role] || [];
-      if (!allowed.includes(actionType)) {
-        return {
-          ok: false,
-          reason: `${context.actor.role} has no permission for ${actionType}`
-        };
-      }
-      return { ok: true, reason: "legacy role permission granted" };
+      return {
+        ok: false,
+        reason: "brak kontekstu Company Engine / Permission Engine"
+      };
     }
 
     if (actionType === ActionTypes.SELECT_CONTEXT) {
@@ -537,7 +547,7 @@ export class PermissionsEngine {
     snapshot.shipments = snapshot.shipments.filter((shipment) => visibleTransportIds.has(shipment.transportId));
     snapshot.documents = snapshot.documents.filter((doc) => (
       visibleTransportIds.has(doc.transportId)
-      && (privileged(actor) || doc.visibleToRoles.includes(actor.role))
+      && (privileged(actor) || (hasPermission(actor, ModulePermissions.DOCUMENTS) && doc.visibleToRoles.includes(actor.role)))
     ));
     snapshot.photos = snapshot.photos.filter((photo) => visibleTransportIds.has(photo.transportId));
     snapshot.jobs = snapshot.jobs.filter((job) => visibleTransportIds.has(job.transportId));
@@ -550,45 +560,45 @@ export class PermissionsEngine {
     snapshot.digitalCmrs = snapshot.digitalCmrs.filter((cmr) => visibleTransportIds.has(cmr.transportId));
     snapshot.customsCases = (snapshot.customsCases || []).filter((customsCase) => (
       visibleTransportIds.has(customsCase.transportId)
-      && (privileged(actor) || actor.role === Roles.CUSTOMS_AGENT || actor.companyId === customsCase.agentCompanyId)
+      && (privileged(actor) || (hasPermission(actor, ModulePermissions.CUSTOMS) && (actor.role === Roles.CUSTOMS_AGENT || actor.companyId === customsCase.agentCompanyId)))
     ));
     snapshot.customsPayments = (snapshot.customsPayments || []).filter((payment) => (
       visibleTransportIds.has(payment.transportId)
-      && (privileged(actor) || actor.role === Roles.CUSTOMS_AGENT || actor.role === Roles.PAYMENT_OPERATOR)
+      && (privileged(actor) || (hasPermission(actor, ModulePermissions.CUSTOMS) && actor.role === Roles.CUSTOMS_AGENT) || paymentStatusScoped(actor))
     ));
     snapshot.authorityControls = (snapshot.authorityControls || []).filter((control) => (
       visibleTransportIds.has(control.transportId)
-      && (privileged(actor) || actor.role === Roles.AUTHORITY_USER)
+      && (privileged(actor) || authorityScoped(actor))
     ));
     snapshot.authorityControlHistory = (snapshot.authorityControlHistory || []).filter((history) => (
       visibleTransportIds.has(history.transportId)
-      && (privileged(actor) || actor.role === Roles.AUTHORITY_USER)
+      && (privileged(actor) || authorityScoped(actor))
     ));
     snapshot.ferryBookings = (snapshot.ferryBookings || []).filter((booking) => visibleTransportIds.has(booking.transportId));
     snapshot.ferryPayments = (snapshot.ferryPayments || []).filter((payment) => (
       visibleTransportIds.has(payment.transportId)
-      && (privileged(actor) || actor.role === Roles.FERRY_OPERATOR || actor.role === Roles.PAYMENT_OPERATOR)
+      && (privileged(actor) || (hasPermission(actor, ModulePermissions.INTERMODAL) && actor.role === Roles.FERRY_OPERATOR) || paymentStatusScoped(actor))
     ));
     snapshot.serviceRequests = (snapshot.serviceRequests || []).filter((request) => (
       visibleTransportIds.has(request.transportId)
       && (
         privileged(actor)
-        || actor.role === Roles.DRIVER
+        || (hasPermission(actor, LoadPermissions.VIEW_OWN) && actor.role === Roles.DRIVER)
         || carrierScoped(actor)
         || serviceScoped(actor, request)
       )
     ));
     snapshot.servicePayments = (snapshot.servicePayments || []).filter((payment) => (
       visibleTransportIds.has(payment.transportId)
-      && (privileged(actor) || actor.role === Roles.PAYMENT_OPERATOR || payment.providerCompanyId === actor.companyId)
+      && (privileged(actor) || paymentStatusScoped(actor) || (hasPermission(actor, FinancePermissions.INVOICES_OWN_READ) && payment.providerCompanyId === actor.companyId))
     ));
     snapshot.serviceProviders = (snapshot.serviceProviders || []).filter((provider) => (
       privileged(actor)
-      || [Roles.DRIVER, Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(actor.role)
+      || (hasPermission(actor, ModulePermissions.SERVICE_ORDERS) && [Roles.DRIVER, Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(actor.role))
       || provider.companyId === actor.companyId
     ));
     snapshot.companyComplianceEntries = (snapshot.companyComplianceEntries || []).filter((entry) => (
-      privileged(actor) || entry.companyId === actor.companyId || actor.role === Roles.AUTHORITY_USER
+      privileged(actor) || entry.companyId === actor.companyId || authorityScoped(actor)
     ));
     snapshot.complianceChecks = snapshot.complianceChecks.filter((check) => visibleTransportIds.has(check.transportId));
     snapshot.crewPlans = snapshot.crewPlans.filter((plan) => visibleTransportIds.has(plan.transportId));
@@ -604,7 +614,7 @@ export class PermissionsEngine {
       || privileged(actor)
     ));
 
-    if (actor.role === Roles.AUTHORITY_USER) {
+    if (authorityScoped(actor)) {
       snapshot.transports = snapshot.transports.map(sanitizeAuthorityTransport);
       snapshot.messages = [];
       snapshot.messageThreads = [];
@@ -617,7 +627,7 @@ export class PermissionsEngine {
       snapshot.servicePayments = [];
     }
 
-    if (serviceRole(actor.role)) {
+    if (serviceAccessScoped(actor)) {
       snapshot.transports = snapshot.transports.map(sanitizeServiceTransport);
       snapshot.messages = snapshot.messages.filter((message) => message.authorId === actor.userId);
       const visibleThreadIds = new Set(snapshot.messages.map((message) => message.threadId));
@@ -766,15 +776,14 @@ function transportForContext(context) {
 }
 
 function privileged(actor) {
-  return [
-    Roles.PLATFORM_OWNER,
-    Roles.SUPER_ADMIN,
-    Roles.ADMIN
-  ].includes(actor.role);
+  return hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ)
+    || hasPermission(actor, AdminPermissions.AUDIT_READ)
+    || hasPermission(actor, CompliancePermissions.REVIEW);
 }
 
 function carrierScoped(actor) {
-  return [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(actor.role);
+  return [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(actor.role)
+    && (hasPermission(actor, LoadPermissions.ACCEPT) || hasPermission(actor, LoadPermissions.MANAGE_COMPANY));
 }
 
 function serviceRole(role) {
@@ -782,18 +791,35 @@ function serviceRole(role) {
 }
 
 function serviceScoped(actor, request) {
-  return serviceRole(actor.role) && (
+  return serviceAccessScoped(actor) && (
     request.providerCompanyId === actor.companyId || request.status === "breakdown_reported"
   );
 }
 
+function serviceAccessScoped(actor) {
+  return serviceRole(actor.role) && hasPermission(actor, ModulePermissions.SERVICE_ORDERS);
+}
+
+function authorityScoped(actor) {
+  return actor.role === Roles.AUTHORITY_USER && hasPermission(actor, ModulePermissions.AUTHORITY);
+}
+
+function paymentStatusScoped(actor) {
+  return actor.companyType === "payment" && hasPermission(actor, ModulePermissions.BILLING);
+}
+
 function canViewTransport(actor, transport, state) {
   if (privileged(actor) || platformFinanceRole(actor)) return true;
-  if ([Roles.SUPPORT_AGENT, Roles.READONLY_AUDITOR, Roles.PAYMENT_OPERATOR, Roles.SECURITY_GUARD].includes(actor.role)) return true;
-  if (actor.role === Roles.AUTHORITY_USER) {
+  if (
+    [Roles.SUPPORT_AGENT, Roles.READONLY_AUDITOR].includes(actor.role)
+    && (hasPermission(actor, AdminPermissions.AUDIT_READ) || hasPermission(actor, CompliancePermissions.REVIEW))
+  ) return true;
+  if (paymentStatusScoped(actor)) return true;
+  if (actor.role === Roles.SECURITY_GUARD && hasPermission(actor, ModulePermissions.SECURITY)) return true;
+  if (authorityScoped(actor)) {
     return ![TransportStatuses.COMPLETED, TransportStatuses.CANCELLED].includes(transport.status);
   }
-  if (actor.role === Roles.CUSTOMS_AGENT) {
+  if (actor.role === Roles.CUSTOMS_AGENT && hasPermission(actor, ModulePermissions.CUSTOMS)) {
     return (state.customsCases || []).some((customsCase) => (
       customsCase.transportId === transport.id && customsCase.agentCompanyId === actor.companyId
     )) || [
@@ -804,16 +830,16 @@ function canViewTransport(actor, transport, state) {
       TransportStatuses.CUSTOMS_HOLD
     ].includes(transport.status);
   }
-  if (serviceRole(actor.role)) {
+  if (serviceAccessScoped(actor)) {
     return (state.serviceRequests || []).some((request) => (
       request.transportId === transport.id
       && (request.providerCompanyId === actor.companyId || request.status === "breakdown_reported")
     ));
   }
-  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(actor.role)) {
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(actor.role) && hasPermission(actor, LoadPermissions.VIEW_COMPANY)) {
     return transport.clientCompanyId === actor.companyId;
   }
-  if (actor.role === Roles.WAREHOUSE_WORKER) {
+  if (actor.role === Roles.WAREHOUSE_WORKER && hasPermission(actor, LoadPermissions.VIEW_COMPANY)) {
     return transport.warehouseWorkerId === actor.userId || transport.clientCompanyId === actor.companyId;
   }
   if (carrierScoped(actor)) {
@@ -823,19 +849,19 @@ function canViewTransport(actor, transport, state) {
         TransportStatuses.CARRIER_OFFER_RECEIVED
       ].includes(transport.status));
   }
-  if (actor.role === Roles.DRIVER) {
+  if (actor.role === Roles.DRIVER && hasPermission(actor, LoadPermissions.VIEW_OWN)) {
     return transport.driverId === actor.userId;
   }
-  if (actor.role === Roles.INSURANCE_PARTNER) {
+  if (actor.role === Roles.INSURANCE_PARTNER && (hasPermission(actor, ModulePermissions.POLICIES) || hasPermission(actor, ModulePermissions.CLAIMS) || hasPermission(actor, ModulePermissions.RISK))) {
     const policy = state.insurancePolicies.find((item) => item.id === transport.insuranceId);
     return Boolean(policy || transport.activeClaimId || transport.riskFlagged);
   }
-  if (actor.role === Roles.FERRY_OPERATOR) {
+  if (actor.role === Roles.FERRY_OPERATOR && hasPermission(actor, ModulePermissions.INTERMODAL)) {
     return (state.ferryBookings || []).some((booking) => (
       booking.transportId === transport.id && booking.operatorCompanyId === actor.companyId
     )) || ["FERRY", "INTERMODAL"].includes(transport.transportMode);
   }
-  if (actor.role === Roles.RAIL_OPERATOR) {
+  if (actor.role === Roles.RAIL_OPERATOR && hasPermission(actor, ModulePermissions.INTERMODAL)) {
     return ["TRAIN", "INTERMODAL"].includes(transport.transportMode);
   }
   return false;
@@ -851,7 +877,7 @@ function financialScope(actor) {
   if (canReadCompanyWallet && actor.companyType === "carrier") return "carrier";
   if (canReadCompanyWallet && ["insurance", "insurer"].includes(actor.companyType)) return "insurance";
   if (canReadCompanyWallet && ["workshop", "mobile_service", "roadside_assistance"].includes(actor.companyType)) return "service";
-  if (actor.role === Roles.PAYMENT_OPERATOR) return "payment_status";
+  if (paymentStatusScoped(actor)) return "payment_status";
   return "none";
 }
 
@@ -931,7 +957,7 @@ function filterFinanceRecords(records, actor, financialTransportIds, scope) {
 }
 
 function platformFinanceRole(actor) {
-  return platformWalletRoles.includes(actor.role);
+  return hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ);
 }
 
 function hasPermission(actor, permission) {
@@ -943,7 +969,10 @@ function canSelectContext(context) {
   const actor = context.actor || {};
   if (payload.contextType === "private") return { ok: true, reason: "private context allowed" };
   if (payload.contextType === "platform") {
-    return hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ) || hasPermission(actor, AdminPermissions.AUDIT_READ)
+    const canUsePlatform = (actor.contextOptions || []).some((option) => option.contextType === "platform")
+      || hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ)
+      || hasPermission(actor, AdminPermissions.AUDIT_READ);
+    return canUsePlatform
       ? { ok: true, reason: "platform context allowed" }
       : { ok: false, reason: "brak uprawnien operatora GL" };
   }
