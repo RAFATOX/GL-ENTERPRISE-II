@@ -591,11 +591,11 @@ test("academy student sees academy and profile only with dashboard", () => {
 test("permission guard blocks direct route access", () => {
   const engine = new GLCoreEngine({ store: memoryStore() });
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
-  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "wallet", route: "/wallet" });
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "system", route: "/system" });
   const html = renderApp(engine.getSnapshot(), engine);
 
   assert.equal(result.ok, false);
-  assert.equal(engine.state.session.deniedView, "wallet");
+  assert.equal(engine.state.session.deniedView, "system");
   assert.ok(html.includes("Brak dostępu"));
   assert.ok(html.includes("Brak dostępu do modułu"));
 });
@@ -901,18 +901,86 @@ test("carrier owner sees company and transports through permissions", () => {
   assert.equal(actor.companyRole, CompanyRoleNames.OWNER);
   assert.ok(modules.includes("company"));
   assert.ok(modules.includes("transports"));
+  assert.ok(modules.includes("loads"));
   assert.ok(actor.permissions.includes(LoadPermissions.MANAGE_COMPANY));
+  assert.ok(actor.permissions.includes(DriverPermissions.MANAGE));
 });
 
-test("driver assigned to carrier company does not see company finance", () => {
+test("carrier can add driver, add vehicle, search load and assign both to accepted load", () => {
+  const engine = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  const driverResult = engine.dispatchAction(ActionTypes.ADD_COMPANY_DRIVER, {
+    firstName: "Adam",
+    lastName: "Workflow",
+    phone: "+48500111901",
+    email: "adam.workflow@carrier.demo",
+    licenseCategories: "C+E",
+    licenseNumber: "PL-CE-901",
+    documentsValid: true
+  });
+  const vehicleResult = engine.dispatchAction(ActionTypes.ADD_VEHICLE, {
+    vehicleType: "zestaw",
+    brand: "MAN",
+    model: "TGX",
+    plate: "GL 901WF",
+    registrationCountry: "PL",
+    grossWeightKg: 40000,
+    payloadKg: 24000,
+    palletCapacity: 33,
+    bodyType: "plandeka",
+    adr: false,
+    refrigerated: false,
+    lift: true,
+    status: "active"
+  });
+  const driver = engine.state.users.find((user) => user.email === "adam.workflow@carrier.demo");
+  const vehicle = engine.state.vehicles.find((item) => item.plate === "GL 901WF");
+  const membership = engine.state.userCompanyRoles.find((item) => item.userId === driver.id && item.companyId === "co-carrier-a");
+  const loadsRoute = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "create", route: "/loads" });
+  const loadsHtml = renderApp(engine.getSnapshot(), engine);
+  const accept = engine.dispatchAction(ActionTypes.ACCEPT_CARRIER, {
+    transportId: "tr-1003",
+    carrierCompanyId: "co-carrier-a"
+  });
+  const assign = engine.dispatchAction(ActionTypes.ASSIGN_DRIVER, {
+    transportId: "tr-1003",
+    driverId: driver.id,
+    vehicleId: vehicle.id
+  });
+  const transport = engine.state.transports.find((item) => item.id === "tr-1003");
+
+  assert.equal(driverResult.ok, true);
+  assert.equal(vehicleResult.ok, true);
+  assert.ok(driver.roles.includes(Roles.DRIVER));
+  assert.equal(driver.companyId, "co-carrier-a");
+  assert.equal(membership.roleName, CompanyRoleNames.EMPLOYEE);
+  assert.equal(membership.status, "active");
+  assert.equal(vehicle.companyId, "co-carrier-a");
+  assert.equal(vehicle.palletCapacity, 33);
+  assert.equal(loadsRoute.ok, true);
+  assert.ok(loadsHtml.includes("Dostepne ladunki dla przewoznika"));
+  assert.ok(loadsHtml.includes("GL2-1003"));
+  assert.equal(accept.ok, true);
+  assert.equal(assign.ok, true);
+  assert.equal(transport.carrierCompanyId, "co-carrier-a");
+  assert.equal(transport.driverId, driver.id);
+  assert.equal(transport.vehicleId, vehicle.id);
+  assert.equal(transport.status, TransportStatuses.DRIVER_ASSIGNED);
+});
+
+test("driver assigned to carrier company sees only own UserWallet, not company finance", () => {
   const engine = engineForUserContext("u-driver-1", "co-carrier-a");
   const actor = engine.getActor();
   const snapshot = engine.getSnapshot();
 
   assert.equal(actor.companyRole, CompanyRoleNames.EMPLOYEE);
   assert.equal(actor.permissions.includes(FinancePermissions.WALLET_COMPANY_READ), false);
-  assert.equal(snapshot.access.canViewFinancials, false);
-  assert.equal(snapshot.wallets.length, 0);
+  assert.equal(snapshot.access.financialScope, "user");
+  assert.equal(snapshot.wallets.length, 1);
+  assert.equal(snapshot.wallets[0].modelType, "UserWallet");
+  assert.equal(snapshot.wallets[0].ownerUserId, "u-driver-1");
+  assert.equal(snapshot.wallets.some((wallet) => wallet.ownerCompanyId === "co-carrier-a" && wallet.modelType === "CompanyWallet"), false);
+  assert.equal(snapshot.escrows.length, 0);
+  assert.equal(snapshot.escrowOperations.length, 0);
 });
 
 test("finance sees company invoices and wallet but cannot manage drivers", () => {
@@ -1141,7 +1209,7 @@ test("driver and non-finance roles cannot see escrow operation history in snapsh
   const driverSnapshot = driver.getSnapshot();
   const securitySnapshot = security.getSnapshot();
 
-  assert.equal(driverSnapshot.access.canViewFinancials, false);
+  assert.equal(driverSnapshot.access.financialScope, "user");
   assert.equal(driverSnapshot.escrowOperations.length, 0);
   assert.equal(securitySnapshot.access.canViewFinancials, false);
   assert.equal(securitySnapshot.escrowOperations.length, 0);

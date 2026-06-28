@@ -112,7 +112,7 @@ export function onboardingActionTypes(ActionTypes) {
 
 export function roleForOperationalAction(actionType, ActionTypes, actorRole) {
   if ([ActionTypes.CREATE_LOAD, ActionTypes.PUBLISH_LOAD].includes(actionType)) return Roles.CLIENT_OWNER;
-  if ([ActionTypes.ACCEPT_CARRIER, ActionTypes.ASSIGN_DRIVER, ActionTypes.ADD_VEHICLE].includes(actionType)) return Roles.CARRIER_OWNER;
+  if ([ActionTypes.ACCEPT_CARRIER, ActionTypes.ASSIGN_DRIVER, ActionTypes.ADD_COMPANY_DRIVER, ActionTypes.ADD_VEHICLE].includes(actionType)) return Roles.CARRIER_OWNER;
   if ([
     ActionTypes.START_PICKUP_NAVIGATION,
     ActionTypes.ARRIVE_PICKUP,

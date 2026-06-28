@@ -262,15 +262,18 @@ test("e2e: carrier wchodzi na /wallet bez dostepu do portfela platformy", () => 
   assert.equal(html.includes("access-panel"), false);
 });
 
-test("e2e: driver nie wchodzi na /wallet i widzi Brak dostepu", () => {
+test("e2e: driver wchodzi na /wallet tylko do osobistego UserWallet", () => {
   const engine = engineForUserContext("u-driver-1", "co-carrier-a");
   const result = selectView(engine, "wallet", "/wallet");
   const html = render(engine);
 
-  assert.equal(result.ok, false);
-  assert.ok(html.includes("access-panel"));
-  assert.ok(html.includes("Brak dostępu"));
-  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.ACTION_BLOCKED && entry.requestedAction === ActionTypes.SELECT_VIEW));
+  assert.equal(result.ok, true);
+  assert.ok(html.includes("GLW-DRIVER-0001"));
+  assert.ok(html.includes("Portfel osobisty kierowcy"));
+  assert.equal(html.includes("GLW-CARRIER-0001"), false);
+  assert.equal(html.includes("GLW-SYSTEM-0001"), false);
+  assert.equal(html.includes("Saldo systemu"), false);
+  assert.equal(html.includes("access-panel"), false);
 });
 
 test("e2e: menu modulow wynika z permissions aktywnego kontekstu", () => {
@@ -283,8 +286,8 @@ test("e2e: menu modulow wynika z permissions aktywnego kontekstu", () => {
   assert.ok(driverActor.permissions.includes(ModulePermissions.GPS));
   assert.ok(driverRoutes.includes("/gps"));
   assert.ok(driverRoutes.includes("/photos"));
-  assert.equal(driverRoutes.includes("/wallet"), false);
-  assert.equal(driverModules.includes("wallet"), false);
+  assert.ok(driverRoutes.includes("/wallet"));
+  assert.ok(driverModules.includes("wallet"));
 
   const platform = engineForUserContext("u-platform");
   const platformActor = platform.getActor();
@@ -306,22 +309,24 @@ test("e2e: bezposredni URL bez permission pokazuje Brak dostepu", () => {
   assert.equal(engine.state.session.deniedRoute, "/billing");
 });
 
-test("e2e: driver nie widzi finansow firmy ani historii escrow", () => {
+test("e2e: driver nie widzi finansow firmy ani historii escrow, tylko UserWallet", () => {
   const engine = engineForUserContext("u-driver-1", "co-carrier-a");
   const snapshot = engine.getSnapshot();
   const html = render(engine);
   const routes = moduleRoutes(html);
 
-  assert.equal(snapshot.access.canViewFinancials, false);
-  assert.equal(snapshot.wallets.length, 0);
-  assert.equal(snapshot.walletLedger.length, 0);
+  assert.equal(snapshot.access.financialScope, "user");
+  assert.equal(snapshot.wallets.length, 1);
+  assert.equal(snapshot.wallets[0].modelType, "UserWallet");
+  assert.equal(snapshot.wallets[0].ownerUserId, "u-driver-1");
+  assert.ok(snapshot.walletLedger.every((entry) => entry.walletId === snapshot.wallets[0].id));
   assert.equal(snapshot.walletTransactions.length, 0);
   assert.equal(snapshot.payments.length, 0);
   assert.equal(snapshot.invoices.length, 0);
   assert.equal(snapshot.settlements.length, 0);
   assert.equal(snapshot.escrows.length, 0);
   assert.equal(snapshot.escrowOperations.length, 0);
-  assert.equal(routes.includes("/wallet"), false);
+  assert.ok(routes.includes("/wallet"));
   assert.equal(routes.includes("/billing"), false);
   assert.equal(routes.includes("/invoices"), false);
 });
@@ -380,7 +385,8 @@ test("e2e: Platform Wallet jest widoczny tylko dla rol finansowych platformy", (
     assert.equal(snapshot.access.canViewPlatformWallet, false, label);
     assert.equal(snapshot.wallets.some((wallet) => wallet.glWalletId === "GLW-SYSTEM-0001"), false, label);
     assert.equal(html.includes("GLW-SYSTEM-0001"), false, label);
-    if (["super_admin", "admin", "driver"].includes(label)) assert.equal(result.ok, false, label);
+    if (["super_admin", "admin"].includes(label)) assert.equal(result.ok, false, label);
+    if (label === "driver") assert.equal(result.ok, true, label);
   });
 });
 
@@ -471,4 +477,61 @@ test("e2e: UI rozroznia informacje, szczegoly i akcje bez martwych przyciskow", 
   assertButtonsHaveBehavior(carrierHtml);
   assert.ok(carrierHtml.includes('data-detail-route="/transports"'));
   assert.ok(carrierHtml.includes('data-profile-target="co-client-a"'));
+});
+
+test("e2e: przewoznik dodaje zasoby, znajduje ladunek i przypisuje kierowce oraz pojazd", () => {
+  const carrier = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  const loadView = selectView(carrier, "create", "/loads");
+  const loadHtml = render(carrier);
+
+  assert.equal(loadView.ok, true);
+  assert.ok(loadHtml.includes("Dostepne ladunki dla przewoznika"));
+  assert.ok(loadHtml.includes("GL2-1003"));
+  assert.ok(loadHtml.includes(`data-action="${ActionTypes.ACCEPT_CARRIER}"`));
+
+  const driverResult = carrier.dispatchAction(ActionTypes.ADD_COMPANY_DRIVER, {
+    firstName: "Ewa",
+    lastName: "Carrier",
+    phone: "+48500777001",
+    email: "ewa.carrier@demo.gl",
+    licenseCategories: "C+E",
+    licenseNumber: "CE-777",
+    documentsValid: true
+  });
+  const vehicleResult = carrier.dispatchAction(ActionTypes.ADD_VEHICLE, {
+    vehicleType: "zestaw",
+    brand: "Volvo",
+    model: "FH",
+    plate: "GL 777EC",
+    registrationCountry: "PL",
+    grossWeightKg: 40000,
+    payloadKg: 22000,
+    palletCapacity: 33,
+    bodyType: "plandeka",
+    status: "active"
+  });
+  const driver = carrier.state.users.find((user) => user.email === "ewa.carrier@demo.gl");
+  const vehicle = carrier.state.vehicles.find((item) => item.plate === "GL 777EC");
+  const accept = carrier.dispatchAction(ActionTypes.ACCEPT_CARRIER, { transportId: "tr-1003", carrierCompanyId: "co-carrier-a" });
+  const assign = carrier.dispatchAction(ActionTypes.ASSIGN_DRIVER, { transportId: "tr-1003", driverId: driver.id, vehicleId: vehicle.id });
+  const transport = carrier.state.transports.find((item) => item.id === "tr-1003");
+
+  assert.equal(driverResult.ok, true);
+  assert.equal(vehicleResult.ok, true);
+  assert.equal(accept.ok, true);
+  assert.equal(assign.ok, true);
+  assert.equal(transport.driverId, driver.id);
+  assert.equal(transport.vehicleId, vehicle.id);
+
+  const driverContext = carrier.modules.companies.contextsForUser(driver.id).find((item) => item.companyId === "co-carrier-a");
+  assert.ok(driverContext);
+  carrier.state.session.userId = driver.id;
+  carrier.state.session.role = driver.selectedRole;
+  carrier.state.session.contextType = driverContext.contextType;
+  carrier.state.session.companyId = driverContext.companyId;
+  carrier.state.session.companyRoleId = driverContext.userCompanyRoleId;
+  const driverSnapshot = carrier.getSnapshot();
+  assert.equal(driverSnapshot.access.financialScope, "user");
+  assert.equal(driverSnapshot.wallets.some((wallet) => wallet.modelType === "CompanyWallet"), false);
+  assert.equal(driverSnapshot.escrowOperations.length, 0);
 });

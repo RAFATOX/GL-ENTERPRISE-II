@@ -57,7 +57,9 @@ root.addEventListener("click", (event) => {
     if (detailTarget.dataset.transport) {
       engine.dispatchAction(ActionTypes.SELECT_TRANSPORT, { transportId: detailTarget.dataset.transport });
     }
-    navigateToRoute(detailTarget.dataset.detailRoute);
+    navigateToRoute(detailTarget.dataset.detailRoute, {
+      selectedVehicleId: detailTarget.dataset.vehicle || null
+    });
     return;
   }
 
@@ -165,10 +167,10 @@ function eventTargetElement(event) {
   return target.parentElement || null;
 }
 
-function navigateToRoute(route) {
+function navigateToRoute(route, extraPayload = {}) {
   const module = moduleForRoute(route);
   const view = module?.view || normalizeRoute(route).slice(1);
-  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route: normalizeRoute(route) });
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route: normalizeRoute(route), ...extraPayload });
   if (result.ok) setRouteHash(module?.route || normalizeRoute(route));
 }
 

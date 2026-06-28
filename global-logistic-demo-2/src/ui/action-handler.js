@@ -3,6 +3,8 @@ import { ActionTypes } from "../core/constants.js";
 const textKeys = new Set([
   "address",
   "body",
+  "bodyType",
+  "brand",
   "comment",
   "companyName",
   "country",
@@ -17,13 +19,17 @@ const textKeys = new Set([
   "lastName",
   "language",
   "licensePlate",
+  "licenseCategories",
+  "licenseNumber",
   "name",
   "otpCode",
   "passwordMethod",
   "phone",
   "plate",
   "reason",
+  "registrationCountry",
   "role",
+  "status",
   "type",
   "userId",
   "userType",
@@ -100,6 +106,29 @@ function normalizeActionPayload(action, payload) {
     };
   }
 
+  if (action === ActionTypes.ADD_VEHICLE) {
+    return {
+      ...payload,
+      grossWeightKg: numberOrDefault(payload.grossWeightKg || payload.dmc, 40000),
+      payloadKg: numberOrDefault(payload.payloadKg || payload.capacityKg, 24000),
+      palletCapacity: numberOrDefault(payload.palletCapacity || payload.pallets, 33),
+      adr: booleanValue(payload.adr),
+      refrigerated: booleanValue(payload.refrigerated),
+      lift: booleanValue(payload.lift),
+      documentsValid: payload.documentsValid === undefined ? true : booleanValue(payload.documentsValid),
+      insuranceValid: payload.insuranceValid === undefined ? true : booleanValue(payload.insuranceValid),
+      technicalInspectionValid: payload.technicalInspectionValid === undefined ? true : booleanValue(payload.technicalInspectionValid)
+    };
+  }
+
+  if (action === ActionTypes.ADD_COMPANY_DRIVER) {
+    return {
+      ...payload,
+      documentsValid: payload.documentsValid === undefined ? true : booleanValue(payload.documentsValid),
+      driverTimeLegal: payload.driverTimeLegal === undefined ? true : booleanValue(payload.driverTimeLegal)
+    };
+  }
+
   if (action === ActionTypes.PARKING_REPORT) {
     return {
       ...payload,
@@ -136,6 +165,10 @@ function normalizeGps(value) {
 function numberOrDefault(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function booleanValue(value) {
+  return value === true || value === "true" || value === "on" || value === "tak" || value === "yes";
 }
 
 function stripDangerousHtml(value) {

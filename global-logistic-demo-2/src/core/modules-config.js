@@ -45,7 +45,8 @@ export const VehiclePermissions = Object.freeze({
 });
 
 export const DriverPermissions = Object.freeze({
-  ASSIGN: "drivers.assign"
+  ASSIGN: "drivers.assign",
+  MANAGE: "drivers.manage"
 });
 
 export const DocumentPermissions = Object.freeze({
@@ -157,8 +158,17 @@ export const modulesConfig = Object.freeze([
     Roles.RAIL_OPERATOR, Roles.SUPPORT_AGENT, ...complianceRoles, ...platformWalletRoles
   ], "Transporty dostepne dla aktywnej roli."),
   moduleItem("loads", "Ladunki", "LD", "/loads", "create", ModulePermissions.LOADS, [
-    ...clientRoles, ...dispatcherRoles
-  ], "Tworzenie i publikacja ladunkow."),
+    ...clientRoles, ...carrierRoles, ...dispatcherRoles
+  ], "Tworzenie, wyszukiwanie i przyjmowanie ladunkow.", {
+    labelByRole: {
+      [Roles.CARRIER_OWNER]: "Szukaj ladunkow",
+      [Roles.CARRIER_DISPATCHER]: "Szukaj ladunkow"
+    },
+    descriptionByRole: {
+      [Roles.CARRIER_OWNER]: "Opublikowane ladunki, escrow i przypisanie kierowcy oraz pojazdu.",
+      [Roles.CARRIER_DISPATCHER]: "Opublikowane ladunki, escrow i przypisanie kierowcy oraz pojazdu."
+    }
+  }),
   moduleItem("map", "Mapa", "MP", "/map", "live_map", ModulePermissions.LIVE_MAP, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.PAYMENT_OPERATOR,
     Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.AUTHORITY_USER, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR
@@ -544,6 +554,7 @@ export const CompanyRolePermissionMap = Object.freeze({
     VehiclePermissions.CREATE,
     VehiclePermissions.MANAGE,
     DriverPermissions.ASSIGN,
+    DriverPermissions.MANAGE,
     FinancePermissions.WALLET_COMPANY_READ,
     FinancePermissions.WALLET_COMPANY_MANAGE,
     FinancePermissions.WALLET_OWN_READ,
@@ -573,6 +584,7 @@ export const CompanyRolePermissionMap = Object.freeze({
     LoadPermissions.MANAGE_COMPANY,
     VehiclePermissions.MANAGE,
     DriverPermissions.ASSIGN,
+    DriverPermissions.MANAGE,
     FinancePermissions.BILLING_OWN_READ,
     FinancePermissions.INVOICES_COMPANY_READ,
     FinancePermissions.ESCROW_COMPANY_READ
@@ -621,6 +633,8 @@ export const CompanyRolePermissionMap = Object.freeze({
     LoadPermissions.ASSIGN_DRIVER,
     VehiclePermissions.MANAGE,
     DriverPermissions.ASSIGN,
+    DriverPermissions.MANAGE,
+    CompanyPermissions.INVITE_USERS,
     DocumentPermissions.UPLOAD
   ]),
   [CompanyRoleNames.WAREHOUSE_MANAGER]: unique([

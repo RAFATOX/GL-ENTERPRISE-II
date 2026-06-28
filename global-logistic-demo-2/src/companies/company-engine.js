@@ -11,6 +11,8 @@ import {
   CompanyPermissions,
   CompanyRolePermissionMap,
   CompanyTypePermissionMap,
+  FinancePermissions,
+  ModulePermissions,
   PlatformRolePermissionMap,
   PrivateContextPermissions,
   PrivateRolePermissionMap
@@ -130,9 +132,14 @@ export class CompanyEngine {
   permissionsForMembership(membership, company) {
     const rolePermissions = CompanyRolePermissionMap[membership.roleName] || [];
     const typePermissions = CompanyTypePermissionMap[normalizeCompanyType(company?.type)] || [];
+    const user = this.state.users.find((item) => item.id === membership.userId);
+    const driverPersonalWalletPermissions = user?.roles?.includes(Roles.DRIVER)
+      ? [ModulePermissions.WALLET, FinancePermissions.WALLET_OWN_READ]
+      : [];
     return unique([
       ...rolePermissions,
       ...typePermissions,
+      ...driverPersonalWalletPermissions,
       ...(membership.permissions || []),
       ...(membership.deniedPermissions || []).map((permission) => `!${permission}`)
     ]).filter((permission) => !String(permission).startsWith("!"))

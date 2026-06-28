@@ -401,7 +401,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (state.session.deniedView) return renderModuleAccessDenied(state);
   if (view === "system_tests") return renderSystemTests(state, engine, selected);
   if (view === "profile") return renderProfile(state);
-  if (view === "companies") return renderCompanies(state);
+  if (view === "companies") return renderCompanies(state, engine);
   if (view === "users") return renderUsers(state);
   if (view === "statistics") return renderStatistics(state);
   if (view === "system") return renderSystem(state, engine);
@@ -414,7 +414,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "academy") return renderAcademy(state);
   if (view === "details") return renderDetails(state, engine, selected);
   if (view === "shipments") return renderShipments(state);
-  if (view === "create") return renderCreateLoad(state, engine, selected);
+  if (view === "create") return isCarrierActor(state) ? renderCarrierLoadSearch(state, engine, selected) : renderCreateLoad(state, engine, selected);
   if (view === "warehouse") return renderWarehouse(state, engine, selected);
   if (view === "carrier") return renderCarrier(state, engine, selected);
   if (view === "driver_assignment") return renderDriverAssignment(state, engine, selected);
@@ -465,6 +465,7 @@ function renderDashboard(state, engine, selected) {
         ${renderBusinessFocusPanel(state, engine, selected)}
         ${renderBusinessNotificationsPanel(state, selected)}
       </section>
+      ${isCarrierActor(state) ? renderCarrierOperationsPanel(state) : ""}
       ${renderBusinessModuleLauncher(modules)}
     </section>
   `;
@@ -567,6 +568,49 @@ function renderBusinessNotificationsPanel(state, selected) {
         `).join("") || `<p class="muted">Brak nowych komunikatów.</p>`}
       </div>
     </article>
+  `;
+}
+
+function renderCarrierOperationsPanel(state) {
+  const companyId = activeCompanyId(state);
+  const availableLoads = availableCarrierLoads(state).length;
+  const drivers = carrierDrivers(state).length;
+  const vehicles = carrierVehicles(state).length;
+  const transports = carrierTransports(state).length;
+  const items = [
+    { label: "Moje ladunki", value: availableLoads, route: "/loads", note: "Szukaj i przyjmuj ladunki" },
+    { label: "Moi kierowcy", value: drivers, route: "/company", note: "Zaproszenia, dokumenty, status" },
+    { label: "Moje pojazdy", value: vehicles, route: "/company", note: "Flota i zgodnosc pojazdow" },
+    { label: "Moje transporty", value: transports, route: "/transports", note: "Oczekujace, w trasie i zakonczone" },
+    { label: "Rozliczenia", value: state.settlements.filter((item) => item.ownerCompanyId === companyId || item.carrierCompanyId === companyId).length, route: "/wallet", note: "Naleznosci, wyplaty, prowizje GL" },
+    { label: "Dokumenty firmy", value: state.companyDocuments?.filter((item) => item.companyId === companyId).length || 0, route: "/company", note: "Licencje, OCP, dokumenty firmowe" },
+    { label: "Profil firmy", value: profileRating(state, profileParticipant(state, companyId, "company")).label || ui("profile.no_reviews"), route: "/profile", note: "Reputacja i dane publiczne", profileTarget: companyId }
+  ];
+
+  return `
+    <section class="panel business-panel carrier-workflow">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Przewoznik</span>
+          <h2>Centrum pracy przewoznika</h2>
+        </div>
+      </div>
+      <div class="module-tile-grid compact-modules">
+        ${items.map((item) => item.profileTarget ? `
+          <button class="module-tile" data-ui-type="details" data-profile-target="${item.profileTarget}" data-profile-type="company">
+            <span class="module-icon">PF</span>
+            <strong>${valueLabel(item.label)}</strong>
+            <small>${valueLabel(item.note)} / ${item.value}</small>
+          </button>
+        ` : `
+          <button class="module-tile" data-ui-type="details" data-module-route="${item.route}">
+            <span class="module-icon">${String(item.label).slice(0, 2).toUpperCase()}</span>
+            <strong>${valueLabel(item.label)}</strong>
+            <small>${item.value} / ${valueLabel(item.note)}</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -905,10 +949,11 @@ function renderRoles(state, engine) {
 }
 
 function renderTransportList(state) {
-  if (!state.transports.length) return renderNoTransportTable();
+  const transports = isCarrierActor(state) ? carrierTransports(state) : state.transports;
+  if (!transports.length) return renderNoTransportTable();
   const selected = selectedTransport(state);
   return `
-    ${selected ? renderTransportCard(state, selected) : ""}
+    ${selected && transports.some((transport) => transport.id === selected.id) ? renderTransportCard(state, selected) : ""}
     <section class="panel">
       <div class="panel-head">
         <div>
@@ -920,7 +965,7 @@ function renderTransportList(state) {
         <div class="table-row table-head">
           <span>Transport</span><span>Klient</span><span>Przewoznik</span><span>Status</span><span>Trasa</span><span>Platnosc</span>
         </div>
-        ${state.transports.map((transport) => `
+        ${transports.map((transport) => `
           <button class="table-row detail-card ${state.session.selectedTransportId === transport.id ? "selected" : ""}" data-ui-type="details" data-detail-route="/transports" data-transport="${transport.id}">
             <span>${transport.number}</span>
             <span>${profileLink(state, transport.clientCompanyId, "company")}</span>
@@ -1016,6 +1061,218 @@ function renderCreateLoad(state, engine, selected) {
   `;
 }
 
+function renderCarrierLoadSearch(state, engine, selected) {
+  const loads = availableCarrierLoads(state);
+  const activeLoad = selected && loads.some((item) => item.id === selected.id)
+    ? selected
+    : loads[0] || selected;
+  return `
+    <section class="grid two carrier-load-search">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Szukaj ladunkow</span>
+            <h2>Dostepne ladunki dla przewoznika</h2>
+          </div>
+          <mark class="info">${loads.length}</mark>
+        </div>
+        <div class="transport-table compact-table">
+          <div class="table-row table-head">
+            <span>Ladunek</span><span>Trasa</span><span>Wymagania</span><span>Cena</span><span>Platnosc</span>
+          </div>
+          ${loads.map((transport) => `
+            <button class="table-row detail-card ${activeLoad?.id === transport.id ? "selected" : ""}" data-ui-type="details" data-detail-route="/loads" data-transport="${transport.id}">
+              <span>${transport.number}</span>
+              <span>${transport.pickup.address} -> ${transport.delivery.address}</span>
+              <span>${loadRequirementsLabel(transport)}</span>
+              <strong>${formatMoney(transport.price || 0, "EUR")}</strong>
+              <span>${escrowStatusLabel(state, transport)}</span>
+              <small class="detail-hint">Zobacz szczegoly ladunku</small>
+            </button>
+          `).join("") || `<p class="muted">Brak opublikowanych ladunkow dostepnych dla tej firmy.</p>`}
+        </div>
+      </article>
+      ${activeLoad ? renderCarrierLoadDetails(state, engine, activeLoad) : renderCarrierFleetReadiness(state, engine)}
+    </section>
+    <section class="grid two">
+      ${renderCarrierDriversPanel(state, engine)}
+      ${renderCarrierVehiclesPanel(state, engine)}
+    </section>
+  `;
+}
+
+function renderCarrierLoadDetails(state, engine, transport) {
+  const acceptedByThisCarrier = transport.carrierCompanyId === activeCompanyId(state);
+  const drivers = carrierAssignableDrivers(state);
+  const vehicles = carrierAssignableVehicles(state, transport);
+  const firstDriver = drivers[0];
+  const firstVehicle = vehicles[0];
+  return `
+    <article class="panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Szczegoly ladunku</span>
+          <h2>${transport.number}</h2>
+        </div>
+        <mark class="${tone(transport.status)}">${valueLabel(transport.status)}</mark>
+      </div>
+      <p class="muted">${transport.cargo.description}</p>
+      <div class="detail-grid">
+        <div><span>Zaladunek</span><strong>${transport.pickup.address}</strong></div>
+        <div><span>Rozladunek</span><strong>${transport.delivery.address}</strong></div>
+        <div><span>Waga</span><strong>${transport.cargo.weightKg || 0} kg</strong></div>
+        <div><span>Palety</span><strong>${palletsForLoad(transport)}</strong></div>
+        <div><span>Klient</span><strong>${profileLink(state, transport.clientCompanyId, "company")}</strong></div>
+        <div><span>Reputacja klienta</span><strong>${renderStars(profileRating(state, profileParticipant(state, transport.clientCompanyId, "company")).value)}</strong></div>
+        <div><span>Escrow</span><strong>${escrowStatusLabel(state, transport)}</strong></div>
+        <div><span>Cena</span><strong>${formatMoney(transport.price || 0, "EUR")}</strong></div>
+      </div>
+      <div class="actions">
+        ${actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Przyjmij ladunek", { transportId: transport.id, carrierCompanyId: activeCompanyId(state) })}
+      </div>
+      <div class="panel-subsection">
+        <h3>Przypisanie zasobow</h3>
+        <p class="muted">System pokazuje tylko zweryfikowanych kierowcow i aktywne pojazdy z tej firmy, zgodne z wymaganiami ladunku.</p>
+        ${renderCarrierAssignmentForm(transport, drivers, vehicles)}
+        <div class="actions">
+          ${acceptedByThisCarrier && firstDriver && firstVehicle
+            ? actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Przypisz kierowce i pojazd", { transportId: transport.id, driverId: firstDriver.id, vehicleId: firstVehicle.id })
+            : disabledAction("Przypisz kierowce i pojazd", acceptedByThisCarrier ? "Brak zweryfikowanego kierowcy lub zgodnego pojazdu" : "Najpierw przyjmij ladunek")}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCarrierAssignmentForm(transport, drivers, vehicles) {
+  if (!drivers.length || !vehicles.length) {
+    return `<div class="action-unavailable" data-ui-type="info"><strong>Brak gotowych zasobow</strong><span>Dodaj zweryfikowanego kierowce i aktywny pojazd w module Moja firma.</span></div>`;
+  }
+  return `
+    <form class="demo-form" data-form-action="${ActionTypes.ASSIGN_DRIVER}" data-payload="${encodePayload({ transportId: transport.id })}">
+      <label>Kierowca<select name="driverId">${drivers.map((driver) => `<option value="${driver.id}">${driver.name}</option>`).join("")}</select></label>
+      <label>Pojazd<select name="vehicleId">${vehicles.map((vehicle) => `<option value="${vehicle.id}">${vehicle.plate} / ${vehicle.bodyType || vehicle.type}</option>`).join("")}</select></label>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Przypisz z formularza</strong><span>Silnik sprawdzi dokumenty, firme, pojazd i status escrow</span></button>
+    </form>
+  `;
+}
+
+function renderCarrierFleetReadiness(state, engine) {
+  return `
+    <article class="panel">
+      <span class="eyebrow">Gotowosc floty</span>
+      <h2>Zasoby przewoznika</h2>
+      <p class="muted">Dodaj kierowce i pojazd w module Moja firma, a potem wroc do wyszukiwarki ladunkow.</p>
+    </article>
+  `;
+}
+
+function renderCarrierDriversPanel(state, engine) {
+  const drivers = carrierDrivers(state);
+  return `
+    <article class="panel carrier-drivers">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Moi kierowcy</span>
+          <h2>Kierowcy firmy</h2>
+        </div>
+        <mark class="info">${drivers.length}</mark>
+      </div>
+      ${renderAddDriverForm(state)}
+      <div class="transport-table compact-table">
+        <div class="table-row table-head">
+          <span>Kierowca</span><span>Kontakt</span><span>Weryfikacja</span><span>Dokumenty</span><span>Czas pracy</span>
+        </div>
+        ${drivers.map((driver) => `
+          <button class="table-row detail-card" data-ui-type="details" data-profile-target="${driver.id}" data-profile-type="user">
+            <span>${driver.name}</span>
+            <span>${driver.email || driver.phone || ui("ui.missing")}</span>
+            <span>${valueLabel(driver.accountStatus || driver.verificationStatus)}</span>
+            <span>${driver.documentsValid ? "Prawo jazdy OK" : "Brak dokumentow"}</span>
+            <span>${driverTimeLabel(state, driver.id)}</span>
+            <small class="detail-hint">Zobacz profil kierowcy</small>
+          </button>
+        `).join("") || `<p class="muted">Brak kierowcow przypisanych do firmy.</p>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderCarrierVehiclesPanel(state, engine) {
+  const vehicles = carrierVehicles(state);
+  return `
+    <article class="panel carrier-vehicles">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Moje pojazdy</span>
+          <h2>Flota przewoznika</h2>
+        </div>
+        <mark class="info">${vehicles.length}</mark>
+      </div>
+      ${renderAddVehicleForm()}
+      <div class="transport-table compact-table">
+        <div class="table-row table-head">
+          <span>Pojazd</span><span>Typ</span><span>Ladownosc</span><span>Wyposazenie</span><span>Status</span>
+        </div>
+        ${vehicles.map((vehicle) => `
+          <button class="table-row detail-card" data-ui-type="details" data-detail-route="/company" data-vehicle="${vehicle.id}">
+            <span>${vehicle.plate}</span>
+            <span>${vehicle.brand || ""} ${vehicle.model || ""} / ${vehicle.vehicleType || vehicle.type}</span>
+            <span>${vehicle.payloadKg || 0} kg / ${vehicle.palletCapacity || 0} palet</span>
+            <span>${vehicleFeatureLabel(vehicle)}</span>
+            <span>${vehicleStatusLabel(vehicle)}</span>
+            <small class="detail-hint">Zobacz karte pojazdu</small>
+          </button>
+        `).join("") || `<p class="muted">Brak pojazdow w firmie.</p>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderAddDriverForm(state) {
+  return `
+    <form class="demo-form carrier-form" data-form-action="${ActionTypes.ADD_COMPANY_DRIVER}">
+      <label>Imie<input name="firstName" value="Adam" /></label>
+      <label>Nazwisko<input name="lastName" value="Nowak" /></label>
+      <label>Telefon<input name="phone" value="+48500666001" /></label>
+      <label>E-mail<input name="email" value="adam.nowak@carrier.demo" /></label>
+      <label>Kategorie prawa jazdy<input name="licenseCategories" value="C+E" /></label>
+      <label>Numer prawa jazdy<input name="licenseNumber" value="PL/CE/2026/001" /></label>
+      <label>Dokumenty<select name="documentsValid"><option value="true">Zweryfikowane</option><option value="false">Do uzupelnienia</option></select></label>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Dodaj kierowce</strong><span>Utworzy konto kierowcy i przypisze go do firmy</span></button>
+    </form>
+  `;
+}
+
+function renderAddVehicleForm() {
+  return `
+    <form class="demo-form carrier-form" data-form-action="${ActionTypes.ADD_VEHICLE}">
+      <label>Typ pojazdu<select name="vehicleType">
+        <option value="zestaw">Zestaw</option>
+        <option value="bus">Bus</option>
+        <option value="solo">Solo</option>
+        <option value="tir">TIR</option>
+        <option value="chlodnia">Chlodnia</option>
+        <option value="laweta">Laweta</option>
+        <option value="inne">Inne</option>
+      </select></label>
+      <label>Marka<input name="brand" value="MAN" /></label>
+      <label>Model<input name="model" value="TGX" /></label>
+      <label>Rejestracja<input name="plate" value="GL 2026T" /></label>
+      <label>Kraj rejestracji<input name="registrationCountry" value="PL" /></label>
+      <label>DMC kg<input name="grossWeightKg" value="40000" inputmode="numeric" /></label>
+      <label>Ladownosc kg<input name="payloadKg" value="24000" inputmode="numeric" /></label>
+      <label>Palety<input name="palletCapacity" value="33" inputmode="numeric" /></label>
+      <label>Zabudowa<input name="bodyType" value="plandeka" /></label>
+      <label>ADR<select name="adr"><option value="false">Nie</option><option value="true">Tak</option></select></label>
+      <label>Chlodnia<select name="refrigerated"><option value="false">Nie</option><option value="true">Tak</option></select></label>
+      <label>Winda<select name="lift"><option value="false">Nie</option><option value="true">Tak</option></select></label>
+      <label>Status<select name="status"><option value="active">Aktywny</option><option value="inactive">Nieaktywny</option><option value="service">W serwisie</option></select></label>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Dodaj pojazd</strong><span>Silnik zapisze pojazd w firmie przewoznika</span></button>
+    </form>
+  `;
+}
+
 function renderWarehouse(state, engine, selected) {
   return `
     <section class="grid two">
@@ -1036,6 +1293,7 @@ function renderWarehouse(state, engine, selected) {
 }
 
 function renderCarrier(state, engine, selected) {
+  if (isCarrierActor(state)) return renderCarrierLoadDetails(state, engine, selected);
   const carriers = state.companies.filter((company) => company.type === "carrier");
   return `
     <section class="panel">
@@ -1055,25 +1313,16 @@ function renderCarrier(state, engine, selected) {
 }
 
 function renderDriverAssignment(state, engine, selected) {
-  const drivers = state.users.filter((user) => user.roles.includes(Roles.DRIVER));
+  const drivers = carrierAssignableDrivers(state);
+  const vehicles = carrierAssignableVehicles(state, selected);
   return `
-    <section class="panel">
-      <span class="eyebrow">Kierowca</span>
-      <h2>Przypisanie kierowcy</h2>
-      ${renderDriverAssignmentForm(state, selected)}
-      <div class="card-grid">
-        ${drivers.map((driver) => {
-          const vehicle = state.vehicles.find((item) => item.companyId === driver.companyId);
-          return `
-            <article class="mini-card" data-ui-type="info">
-              <strong>${profileLink(state, driver.id, "user")}</strong>
-              <span>${companyName(state, driver.companyId)} / dokumenty ${driver.documentsValid ? ui("ui.valid") : ui("ui.invalid")}</span>
-              <span>${driverTimeLabel(state, driver.id)}</span>
-              ${actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Przypisz", { transportId: selected.id, driverId: driver.id, vehicleId: vehicle?.id })}
-            </article>
-          `;
-        }).join("")}
-      </div>
+    <section class="grid two">
+      <article class="panel">
+        <span class="eyebrow">Kierowca i pojazd</span>
+        <h2>Przypisanie do transportu</h2>
+        ${renderCarrierAssignmentForm(selected, drivers, vehicles)}
+      </article>
+      ${renderCarrierLoadDetails(state, engine, selected)}
     </section>
   `;
 }
@@ -1420,6 +1669,20 @@ function ownWalletCopy(scope) {
       historyTitle: "Naleznosci i wyplaty",
       escrowTitle: "Transporty zabezpieczone escrow",
       allowed: ["saldo wlasnego portfela", "naleznosci", "status wyplat", "potracone prowizje GL"]
+    },
+    user: {
+      title: "Portfel osobisty kierowcy",
+      description: "Kierowca widzi tylko osobisty UserWallet i ewentualne rozliczenia przypisane bezposrednio do swojego user_id. Nie widzi finansow firmy przewoznika.",
+      balanceLabel: "Saldo osobiste",
+      metricA: "Dostepne",
+      metricB: "Zablokowane",
+      metricC: "Oczekujace",
+      metricD: "W drodze",
+      accountEyebrow: "UserWallet",
+      accountTitle: "Portfel kierowcy",
+      historyTitle: "Osobiste rozliczenia",
+      escrowTitle: "Brak dostepu do escrow firmy",
+      allowed: ["saldo osobiste", "rozliczenia osobiste", "status wyplaty osobistej"]
     }
   };
   return byScope[scope] || byScope.client;
@@ -3385,21 +3648,111 @@ function average(values) {
   return clean.reduce((sum, value) => sum + value, 0) / clean.length;
 }
 
-function renderCompanies(state) {
+function renderCompanies(state, engine) {
+  if (isCarrierActor(state)) return renderCarrierCompanyWorkspace(state, engine);
   return `
     <section class="panel">
       <span class="eyebrow">Firmy</span>
       <h2>Firmy</h2>
       <div class="card-grid">
         ${state.companies.map((company) => `
-          <article class="mini-card" data-ui-type="info">
+          <button class="mini-card detail-card" data-ui-type="details" data-profile-target="${company.id}" data-profile-type="company">
             <strong>${company.name}</strong>
             <span>${company.type}</span>
             <mark class="${tone(company.status || "active")}">${company.status || "active"}</mark>
-          </article>
+            <small class="detail-hint">Zobacz profil firmy</small>
+          </button>
         `).join("")}
       </div>
     </section>
+  `;
+}
+
+function renderCarrierCompanyWorkspace(state, engine) {
+  const companyId = activeCompanyId(state);
+  const company = state.companies.find((item) => item.id === companyId);
+  const documents = (state.companyDocuments || []).filter((item) => item.companyId === companyId);
+  const selectedVehicle = state.vehicles.find((item) => item.id === state.session.selectedVehicleId && item.companyId === companyId)
+    || carrierVehicles(state)[0];
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Moja firma</span>
+            <h2>${company?.name || state.access?.activeContextLabel || "Firma przewoznika"}</h2>
+          </div>
+          <mark class="${tone(company?.verificationStatus || company?.status)}">${valueLabel(company?.verificationStatus || company?.status || "brak")}</mark>
+        </div>
+        <div class="detail-grid">
+          <div><span>NIP / VAT EU</span><strong>${company?.vatEu || company?.vat || ui("ui.missing")}</strong></div>
+          <div><span>Kraj</span><strong>${company?.country || "PL"}</strong></div>
+          <div><span>Adres</span><strong>${company?.address || ui("ui.missing")}</strong></div>
+          <div><span>Reputacja</span><strong>${renderStars(profileRating(state, profileParticipant(state, companyId, "company")).value)}</strong></div>
+        </div>
+      </article>
+      ${renderVehicleDetailCard(selectedVehicle)}
+    </section>
+    <section class="grid two">
+      ${renderCarrierDriversPanel(state, engine)}
+      ${renderCarrierVehiclesPanel(state, engine)}
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Dokumenty firmy</span>
+          <h2>Licencje, OCP i dokumenty przewoznika</h2>
+        </div>
+        <mark class="info">${documents.length}</mark>
+      </div>
+      <div class="transport-table compact-table">
+        <div class="table-row table-head"><span>Dokument</span><span>Typ</span><span>Status</span><span>Dodano</span></div>
+        ${documents.map((document) => `
+          <button class="table-row detail-card" data-ui-type="details" data-detail-route="/documents">
+            <span>${document.label}</span>
+            <span>${document.type}</span>
+            <span>${valueLabel(document.status)}</span>
+            <span>${document.uploadedAt ? formatTime(document.uploadedAt) : ui("ui.missing")}</span>
+            <small class="detail-hint">Zobacz dokumenty</small>
+          </button>
+        `).join("") || `<p class="muted">Brak dokumentow firmy w tym kontekście.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderVehicleDetailCard(vehicle) {
+  if (!vehicle) {
+    return `
+      <article class="panel">
+        <span class="eyebrow">Karta pojazdu</span>
+        <h2>Brak pojazdu</h2>
+        <p class="muted">Dodaj pojazd, aby zobaczyc jego status i dokumenty.</p>
+      </article>
+    `;
+  }
+  return `
+    <article class="panel vehicle-detail-card">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Karta pojazdu</span>
+          <h2>${vehicle.plate}</h2>
+        </div>
+        <mark class="${tone(vehicle.status || (vehicle.available ? "active" : "inactive"))}">${vehicleStatusLabel(vehicle)}</mark>
+      </div>
+      <div class="detail-grid">
+        <div><span>Typ</span><strong>${vehicle.vehicleType || vehicle.type}</strong></div>
+        <div><span>Marka i model</span><strong>${vehicle.brand || ""} ${vehicle.model || ""}</strong></div>
+        <div><span>Kraj rejestracji</span><strong>${vehicle.registrationCountry || "PL"}</strong></div>
+        <div><span>DMC</span><strong>${vehicle.grossWeightKg || 0} kg</strong></div>
+        <div><span>Ladownosc</span><strong>${vehicle.payloadKg || 0} kg</strong></div>
+        <div><span>Palety</span><strong>${vehicle.palletCapacity || 0}</strong></div>
+        <div><span>Wyposazenie</span><strong>${vehicleFeatureLabel(vehicle)}</strong></div>
+        <div><span>Dokumenty</span><strong>${vehicle.documentsValid ? "Wazne" : "Do uzupelnienia"}</strong></div>
+        <div><span>Ubezpieczenie</span><strong>${vehicle.insuranceValid ? "Wazne" : "Do uzupelnienia"}</strong></div>
+        <div><span>Przeglad</span><strong>${vehicle.technicalInspectionValid ? "Wazny" : "Do uzupelnienia"}</strong></div>
+      </div>
+    </article>
   `;
 }
 
@@ -3645,6 +3998,119 @@ function renderPhotoList(state, transport) {
   `;
 }
 
+function isCarrierActor(state) {
+  const actor = state.access?.actor || {};
+  return [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(actor.role || state.session.role)
+    || actor.companyType === "carrier";
+}
+
+function activeCompanyId(state) {
+  return state.access?.actor?.companyId || state.session.companyId || null;
+}
+
+function activeUserId(state) {
+  return state.access?.actor?.userId || state.session.userId || null;
+}
+
+function carrierDrivers(state) {
+  const companyId = activeCompanyId(state);
+  const memberships = new Set((state.userCompanyRoles || [])
+    .filter((membership) => membership.companyId === companyId && membership.status === "active")
+    .map((membership) => membership.userId));
+  return (state.users || []).filter((user) => (
+    user.roles?.includes(Roles.DRIVER)
+    && (user.companyId === companyId || memberships.has(user.id))
+  ));
+}
+
+function carrierAssignableDrivers(state) {
+  return carrierDrivers(state).filter((driver) => (
+    driver.documentsValid
+    && [AccountStatuses.APPROVED, AccountStatuses.VERIFIED].includes(driver.accountStatus)
+    && (state.driverTime.find((item) => item.driverId === driver.id)?.legalToComplete !== false)
+  ));
+}
+
+function carrierVehicles(state) {
+  const companyId = activeCompanyId(state);
+  return (state.vehicles || []).filter((vehicle) => vehicle.companyId === companyId);
+}
+
+function carrierAssignableVehicles(state, transport) {
+  return carrierVehicles(state).filter((vehicle) => (
+    vehicleCompatibleWithLoad(vehicle, transport)
+    && vehicle.documentsValid !== false
+    && vehicle.insuranceValid !== false
+    && vehicle.technicalInspectionValid !== false
+    && vehicle.status !== "inactive"
+    && vehicle.status !== "service"
+    && vehicle.available !== false
+  ));
+}
+
+function carrierTransports(state) {
+  const companyId = activeCompanyId(state);
+  const userId = activeUserId(state);
+  return (state.transports || []).filter((transport) => (
+    transport.carrierCompanyId === companyId || transport.driverId === userId
+  ));
+}
+
+function availableCarrierLoads(state) {
+  const companyId = activeCompanyId(state);
+  return (state.transports || []).filter((transport) => (
+    [TransportStatuses.PUBLISHED, TransportStatuses.CARRIER_OFFER_RECEIVED, TransportStatuses.CARRIER_ACCEPTED].includes(transport.status)
+    && (!transport.carrierCompanyId || transport.carrierCompanyId === companyId)
+  ));
+}
+
+function vehicleCompatibleWithLoad(vehicle, transport) {
+  if (!transport) return true;
+  const text = `${transport.cargo?.description || ""} ${transport.cargo?.dimensions || ""} ${transport.requirements || ""}`.toLowerCase();
+  if ((text.includes("adr") || text.includes("hazmat")) && !vehicle.adr) return false;
+  if ((text.includes("chlod") || text.includes("cold") || text.includes("refriger")) && !vehicle.refrigerated && !String(vehicle.type || "").includes("chlod")) return false;
+  if (Number(vehicle.payloadKg || 0) && Number(transport.cargo?.weightKg || 0) > Number(vehicle.payloadKg || 0)) return false;
+  if (Number(vehicle.palletCapacity || 0) && palletsForLoad(transport) > Number(vehicle.palletCapacity || 0)) return false;
+  return true;
+}
+
+function loadRequirementsLabel(transport) {
+  const requirements = [];
+  const text = `${transport.cargo?.description || ""} ${transport.cargo?.dimensions || ""}`.toLowerCase();
+  if (text.includes("adr")) requirements.push("ADR");
+  if (text.includes("chlod") || text.includes("cold")) requirements.push("chlodnia");
+  requirements.push(`${palletsForLoad(transport)} palet`);
+  requirements.push(`${transport.cargo?.weightKg || 0} kg`);
+  return requirements.join(" / ");
+}
+
+function palletsForLoad(transport) {
+  const dimensions = String(transport?.cargo?.dimensions || "");
+  const match = dimensions.match(/(\d+)\s*(palet|pallet|plt)/i);
+  return match ? Number(match[1]) : Number(transport?.cargo?.pallets || 0);
+}
+
+function escrowStatusLabel(state, transport) {
+  const escrow = (state.escrows || []).find((item) => item.transportId === transport.id);
+  if (escrow) return `Escrow: ${valueLabel(escrow.status)}`;
+  return valueLabel(transport.paymentStatus || "payment_pending");
+}
+
+function vehicleFeatureLabel(vehicle) {
+  return [
+    vehicle.adr ? "ADR" : null,
+    vehicle.refrigerated ? "chlodnia" : null,
+    vehicle.lift ? "winda" : null
+  ].filter(Boolean).join(" / ") || "standard";
+}
+
+function vehicleStatusLabel(vehicle) {
+  if (!vehicle) return ui("ui.missing");
+  if (vehicle.status === "service") return "w serwisie";
+  if (vehicle.status === "inactive" || vehicle.available === false) return "nieaktywny";
+  return "aktywny";
+}
+
 function blockerList(engine, transport) {
   if (!transport) return `<div class="blocker blocked"><strong>Transport</strong><span>Brak transportow</span></div>`;
   const checks = [
@@ -3797,8 +4263,8 @@ function renderGpsForm(selected) {
 }
 
 function renderDriverAssignmentForm(state, selected) {
-  const drivers = state.users.filter((user) => user.roles.includes(Roles.DRIVER));
-  const vehicles = state.vehicles.filter((vehicle) => !selected.carrierCompanyId || vehicle.companyId === selected.carrierCompanyId);
+  const drivers = carrierAssignableDrivers(state);
+  const vehicles = carrierAssignableVehicles(state, selected);
   return `
     <form class="demo-form" data-form-action="${ActionTypes.ASSIGN_DRIVER}" data-payload="${encodePayload({ transportId: selected.id })}">
       <label>Kierowca<select name="driverId">${drivers.map((driver) => `<option value="${driver.id}">${driver.name}</option>`).join("")}</select></label>

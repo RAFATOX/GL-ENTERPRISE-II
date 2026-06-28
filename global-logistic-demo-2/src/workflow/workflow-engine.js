@@ -1,13 +1,16 @@
 import {
   ActionTypes,
   AccountStatuses,
+  CompanyRoleNames,
   CompanyVerificationStatuses,
   CriticalTransportActions,
   EventTypes,
   PaymentStatuses,
+  Roles,
   SourceTypes,
   TransportStatuses
 } from "../core/constants.js";
+import { createId, nowIso } from "../core/id.js";
 import {
   isAccountApproved,
   onboardingActionTypes,
@@ -166,6 +169,9 @@ export class WorkflowEngine {
       case ActionTypes.ONBOARDING_REJECT:
         if (!payload.userId) reasons.push(v("user_id_required"));
         break;
+      case ActionTypes.ADD_COMPANY_DRIVER:
+        validateAddCompanyDriver(actor, payload, reasons);
+        break;
       case ActionTypes.ADD_VEHICLE:
         validateAddVehicle(actor, payload, reasons);
         break;
@@ -308,6 +314,7 @@ export class WorkflowEngine {
         return this.selectRole(state, modules, payload);
       case ActionTypes.SELECT_VIEW:
         state.session.view = payload.view;
+        state.session.selectedVehicleId = payload.view === "companies" ? payload.selectedVehicleId || state.session.selectedVehicleId || null : null;
         if (payload.view === "profile") {
           state.session.profileTargetId = payload.profileTargetId || null;
           state.session.profileTargetType = payload.profileTargetType || null;
@@ -381,6 +388,8 @@ export class WorkflowEngine {
         return modules.onboarding.approve(payload);
       case ActionTypes.ONBOARDING_REJECT:
         return modules.onboarding.reject(payload);
+      case ActionTypes.ADD_COMPANY_DRIVER:
+        return this.addCompanyDriver(state, actor, payload);
       case ActionTypes.ADD_VEHICLE:
         return this.addVehicle(state, actor, payload);
       case ActionTypes.CREATE_LOAD: {
@@ -625,12 +634,34 @@ export class WorkflowEngine {
   addVehicle(state, actor, payload) {
     const vehicle = {
       id: payload.vehicleId || `veh-${Date.now()}`,
-      plate: payload.plate,
+      vehicle_id: payload.vehicleId || null,
+      plate: normalizePlate(payload.plate),
       companyId: actor.companyId,
-      type: payload.type || "pojazd demo",
-      documentsValid: true,
-      available: true
+      company_id: actor.companyId,
+      type: payload.type || "zestaw",
+      vehicleType: payload.vehicleType || payload.type || "zestaw",
+      brand: payload.brand || "Marka",
+      model: payload.model || "Model",
+      registrationCountry: payload.registrationCountry || actor.country || "PL",
+      grossWeightKg: numberOrDefault(payload.grossWeightKg || payload.dmc, 40000),
+      payloadKg: numberOrDefault(payload.payloadKg || payload.capacityKg, 24000),
+      palletCapacity: numberOrDefault(payload.palletCapacity || payload.pallets, 33),
+      bodyType: payload.bodyType || "plandeka",
+      adr: yes(payload.adr),
+      refrigerated: yes(payload.refrigerated),
+      lift: yes(payload.lift),
+      status: payload.status || "active",
+      documentsValid: payload.documentsValid === undefined ? true : yes(payload.documentsValid),
+      insuranceValid: payload.insuranceValid === undefined ? true : yes(payload.insuranceValid),
+      technicalInspectionValid: payload.technicalInspectionValid === undefined ? true : yes(payload.technicalInspectionValid),
+      available: (payload.status || "active") === "active",
+      documentIds: normalizeList(payload.documentIds),
+      insurancePolicy: payload.insurancePolicy || null,
+      technicalInspectionExpiresAt: payload.technicalInspectionExpiresAt || null,
+      createdAt: nowIso(),
+      createdBy: actor.userId
     };
+    vehicle.vehicle_id = vehicle.id;
     state.vehicles.unshift(vehicle);
     return {
       events: [{
@@ -641,6 +672,104 @@ export class WorkflowEngine {
         newState: "vehicle_added",
         reason: "pojazd dodany po weryfikacji przewoznika"
       }]
+    };
+  }
+
+  addCompanyDriver(state, actor, payload) {
+    const companyId = payload.companyId || actor.companyId;
+    const existing = state.users.find((user) => (
+      (payload.email && user.email === payload.email)
+      || (payload.phone && user.phone === payload.phone)
+      || (payload.userId && user.id === payload.userId)
+    ));
+    const driver = existing || {
+      id: payload.userId || createId("user"),
+      name: payload.name || `${payload.firstName || "Kierowca"} ${payload.lastName || "GL"}`.trim(),
+      firstName: payload.firstName || firstName(payload.name) || "Kierowca",
+      lastName: payload.lastName || lastName(payload.name) || "GL",
+      email: payload.email || null,
+      phone: payload.phone || null,
+      language: payload.language || "pl",
+      country: payload.country || "PL",
+      countryOfResidence: payload.countryOfResidence || payload.country || "PL",
+      userType: Roles.DRIVER,
+      companyId,
+      roles: [Roles.DRIVER],
+      selectedRole: Roles.DRIVER,
+      accountStatus: payload.verified === "false" ? AccountStatuses.ROLE_DOCUMENTS_PENDING : AccountStatuses.APPROVED,
+      verificationStatus: payload.verified === "false" ? AccountStatuses.ROLE_DOCUMENTS_PENDING : AccountStatuses.APPROVED,
+      onboardingStage: payload.verified === "false" ? "role_documents" : "approved",
+      phoneVerified: Boolean(payload.phone),
+      documentVerified: yes(payload.identityDocument || payload.documentVerified || true),
+      faceVerified: yes(payload.selfie || payload.faceVerified || true),
+      documentsValid: payload.documentsValid === undefined ? true : yes(payload.documentsValid),
+      identityDocument: null,
+      roleVerificationStatus: {
+        [Roles.DRIVER]: payload.documentsValid === "false" ? AccountStatuses.ROLE_DOCUMENTS_PENDING : AccountStatuses.APPROVED
+      },
+      roleDocuments: {
+        [Roles.DRIVER]: driverRoleDocuments(payload)
+      },
+      walletReady: false,
+      driverTimeLegal: payload.driverTimeLegal === undefined ? true : yes(payload.driverTimeLegal),
+      previousPhones: [],
+      invitedBy: actor.userId,
+      invitedAt: nowIso()
+    };
+
+    if (existing) {
+      if (!driver.roles.includes(Roles.DRIVER)) driver.roles.push(Roles.DRIVER);
+      driver.selectedRole ||= Roles.DRIVER;
+      driver.companyId ||= companyId;
+      driver.documentsValid = payload.documentsValid === undefined ? driver.documentsValid : yes(payload.documentsValid);
+      driver.roleVerificationStatus ||= {};
+      driver.roleVerificationStatus[Roles.DRIVER] = driver.documentsValid ? AccountStatuses.APPROVED : AccountStatuses.ROLE_DOCUMENTS_PENDING;
+      driver.roleDocuments ||= {};
+      driver.roleDocuments[Roles.DRIVER] = driverRoleDocuments(payload);
+    } else {
+      state.users.unshift(driver);
+    }
+
+    const membership = state.userCompanyRoles.find((item) => item.userId === driver.id && item.companyId === companyId)
+      || createDriverMembership(driver.id, companyId, actor.userId);
+    if (!state.userCompanyRoles.some((item) => item.id === membership.id)) state.userCompanyRoles.unshift(membership);
+    membership.status = "active";
+    membership.acceptedAt ||= nowIso();
+
+    const company = state.companies.find((item) => item.id === companyId);
+    company.people ||= [];
+    if (!company.people.includes(driver.id)) company.people.push(driver.id);
+
+    if (!state.driverTime.some((item) => item.driverId === driver.id)) {
+      state.driverTime.push({
+        driverId: driver.id,
+        drivingHoursToday: 0,
+        breakHours: 0,
+        remainingLegalHours: 9,
+        legalToComplete: driver.driverTimeLegal,
+        ferryRailAllowance: false
+      });
+    }
+
+    return {
+      events: [
+        {
+          type: existing ? EventTypes.COMPANY_USER_INVITED : EventTypes.USER_REGISTERED,
+          objectType: "user",
+          objectId: driver.id,
+          previousState: existing ? "existing_user" : null,
+          newState: driver.accountStatus,
+          reason: "kierowca dodany do firmy przewoznika"
+        },
+        {
+          type: EventTypes.COMPANY_DRIVER_ADDED,
+          objectType: "company",
+          objectId: companyId,
+          previousState: null,
+          newState: driver.id,
+          reason: "kierowca przypisany do firmy przez Company Engine"
+        }
+      ]
     };
   }
 
@@ -666,6 +795,7 @@ function requiresVerifiedRole(actionType) {
     ActionTypes.PUBLISH_LOAD,
     ActionTypes.ACCEPT_CARRIER,
     ActionTypes.ASSIGN_DRIVER,
+    ActionTypes.ADD_COMPANY_DRIVER,
     ActionTypes.ADD_VEHICLE,
     ActionTypes.START_PICKUP_NAVIGATION,
     ActionTypes.START_TRANSIT,
@@ -682,6 +812,7 @@ function requiresVerifiedCompany(actionType) {
     ActionTypes.PUBLISH_LOAD,
     ActionTypes.ACCEPT_CARRIER,
     ActionTypes.ASSIGN_DRIVER,
+    ActionTypes.ADD_COMPANY_DRIVER,
     ActionTypes.ADD_VEHICLE,
     ActionTypes.ACCEPT_SERVICE_JOB,
     ActionTypes.COMPLETE_SERVICE_JOB,
@@ -736,8 +867,73 @@ function validateAddVehicle(actor, payload, reasons) {
   if (!payload.plate) reasons.push(v("vehicle_plate_required"));
 }
 
+function validateAddCompanyDriver(actor, payload, reasons) {
+  if (!actor.companyId && !payload.companyId) reasons.push(v("carrier_company_required"));
+  if (!payload.name && (!payload.firstName || !payload.lastName)) reasons.push(v("first_name_required"));
+  if (!payload.phone && !payload.email) reasons.push(v("login_required"));
+}
+
 function consent(value) {
   return value === true || value === "true" || value === "on";
+}
+
+function yes(value) {
+  return value === true || value === "true" || value === "on" || value === "yes" || value === "tak";
+}
+
+function numberOrDefault(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizePlate(value = "") {
+  return String(value).trim().toUpperCase();
+}
+
+function normalizeList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value).split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function firstName(name = "") {
+  return String(name).trim().split(/\s+/)[0] || "";
+}
+
+function lastName(name = "") {
+  return String(name).trim().split(/\s+/).slice(1).join(" ");
+}
+
+function driverRoleDocuments(payload) {
+  return [
+    "identity_document",
+    "selfie",
+    payload.licenseNumber ? "driving_license" : null,
+    payload.licenseCategories ? `categories:${payload.licenseCategories}` : null,
+    payload.driverCard ? "driver_card" : null,
+    payload.adrCertificate ? "adr_certificate" : null
+  ].filter(Boolean);
+}
+
+function createDriverMembership(userId, companyId, invitedBy) {
+  const id = createId("ucr");
+  return {
+    id,
+    userCompanyRole_id: id,
+    userId,
+    user_id: userId,
+    companyId,
+    company_id: companyId,
+    roleId: `company_role_${CompanyRoleNames.EMPLOYEE}`,
+    role_id: `company_role_${CompanyRoleNames.EMPLOYEE}`,
+    roleName: CompanyRoleNames.EMPLOYEE,
+    status: "active",
+    permissions: [],
+    deniedPermissions: [],
+    invitedBy,
+    invitedAt: nowIso(),
+    acceptedAt: nowIso()
+  };
 }
 
 function requireTransport(transport, reasons) {

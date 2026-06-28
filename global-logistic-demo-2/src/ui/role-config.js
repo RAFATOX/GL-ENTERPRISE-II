@@ -60,7 +60,7 @@ const roleConfig = {
   [Roles.CARRIER_OWNER]: {
     workspace: "Przewoznik",
     widgets: ["fleet", "drivers", "billing", "messages"],
-    actions: [ActionTypes.ACCEPT_CARRIER, ActionTypes.ASSIGN_DRIVER, ActionTypes.REQUEST_TECHNICAL_SERVICE]
+    actions: [ActionTypes.ADD_COMPANY_DRIVER, ActionTypes.ADD_VEHICLE, ActionTypes.ACCEPT_CARRIER, ActionTypes.ASSIGN_DRIVER, ActionTypes.REQUEST_TECHNICAL_SERVICE]
   },
   [Roles.CARRIER_DISPATCHER]: {
     workspace: "Dyspozytor przewoznika",
