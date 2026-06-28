@@ -187,10 +187,6 @@ export const modulesConfig = Object.freeze([
   moduleItem("academy", "Akademia GL", "AC", "/academy", "academy", ModulePermissions.ACADEMY, [
     ...academyRoles
   ], "Szkolenia, materialy i role akademii."),
-  moduleItem("trust", "Reputacja GL", "TS", "/trust", "trust", ModulePermissions.TRUST, [
-    ...clientRoles, ...carrierRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER, Roles.SECURITY,
-    Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, ...complianceRoles
-  ], "Reputacja firm, kierowcow i partnerow."),
   moduleItem("wallet", "Portfel", "WL", "/wallet", "wallet", ModulePermissions.WALLET, walletRouteRoles, "Portfel lub rozliczenia widoczne zgodnie z rola i wlascicielem danych.", {
     includePlatformControl: false,
     labelByRole: {
@@ -248,9 +244,9 @@ export const modulesConfig = Object.freeze([
   moduleItem("authority", "Kontrole drogowe", "AU", "/authority", "authority", ModulePermissions.AUTHORITY, [Roles.AUTHORITY_USER, ...complianceRoles], "Dostep organow kontrolnych."),
   moduleItem("intermodal", "Prom / kolej", "IM", "/intermodal", "ferry", ModulePermissions.INTERMODAL, [Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...carrierRoles, Roles.DRIVER], "Prom, kolej i terminal."),
   moduleItem("ai", "Kontrola AI", "AI", "/ai", "ai", ModulePermissions.AI, [Roles.SUPPORT_AGENT, ...complianceRoles], "Alerty AI i kontrola ryzyka."),
-  moduleItem("audit", "Audit Log", "AL", "/audit", "audit", ModulePermissions.AUDIT, [Roles.PAYMENT_OPERATOR, ...platformWalletRoles, ...complianceRoles], "Historia zdarzen i decyzji."),
-  moduleItem("system", "System", "SY", "/system", "system", ModulePermissions.SYSTEM, [], "Stan systemu i konfiguracja platformy."),
-  moduleItem("system-tests", "Testy systemu", "QA", "/system-tests", "system_tests", ModulePermissions.SYSTEM, [], "Testy odpornosci demo.")
+  moduleItem("audit", "Dziennik audytu", "AL", "/audit", "audit", ModulePermissions.AUDIT, [Roles.GL_OPERATOR, Roles.ADMIN_FINANCE], "Historia zdarzen i decyzji."),
+  moduleItem("system", "System", "SY", "/system", "system", ModulePermissions.SYSTEM, [Roles.GL_OPERATOR, Roles.ADMIN_FINANCE], "Stan systemu i konfiguracja platformy."),
+  moduleItem("system-tests", "Testy systemu", "QA", "/system-tests", "system_tests", ModulePermissions.SYSTEM, [Roles.GL_OPERATOR, Roles.ADMIN_FINANCE], "Testy odpornosci demo.")
 ]);
 
 const explicitPermissionsByRole = {
@@ -330,7 +326,6 @@ const explicitPermissionsByRole = {
     ModulePermissions.PROFILE,
     ModulePermissions.AUTHORITY,
     ModulePermissions.AI,
-    ModulePermissions.AUDIT,
     ModulePermissions.RISK
   ]
 };
@@ -378,6 +373,7 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.AUTHORITY,
     ModulePermissions.AI,
     ModulePermissions.AUDIT,
+    ModulePermissions.SYSTEM,
     CompanyPermissions.READ,
     CompanyPermissions.MANAGE,
     FinancePermissions.WALLET_PLATFORM_READ,
@@ -399,6 +395,7 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.BILLING,
     ModulePermissions.INVOICES,
     ModulePermissions.AUDIT,
+    ModulePermissions.SYSTEM,
     FinancePermissions.WALLET_PLATFORM_READ,
     FinancePermissions.WALLET_PLATFORM_MANAGE,
     FinancePermissions.ESCROW_MANAGE,
@@ -418,7 +415,6 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
     ModulePermissions.ACADEMY,
-    ModulePermissions.TRUST,
     ModulePermissions.REPORTS,
     ModulePermissions.COMPANY,
     ModulePermissions.PROFILE,
@@ -452,7 +448,6 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
     ModulePermissions.ACADEMY,
-    ModulePermissions.TRUST,
     ModulePermissions.REPORTS,
     ModulePermissions.COMPANY,
     ModulePermissions.PROFILE,
@@ -485,11 +480,9 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.PROFILE,
     ModulePermissions.AUTHORITY,
     ModulePermissions.AI,
-    ModulePermissions.AUDIT,
     ModulePermissions.RISK,
     CompanyPermissions.READ,
     LoadPermissions.VIEW_COMPANY,
-    AdminPermissions.AUDIT_READ,
     CompliancePermissions.REVIEW,
     CompliancePermissions.SUSPEND_COMPANY,
     CompliancePermissions.SUSPEND_USER
@@ -510,9 +503,7 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.TRANSPORTS,
     ModulePermissions.DOCUMENTS,
     ModulePermissions.PROFILE,
-    ModulePermissions.AUDIT,
-    LoadPermissions.VIEW_COMPANY,
-    AdminPermissions.AUDIT_READ
+    LoadPermissions.VIEW_COMPANY
   ])
 });
 
@@ -526,7 +517,6 @@ const operationalCompanyPermissions = [
   ModulePermissions.PARKING,
   ModulePermissions.CHAT,
   ModulePermissions.JOBS,
-  ModulePermissions.TRUST,
   ModulePermissions.PROFILE,
   CompanyPermissions.READ,
   LoadPermissions.VIEW_COMPANY,
@@ -697,7 +687,6 @@ export const CompanyTypePermissionMap = Object.freeze({
     ModulePermissions.PHOTOS,
     ModulePermissions.DOCUMENTS,
     ModulePermissions.CHAT,
-    ModulePermissions.TRUST,
     LoadPermissions.CREATE,
     LoadPermissions.VIEW_COMPANY,
     FinancePermissions.ESCROW_OWN_READ,
@@ -712,7 +701,6 @@ export const CompanyTypePermissionMap = Object.freeze({
     ModulePermissions.PARKING,
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
-    ModulePermissions.TRUST,
     LoadPermissions.ACCEPT,
     LoadPermissions.ASSIGN_DRIVER,
     LoadPermissions.VIEW_COMPANY
@@ -730,7 +718,7 @@ export const CompanyTypePermissionMap = Object.freeze({
   [CompanyTypes.ROADSIDE_ASSISTANCE]: unique([ModulePermissions.SERVICE_ORDERS, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
   [CompanyTypes.INSURER]: unique([ModulePermissions.DOCUMENTS, ModulePermissions.POLICIES, ModulePermissions.CLAIMS, ModulePermissions.RISK, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
   [CompanyTypes.INSURANCE]: unique([ModulePermissions.DOCUMENTS, ModulePermissions.POLICIES, ModulePermissions.CLAIMS, ModulePermissions.RISK, ModulePermissions.BILLING, ModulePermissions.INVOICES]),
-  [CompanyTypes.PAYMENT]: unique([ModulePermissions.BILLING, ModulePermissions.INVOICES, ModulePermissions.REPORTS, ModulePermissions.AUDIT]),
+  [CompanyTypes.PAYMENT]: unique([ModulePermissions.BILLING, ModulePermissions.INVOICES, ModulePermissions.REPORTS]),
   [CompanyTypes.SECURITY]: unique([ModulePermissions.SECURITY, ModulePermissions.TRANSPORTS, ModulePermissions.LIVE_MAP, ModulePermissions.GPS]),
   [CompanyTypes.CUSTOMS_AGENT]: unique([ModulePermissions.CUSTOMS, ModulePermissions.TRANSPORTS, ModulePermissions.DOCUMENTS, ModulePermissions.CHAT]),
   [CompanyTypes.AUTHORITY]: unique([ModulePermissions.AUTHORITY, ModulePermissions.TRANSPORTS, ModulePermissions.DOCUMENTS]),

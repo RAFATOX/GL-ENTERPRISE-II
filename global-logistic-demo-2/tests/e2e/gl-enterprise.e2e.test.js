@@ -155,6 +155,8 @@ function assertNoTechnicalEnglishUi(html) {
   [
     "Permission Engine",
     "Company Engine",
+    "Audit Log",
+    "Event Bus",
     "AccessDenied",
     "Dashboard Wallet",
     "Client Wallet",
@@ -163,6 +165,32 @@ function assertNoTechnicalEnglishUi(html) {
     "CompanyWallet",
     "Reset demo data"
   ].forEach((text) => assert.equal(html.includes(text), false, `technical English leaked to UI: ${text}`));
+}
+
+function assertNoTechnicalEvents(html) {
+  [
+    "UI_VIEW_CHANGED",
+    "SELECT_VIEW",
+    "ONBOARDING_APPROVE",
+    "EventBus",
+    "undefined"
+  ].forEach((text) => assert.equal(html.includes(text), false, `technical event leaked to UI: ${text}`));
+}
+
+function assertButtonsHaveBehavior(html) {
+  [...html.matchAll(/<button\b([^>]*)>/g)].forEach((match, index) => {
+    const attrs = match[1];
+    const hasBehavior = [
+      "data-action=",
+      "data-module-route=",
+      "data-profile-target=",
+      "data-detail-route=",
+      "data-role=",
+      "data-reset-demo=",
+      "type=\"submit\""
+    ].some((marker) => attrs.includes(marker));
+    assert.equal(hasBehavior, true, `dead button ${index + 1}: ${attrs}`);
+  });
 }
 
 test("e2e: onboarding przechodzi od wyboru jezyka i telefonu do ekranu OTP", () => {
@@ -278,6 +306,145 @@ test("e2e: bezposredni URL bez permission pokazuje Brak dostepu", () => {
   assert.equal(engine.state.session.deniedRoute, "/billing");
 });
 
+test("e2e: driver nie widzi finansow firmy ani historii escrow", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const snapshot = engine.getSnapshot();
+  const html = render(engine);
+  const routes = moduleRoutes(html);
+
+  assert.equal(snapshot.access.canViewFinancials, false);
+  assert.equal(snapshot.wallets.length, 0);
+  assert.equal(snapshot.walletLedger.length, 0);
+  assert.equal(snapshot.walletTransactions.length, 0);
+  assert.equal(snapshot.payments.length, 0);
+  assert.equal(snapshot.invoices.length, 0);
+  assert.equal(snapshot.settlements.length, 0);
+  assert.equal(snapshot.escrows.length, 0);
+  assert.equal(snapshot.escrowOperations.length, 0);
+  assert.equal(routes.includes("/wallet"), false);
+  assert.equal(routes.includes("/billing"), false);
+  assert.equal(routes.includes("/invoices"), false);
+});
+
+test("e2e: role bez finansow nie widza escrowOperations", () => {
+  [
+    ["u-security", "co-security-a"],
+    ["u-authority-police", "co-authority-police"],
+    ["u-academy-student", null]
+  ].forEach(([userId, companyId]) => {
+    const engine = engineForUserContext(userId, companyId);
+    const snapshot = engine.getSnapshot();
+
+    assert.equal(snapshot.access.canViewFinancials, false, userId);
+    assert.equal(snapshot.escrowOperations.length, 0, userId);
+    assert.equal(snapshot.escrows.length, 0, userId);
+    assert.equal(snapshot.walletTransactions.length, 0, userId);
+  });
+});
+
+test("e2e: Platform Wallet jest widoczny tylko dla rol finansowych platformy", () => {
+  [
+    ["u-platform", Roles.PLATFORM_OWNER],
+    ["u-gl-operator", Roles.GL_OPERATOR],
+    ["u-admin-finance", Roles.ADMIN_FINANCE]
+  ].forEach(([userId, role]) => {
+    const engine = engineForUserContext(userId);
+    const result = selectView(engine, "wallet", "/wallet");
+    const snapshot = engine.getSnapshot();
+    const html = render(engine);
+
+    assert.equal(engine.getActor().role, role);
+    assert.equal(result.ok, true, role);
+    assert.equal(snapshot.access.canViewPlatformWallet, true, role);
+    assert.ok(snapshot.wallets.some((wallet) => wallet.glWalletId === "GLW-SYSTEM-0001"), role);
+    assert.ok(html.includes("GLW-SYSTEM-0001"), role);
+  });
+
+  [
+    ["u-super", "super_admin"],
+    ["u-admin", "admin"],
+    ["u-client-owner", "client"],
+    ["u-carrier-owner", "carrier"],
+    ["u-driver-1", "driver"]
+  ].forEach(([userId, label]) => {
+    const companyId = userId === "u-client-owner"
+      ? "co-client-a"
+      : userId === "u-carrier-owner" || userId === "u-driver-1"
+      ? "co-carrier-a"
+      : null;
+    const engine = engineForUserContext(userId, companyId);
+    const result = selectView(engine, "wallet", "/wallet");
+    const snapshot = engine.getSnapshot();
+    const html = render(engine);
+
+    assert.equal(snapshot.access.canViewPlatformWallet, false, label);
+    assert.equal(snapshot.wallets.some((wallet) => wallet.glWalletId === "GLW-SYSTEM-0001"), false, label);
+    assert.equal(html.includes("GLW-SYSTEM-0001"), false, label);
+    if (["super_admin", "admin", "driver"].includes(label)) assert.equal(result.ok, false, label);
+  });
+});
+
+test("e2e: profil zaufania zastepuje osobny modul Reputacja GL", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const dashboardHtml = render(engine);
+  const profile = selectView(engine, "profile", "/profile");
+  const profileHtml = render(engine);
+  const trust = selectView(engine, "trust", "/trust");
+  const deniedHtml = render(engine);
+
+  assert.equal(profile.ok, true);
+  assert.ok(dashboardHtml.includes("data-profile-card=\"self\""));
+  assert.equal(moduleRoutes(dashboardHtml).includes("/trust"), false);
+  assert.ok(profileHtml.includes("Profil zaufania GL"));
+  assert.ok(profileHtml.includes("Marek Driver"));
+  assert.ok(profileHtml.includes("★"));
+  assert.ok(profileHtml.includes("4.75 / 5.00"));
+  assert.equal(profileHtml.includes("Trust Score Engine"), false);
+  assert.equal(trust.ok, false);
+  assert.ok(deniedHtml.includes("access-panel"));
+});
+
+test("e2e: profil publiczny nie ujawnia danych wrazliwych obcemu uzytkownikowi", () => {
+  const engine = engineForUserContext("u-client-owner", "co-client-a");
+  const transportHtml = render(engine);
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "u-driver-1",
+    profileTargetType: "user"
+  });
+  const profileHtml = render(engine);
+
+  assert.equal(result.ok, true);
+  assert.ok(transportHtml.includes("data-profile-target=\"u-driver-1\""));
+  assert.ok(profileHtml.includes("Marek Driver"));
+  assert.ok(profileHtml.includes("ukryty"));
+  assert.equal(profileHtml.includes("+48500100108"), false);
+  assert.equal(profileHtml.includes("GLW-SYSTEM-0001"), false);
+});
+
+test("e2e: opinia jest dostepna tylko po zakonczonej wspolpracy", () => {
+  const engine = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "co-workshop-a",
+    profileTargetType: "company"
+  });
+  const workshopHtml = render(engine);
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "u-driver-1",
+    profileTargetType: "user"
+  });
+  const driverHtml = render(engine);
+
+  assert.ok(workshopHtml.includes("data-profile-review-form=\"true\""));
+  assert.ok(driverHtml.includes("Ocena b"));
+  assert.equal(driverHtml.includes("data-profile-review-form=\"true\""), false);
+});
+
 test("e2e: polski UI nie pokazuje technicznych nazw angielskich na pulpicie i portfelu GL", () => {
   const driver = engineForUserContext("u-driver-1", "co-carrier-a");
   assertNoTechnicalEnglishUi(render(driver));
@@ -285,4 +452,23 @@ test("e2e: polski UI nie pokazuje technicznych nazw angielskich na pulpicie i po
   const platform = engineForUserContext("u-platform");
   assert.equal(selectView(platform, "wallet", "/wallet").ok, true);
   assertNoTechnicalEnglishUi(render(platform));
+});
+
+test("e2e: UI rozroznia informacje, szczegoly i akcje bez martwych przyciskow", () => {
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const driverHtml = render(driver);
+  assertButtonsHaveBehavior(driverHtml);
+  assertNoTechnicalEvents(driverHtml);
+  assert.equal(/<button[^>]*class="[^"]*\bmetric\b/.test(driverHtml), false);
+  assert.equal(driverHtml.includes('data-action="RELEASE_PAYMENT"'), false);
+  assert.ok(driverHtml.includes('data-ui-type="info"'));
+  assert.ok(driverHtml.includes('data-ui-type="details"'));
+  assert.ok(driverHtml.includes('data-detail-route="/transports"'));
+
+  const carrier = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  assert.equal(selectView(carrier, "transports", "/transports").ok, true);
+  const carrierHtml = render(carrier);
+  assertButtonsHaveBehavior(carrierHtml);
+  assert.ok(carrierHtml.includes('data-detail-route="/transports"'));
+  assert.ok(carrierHtml.includes('data-profile-target="co-client-a"'));
 });

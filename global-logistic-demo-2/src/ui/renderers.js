@@ -52,7 +52,7 @@ export function renderApp(state, engine) {
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>${ui("app.active_space")}</span>
-          <strong>${ui("app.core_seal", { context: state.access?.activeContextLabel || roleConfig.workspace })}</strong>
+          <strong>${state.access?.activeContextLabel || roleConfig.workspace}</strong>
         </div>
       </aside>
       <main class="main">
@@ -156,7 +156,7 @@ function renderOnboardingStartForm() {
       <label><input type="checkbox" name="termsConsent" value="true" checked /> ${ui("onboarding.terms")}</label>
       <label><input type="checkbox" name="identityConsent" value="true" checked /> ${ui("onboarding.identity_consent")}</label>
       <label><input type="checkbox" name="documentsConsent" value="true" checked /> ${ui("onboarding.documents_consent")}</label>
-      <button class="action ready" type="submit"><strong>${ui("onboarding.start")}</strong><span>${ui("onboarding.start_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.start")}</strong><span>${ui("onboarding.start_hint")}</span></button>
     </form>
   `;
 }
@@ -170,7 +170,7 @@ function renderOtpForm(user) {
       <input type="hidden" name="userId" value="${user.id}" />
       <label>${ui("onboarding.field.phone")}<input name="phone" value="${user.phone}" disabled /></label>
       <label>${ui("onboarding.otp_code")}<input name="otpCode" value="123456" inputmode="numeric" /></label>
-      <button class="action ready" type="submit"><strong>${ui("onboarding.confirm_phone")}</strong><span>${ui("onboarding.confirm_phone_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.confirm_phone")}</strong><span>${ui("onboarding.confirm_phone_hint")}</span></button>
     </form>
   `;
 }
@@ -187,7 +187,7 @@ function renderAccountForm(user) {
       <label>${ui("onboarding.password")}<input name="passwordMethod" value="passkey_demo" /></label>
       <label>${ui("onboarding.country_of_residence")}<input name="countryOfResidence" value="${user.country || "PL"}" /></label>
       <label>${ui("onboarding.user_type")}<input name="userType" value="transport" /></label>
-      <button class="action ready" type="submit"><strong>${ui("onboarding.create_account")}</strong><span>${ui("onboarding.create_account_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.create_account")}</strong><span>${ui("onboarding.create_account_hint")}</span></button>
     </form>
   `;
 }
@@ -203,7 +203,7 @@ function renderRoleSelectionForm(engine, user) {
       <label>${ui("onboarding.role")}<select name="role">
         ${options.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}
       </select></label>
-      <button class="action ready" type="submit"><strong>${ui("onboarding.save_role")}</strong><span>${ui("onboarding.save_role_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.save_role")}</strong><span>${ui("onboarding.save_role_hint")}</span></button>
     </form>
   `;
 }
@@ -222,7 +222,7 @@ function renderIdentityForm(user) {
       <label>${ui("onboarding.document_country")}<input name="documentCountry" value="${user.country || "PL"}" /></label>
       <label>${ui("onboarding.document_expires")}<input name="documentExpiresAt" value="2030-12-31" /></label>
       <label><input type="checkbox" name="selfieConfirmed" value="true" checked /> ${ui("onboarding.selfie_confirmed")}</label>
-      <button class="action ready" type="submit"><strong>${ui("onboarding.submit_identity")}</strong><span>${ui("onboarding.submit_identity_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.submit_identity")}</strong><span>${ui("onboarding.submit_identity_hint")}</span></button>
     </form>
   `;
 }
@@ -238,7 +238,7 @@ function renderRoleDocumentsForm(engine, user, missingDocs) {
       ${engine.modules.onboarding.requirementsForRole(user.selectedRole).map((doc) => `
         <label><input type="checkbox" name="${doc}" value="true" ${missingDocs.includes(doc) ? "checked" : "checked"} /> ${valueLabel(doc)}</label>
       `).join("")}
-      <button class="action ready" type="submit"><strong>${ui("onboarding.submit_role_documents")}</strong><span>${ui("onboarding.submit_role_documents_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.submit_role_documents")}</strong><span>${ui("onboarding.submit_role_documents_hint")}</span></button>
     </form>
   `;
 }
@@ -254,7 +254,7 @@ function renderCompanyForm(user) {
       <label>${ui("onboarding.vat")}<input name="vatEu" value="PL1234567890" /></label>
       <label><input type="checkbox" name="companyDocuments" value="true" checked /> ${ui("onboarding.company_documents")}</label>
       <label><input type="checkbox" name="walletReady" value="true" checked /> ${ui("onboarding.wallet_ready")}</label>
-      <button class="action ready" type="submit"><strong>${ui("onboarding.save_company")}</strong><span>${ui("onboarding.save_company_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.save_company")}</strong><span>${ui("onboarding.save_company_hint")}</span></button>
     </form>
   `;
 }
@@ -267,7 +267,7 @@ function renderOnboardingApprovalForm(user) {
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_APPROVE}">
       <input type="hidden" name="userId" value="${user.id}" />
       <input type="hidden" name="role" value="${user.selectedRole}" />
-      <button class="action ready" type="submit"><strong>${ui("onboarding.approve_demo")}</strong><span>${ui("onboarding.approve_demo_hint")}</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>${ui("onboarding.approve_demo")}</strong><span>${ui("onboarding.approve_demo_hint")}</span></button>
     </form>
   `;
 }
@@ -306,7 +306,7 @@ function onboardingCompanyRequired(user) {
 function renderAppNavigation(state, activeView) {
   const items = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   const buttons = items.map((item) => `
-    <button class="module-nav-button ${activeView === item.id ? "active" : ""}" data-module-route="${item.route}" data-view="${item.id}">
+    <button class="module-nav-button ${activeView === item.id ? "active" : ""}" data-ui-type="details" data-module-route="${item.route}" data-view="${item.id}">
       <span class="module-icon">${item.icon}</span>
       <span>${item.label}</span>
     </button>
@@ -324,10 +324,11 @@ function renderAppNavigation(state, activeView) {
 
 function renderTopbar(state, activeView, roleConfig) {
   const contexts = state.access?.contextOptions || [];
+  const developer = canViewDeveloperPanel(state);
   return `
     <header class="topbar">
       <div>
-        <span class="eyebrow">${roleConfig.workspace} / GL Enterprise II</span>
+        <span class="eyebrow">${state.access?.activeContextLabel || roleConfig.workspace}</span>
         <h1>${viewTitle(state.session.role, activeView, state.access?.actor || { role: state.session.role })}</h1>
       </div>
       <div class="role-login">
@@ -341,15 +342,22 @@ function renderTopbar(state, activeView, roleConfig) {
             </select>
           </label>
         ` : ""}
-        <label>
-          <span>${ui("topbar.active_role")}</span>
-          <select data-role-select aria-label="${ui("topbar.active_role")}">
-            ${AllRoles.map((role) => `
-              <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role]}</option>
-            `).join("")}
-          </select>
-        </label>
-        <button class="reset-demo" data-reset-demo="true">${ui("topbar.reset_demo")}</button>
+        ${developer ? `
+          <label>
+            <span>${ui("topbar.active_role")}</span>
+            <select data-role-select aria-label="${ui("topbar.active_role")}">
+              ${AllRoles.map((role) => `
+                <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role]}</option>
+              `).join("")}
+            </select>
+          </label>
+          <button class="reset-demo" data-ui-type="action" data-reset-demo="true">${ui("topbar.reset_demo")}</button>
+        ` : `
+          <div class="role-badge">
+            <span>${ui("topbar.active_role")}</span>
+            <strong>${RoleLabels[state.session.role] || valueLabel(state.session.role)}</strong>
+          </div>
+        `}
       </div>
     </header>
   `;
@@ -357,6 +365,16 @@ function renderTopbar(state, activeView, roleConfig) {
 
 function renderLastResult(state) {
   const result = state.session.lastResult;
+  const developer = canViewDeveloperPanel(state);
+  if (!developer) {
+    if (!result || result.ok) return "";
+    return `
+      <section class="business-alert blocked">
+        <strong>${ui("result.blocked")}</strong>
+        <span>${ui("result.blocked_user_message")}</span>
+      </section>
+    `;
+  }
   if (!result) {
     return `
       <section class="result ok">
@@ -371,7 +389,9 @@ function renderLastResult(state) {
   return `
     <section class="result ${result.ok ? "ok" : "blocked"}">
       <strong>${statusLabel}</strong>
-      <span>${result.ok ? result.events.map(valueLabel).join(", ") : result.reasons.map(valueLabel).join("; ")}</span>
+      <span>${developer
+        ? (result.ok ? result.events.map(valueLabel).join(", ") : result.reasons.map(valueLabel).join("; "))
+        : (result.ok ? ui("result.success_user_message") : ui("result.blocked_user_message"))}</span>
     </section>
   `;
 }
@@ -425,7 +445,6 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "integrations") return renderIntegrations(state, engine);
   if (view === "compliance") return renderCompliance(state, engine, selected);
   if (view === "resilience") return renderResilience(state, engine);
-  if (view === "trust") return renderTrust(state);
   if (view === "ai") return renderAi(state, engine, selected);
   if (view === "audit") return renderAudit(state);
   if (view === "admin") return renderAdmin(state, engine, selected);
@@ -433,32 +452,368 @@ function renderView(state, engine, selected, activeView = state.session.view) {
 }
 
 function renderDashboard(state, engine, selected) {
-  const dashboardBlocked = state.transports.filter((transport) => transport.status === TransportStatuses.BLOCKED || transport.riskFlagged).length;
-  const dashboardModules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
+  const metrics = dashboardOperationalMetrics(state, selected);
+  const modules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   return `
-    <section class="metrics">
-      ${metric(ui("dashboard.metrics.modules"), dashboardModules.length, ui("dashboard.metrics.modules_scope"))}
-      ${metric(ui("dashboard.metrics.transports"), state.transports.length, ui("dashboard.metrics.blocked_risks", { count: dashboardBlocked }))}
-      ${metric(ui("dashboard.metrics.documents"), state.documents.length, ui("dashboard.metrics.documents_scope"))}
-      ${metric(ui("dashboard.metrics.events"), state.events.length, ui("dashboard.metrics.event_bus"))}
-      ${metric(ui("dashboard.metrics.audit"), state.audit.length, ui("dashboard.metrics.read_only"))}
+    <section class="business-dashboard">
+      ${renderWorkspaceHero(state, selected)}
+      <section class="business-metrics">
+        ${metrics.map((item) => metric(item.label, item.value, item.sub)).join("")}
+      </section>
+      <section class="workspace-grid">
+        ${renderTodayWorkPanel(state, selected)}
+        ${renderBusinessFocusPanel(state, engine, selected)}
+        ${renderBusinessNotificationsPanel(state, selected)}
+      </section>
+      ${renderBusinessModuleLauncher(modules)}
     </section>
-    <section class="grid two">
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <span class="eyebrow">${ui("dashboard.eyebrow")}</span>
-            <h2>${ui("dashboard.title")}</h2>
+  `;
+}
+
+function renderWorkspaceHero(state, selected) {
+  const subject = resolveProfileSubject(state);
+  const rating = profileRating(state, subject);
+  return `
+    <section class="workspace-hero">
+      <div>
+        <span class="eyebrow">${dashboardTitleForRole(state.session.role)}</span>
+        <h2>${roleDashboardIntro(state, selected)}</h2>
+        <p>${roleDashboardDescription(state)}</p>
+      </div>
+      <button class="workspace-identity detail-card" data-ui-type="details" data-profile-card="self" data-profile-target="${subject.id}" data-profile-type="${subject.kind}">
+        <div class="profile-avatar">${profileInitials(subject.name)}</div>
+        <div>
+          <span>${subject.name}</span>
+          <strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong>
+          <small>${state.access?.activeContextLabel || subject.roleLabel}</small>
+        </div>
+        <small class="detail-hint">Zobacz profil</small>
+      </button>
+    </section>
+  `;
+}
+
+function renderTodayWorkPanel(state, selected) {
+  const tasks = dashboardTasks(state, selected);
+  return `
+    <article class="panel business-panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Dzisiaj</span>
+          <h2>Najważniejsze zadania</h2>
+        </div>
+      </div>
+      <div class="business-list">
+        ${tasks.map((task) => `
+          <div class="business-row" data-ui-type="info">
+            <strong>${task.title}</strong>
+            <span>${task.value}</span>
+            <small>${task.note}</small>
           </div>
+        `).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderBusinessFocusPanel(state, engine, selected) {
+  if (!selected) return renderNoTransport(state, engine);
+  const progress = StatusProgress[selected.status] ?? 10;
+  return `
+    <article class="panel business-panel transport-focus detail-card" data-ui-type="details" data-detail-route="/transports" data-transport="${selected.id}">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Aktywny transport</span>
+          <h2>${selected.number}</h2>
         </div>
-        <p class="muted">${ui("dashboard.description")}</p>
-        <div class="pipeline">
-          ${["dashboard.pipeline.menu", "dashboard.pipeline.permissions", "dashboard.pipeline.route_guard", "dashboard.pipeline.engine", "dashboard.pipeline.database", "dashboard.pipeline.events", "dashboard.pipeline.audit"].map((key) => `<span>${ui(key)}</span>`).join("")}
+        <mark class="${tone(selected.status)}">${valueLabel(selected.status)}</mark>
+      </div>
+      <p class="muted">${selected.cargo.description}</p>
+      <div class="route-points">
+        <div><span>Załadunek</span><strong>${selected.pickup.address}</strong></div>
+        <div><span>Dostawa</span><strong>${selected.delivery.address}</strong></div>
+      </div>
+      <div class="progress">
+        <span style="width:${progress}%"></span>
+      </div>
+      <div class="detail-grid">
+        <div><span>ETA</span><strong>${selected.eta ? formatTime(selected.eta) : "brak"}</strong></div>
+        <div><span>Kierowca</span><strong>${selected.driverId ? profileLink(state, selected.driverId, "user") : ui("ui.not_assigned")}</strong></div>
+        <div><span>Przewoźnik</span><strong>${selected.carrierCompanyId ? profileLink(state, selected.carrierCompanyId, "company") : ui("ui.not_assigned")}</strong></div>
+        <div><span>Płatność</span><strong>${state.access?.canViewFinancials ? valueLabel(selected.paymentStatus) : ui("ui.restricted")}</strong></div>
+      </div>
+      <small class="detail-hint">Zobacz szczegóły transportu</small>
+    </article>
+  `;
+}
+
+function renderBusinessNotificationsPanel(state, selected) {
+  const items = operationalActivity(state, selected).slice(0, 4);
+  return `
+    <article class="panel business-panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Komunikaty</span>
+          <h2>Ostatnia aktywność</h2>
         </div>
-      </article>
-      ${selected ? renderTransportCard(state, selected) : renderNoTransport(state, engine)}
+      </div>
+      <div class="business-list">
+        ${items.map((item) => `
+          <div class="business-row" data-ui-type="info">
+            <strong>${item.title}</strong>
+            <span>${item.value}</span>
+            <small>${item.note}</small>
+          </div>
+        `).join("") || `<p class="muted">Brak nowych komunikatów.</p>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderBusinessModuleLauncher(modules) {
+  return `
+    <section class="panel module-menu-panel business-modules">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">${ui("app.available_functions")}</span>
+          <h2>${ui("app.module_menu")}</h2>
+        </div>
+      </div>
+      <div class="module-tile-grid">
+        ${modules.map((module) => `
+          <button class="module-tile" data-ui-type="details" data-module-route="${module.route}" data-view="${module.id}">
+            <span class="module-icon">${module.icon}</span>
+            <strong>${valueLabel(module.label)}</strong>
+            <small>${module.description ? valueLabel(module.description) : ui("app.available_for_role")}</small>
+          </button>
+        `).join("")}
+      </div>
     </section>
-    ${renderModuleMenuPanel(state)}
+  `;
+}
+
+function roleDashboardIntro(state, selected) {
+  if (state.session.role === Roles.DRIVER) return selected ? `Następny kurs: ${selected.number}` : "Twoje zadania na dziś";
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(state.session.role)) return selected ? `Ładunek ${selected.number}` : "Twoje ładunki i płatności";
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(state.session.role)) return "Transporty, kierowcy i flota";
+  if (state.session.role === Roles.WAREHOUSE_WORKER) return "Kolejka ramp i dokumenty";
+  if (state.session.role === Roles.INSURANCE_PARTNER) return "Polisy, szkody i ocena ryzyka";
+  if ([Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE].includes(state.session.role)) return "Zlecenia serwisowe i rozliczenia";
+  return "Twoje centrum pracy";
+}
+
+function roleDashboardDescription(state) {
+  if (canViewDeveloperPanel(state)) return "Widok operacyjny platformy. Dane techniczne są dostępne w module System.";
+  return "Widzisz tylko informacje i funkcje potrzebne w aktywnym kontekście pracy.";
+}
+
+function dashboardOperationalMetrics(state, selected) {
+  const role = state.session.role;
+  const companyId = state.session.companyId;
+  const userId = state.session.userId;
+  const companyTransports = state.transports.filter((transport) => (
+    transport.clientCompanyId === companyId
+    || transport.carrierCompanyId === companyId
+    || transport.driverId === userId
+    || transport.warehouseWorkerId === userId
+  ));
+  const selectedDocs = selected ? state.documents.filter((doc) => doc.transportId === selected.id).length : state.documents.length;
+  const selectedMessages = selected ? (state.messages || []).filter((message) => message.transportId === selected.id).length : (state.messages || []).length;
+
+  if (role === Roles.DRIVER) {
+    const driverTransports = state.transports.filter((transport) => transport.driverId === userId);
+    const time = state.driverTime.find((item) => item.driverId === userId);
+    return [
+      { label: ui("dashboard.metric.my_transports"), value: driverTransports.length, sub: ui("dashboard.metric.today") },
+      { label: ui("dashboard.metric.route_status"), value: valueLabel(selected?.status || ui("ui.missing")), sub: selected?.number || ui("ui.not_assigned") },
+      { label: ui("dashboard.metric.eta"), value: selected?.eta ? formatTime(selected.eta) : ui("ui.missing"), sub: ui("dashboard.metric.delivery") },
+      { label: ui("dashboard.metric.work_time"), value: time ? `${time.remainingLegalHours}h` : ui("ui.missing"), sub: ui("dashboard.metric.legal_time") },
+      { label: ui("dashboard.metric.documents"), value: selectedDocs, sub: ui("dashboard.metric.transport_files") }
+    ];
+  }
+
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(role)) {
+    return [
+      { label: ui("dashboard.metric.fleet_transports"), value: companyTransports.length, sub: ui("dashboard.metric.active_scope") },
+      { label: ui("dashboard.metric.vehicles"), value: state.vehicles.filter((vehicle) => vehicle.companyId === companyId).length, sub: ui("dashboard.metric.ready") },
+      { label: ui("dashboard.metric.drivers"), value: state.users.filter((user) => user.companyId === companyId && user.roles?.includes(Roles.DRIVER)).length, sub: ui("dashboard.metric.team") },
+      { label: ui("dashboard.metric.service_orders"), value: (state.serviceRequests || []).filter((item) => item.carrierCompanyId === companyId).length, sub: ui("dashboard.metric.on_route") },
+      { label: ui("dashboard.metric.notifications"), value: selectedMessages, sub: ui("dashboard.metric.messages") }
+    ];
+  }
+
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(role)) {
+    const clientTransports = state.transports.filter((transport) => transport.clientCompanyId === companyId);
+    return [
+      { label: ui("dashboard.metric.loads"), value: clientTransports.length, sub: ui("dashboard.metric.active_scope") },
+      { label: ui("dashboard.metric.route_status"), value: valueLabel(selected?.status || ui("ui.missing")), sub: selected?.number || ui("ui.not_assigned") },
+      { label: ui("dashboard.metric.documents"), value: selectedDocs, sub: ui("dashboard.metric.transport_files") },
+      { label: ui("dashboard.metric.payments"), value: state.payments.filter((payment) => clientTransports.some((transport) => transport.id === payment.transportId)).length, sub: ui("dashboard.metric.payment_status") },
+      { label: ui("dashboard.metric.notifications"), value: selectedMessages, sub: ui("dashboard.metric.messages") }
+    ];
+  }
+
+  if (role === Roles.WAREHOUSE_WORKER) {
+    const queue = state.transports.filter((transport) => transport.warehouseWorkerId === userId);
+    return [
+      { label: ui("dashboard.metric.queue"), value: queue.length, sub: ui("dashboard.metric.loading") },
+      { label: ui("dashboard.metric.photos"), value: state.photos.filter((photo) => queue.some((transport) => transport.id === photo.transportId)).length, sub: ui("dashboard.metric.transport_files") },
+      { label: ui("dashboard.metric.documents"), value: selectedDocs, sub: ui("dashboard.metric.transport_files") },
+      { label: ui("dashboard.metric.route_status"), value: valueLabel(selected?.status || ui("ui.missing")), sub: selected?.number || ui("ui.not_assigned") },
+      { label: ui("dashboard.metric.notifications"), value: selectedMessages, sub: ui("dashboard.metric.messages") }
+    ];
+  }
+
+  if (role === Roles.INSURANCE_PARTNER) {
+    return [
+      { label: ui("dashboard.metric.policies"), value: state.insurancePolicies.length, sub: ui("dashboard.metric.active_scope") },
+      { label: ui("dashboard.metric.claims"), value: (state.claims || []).length, sub: ui("dashboard.metric.open_cases") },
+      { label: ui("dashboard.metric.risk"), value: state.aiAlerts.length, sub: ui("dashboard.metric.to_review") },
+      { label: ui("dashboard.metric.documents"), value: state.documents.length, sub: ui("dashboard.metric.case_files") },
+      { label: ui("dashboard.metric.payments"), value: state.settlements.filter((item) => item.ownerCompanyId === companyId).length, sub: ui("dashboard.metric.payment_status") }
+    ];
+  }
+
+  if ([Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE].includes(role)) {
+    return [
+      { label: ui("dashboard.metric.service_orders"), value: (state.serviceRequests || []).filter((item) => item.providerCompanyId === companyId).length, sub: ui("dashboard.metric.active_scope") },
+      { label: ui("dashboard.metric.payments"), value: (state.servicePayments || []).filter((item) => item.providerCompanyId === companyId).length, sub: ui("dashboard.metric.payment_status") },
+      { label: ui("dashboard.metric.invoices"), value: state.invoices.filter((item) => item.ownerCompanyId === companyId).length, sub: ui("dashboard.metric.documents") },
+      { label: ui("dashboard.metric.notifications"), value: selectedMessages, sub: ui("dashboard.metric.messages") },
+      { label: ui("dashboard.metric.profile_rating"), value: profileRating(state, resolveProfileSubject(state)).label || ui("profile.no_reviews"), sub: ui("profile.reputation") }
+    ];
+  }
+
+  return [
+    { label: ui("dashboard.metric.active_transports"), value: companyTransports.length || state.transports.length, sub: ui("dashboard.metric.active_scope") },
+    { label: ui("dashboard.metric.documents"), value: selectedDocs, sub: ui("dashboard.metric.transport_files") },
+    { label: ui("dashboard.metric.notifications"), value: selectedMessages, sub: ui("dashboard.metric.messages") },
+    { label: ui("dashboard.metric.profile_rating"), value: profileRating(state, resolveProfileSubject(state)).label || ui("profile.no_reviews"), sub: ui("profile.reputation") },
+    { label: ui("dashboard.metric.route_status"), value: valueLabel(selected?.status || ui("ui.missing")), sub: selected?.number || ui("ui.not_assigned") }
+  ];
+}
+
+function renderRoleWorkPanel(state, selected) {
+  const tasks = dashboardTasks(state, selected);
+  return `
+    <article class="panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">${ui("dashboard.eyebrow")}</span>
+          <h2>${dashboardTitleForRole(state.session.role)}</h2>
+        </div>
+      </div>
+      <p class="muted">${ui("dashboard.description")}</p>
+      <div class="list compact-list">
+        ${tasks.map((task) => `
+          <div class="row">
+            <strong>${task.title}</strong>
+            <span>${task.value}</span>
+            <small>${task.note}</small>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function dashboardTasks(state, selected) {
+  if (state.session.role === Roles.DRIVER) {
+    return [
+      { title: ui("dashboard.task.next_stop"), value: selected?.delivery?.address || ui("ui.missing"), note: ui("dashboard.metric.delivery") },
+      { title: ui("dashboard.task.documents"), value: selected ? `${selected.documentIds.length}` : "0", note: ui("dashboard.metric.transport_files") },
+      { title: ui("dashboard.task.messages"), value: `${(state.messages || []).filter((message) => !selected || message.transportId === selected.id).length}`, note: ui("dashboard.metric.messages") }
+    ];
+  }
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(state.session.role)) {
+    return [
+      { title: ui("dashboard.task.current_transport"), value: selected?.number || ui("ui.missing"), note: valueLabel(selected?.status || ui("ui.missing")) },
+      { title: ui("dashboard.task.carrier"), value: selected?.carrierCompanyId ? companyName(state, selected.carrierCompanyId) : ui("ui.not_assigned"), note: ui("profile.reputation") },
+      { title: ui("dashboard.task.payment"), value: selected ? valueLabel(selected.paymentStatus) : ui("ui.missing"), note: ui("dashboard.metric.payment_status") }
+    ];
+  }
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(state.session.role)) {
+    return [
+      { title: ui("dashboard.task.current_transport"), value: selected?.number || ui("ui.missing"), note: valueLabel(selected?.status || ui("ui.missing")) },
+      { title: ui("dashboard.task.driver"), value: selected?.driverId ? userName(state, selected.driverId) : ui("ui.not_assigned"), note: ui("dashboard.metric.team") },
+      { title: ui("dashboard.task.vehicle"), value: selected?.vehicleId ? vehiclePlate(state, selected.vehicleId) : ui("ui.not_assigned"), note: ui("dashboard.metric.ready") }
+    ];
+  }
+  return [
+    { title: ui("dashboard.task.current_transport"), value: selected?.number || ui("ui.missing"), note: valueLabel(selected?.status || ui("ui.missing")) },
+    { title: ui("dashboard.task.documents"), value: selected ? `${selected.documentIds.length}` : `${state.documents.length}`, note: ui("dashboard.metric.transport_files") },
+    { title: ui("dashboard.task.messages"), value: `${(state.messages || []).filter((message) => !selected || message.transportId === selected.id).length}`, note: ui("dashboard.metric.messages") }
+  ];
+}
+
+function dashboardTitleForRole(role) {
+  if (role === Roles.DRIVER) return ui("dashboard.title.driver");
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(role)) return ui("dashboard.title.client");
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(role)) return ui("dashboard.title.carrier");
+  if (role === Roles.WAREHOUSE_WORKER) return ui("dashboard.title.warehouse");
+  if (role === Roles.INSURANCE_PARTNER) return ui("dashboard.title.insurer");
+  if ([Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE].includes(role)) return ui("dashboard.title.service");
+  if (canViewDeveloperRole(role)) return ui("dashboard.title.platform");
+  return ui("dashboard.title");
+}
+
+function renderSelfProfileCard(state) {
+  const user = state.users.find((item) => item.id === state.session.userId);
+  const subject = profileSubjectForUser(state, user);
+  const rating = profileRating(state, subject);
+  return `
+    <article class="panel profile-card" data-profile-card="self">
+      <div class="profile-card-head">
+        <div class="profile-avatar">${profileInitials(subject.name)}</div>
+        <div>
+          <span class="eyebrow">${ui("profile.card_title")}</span>
+          <h2>${subject.name}</h2>
+          <div class="stars" aria-label="${ui("profile.rating")} ${rating.label}">${renderStars(rating.value)}</div>
+        </div>
+      </div>
+      <p class="muted">${ui("profile.card_hint")}</p>
+      <div class="profile-card-score">
+        <strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong>
+        <span>${rating.hasRating ? ui("profile.reviews_count", { count: rating.reviewCount }) : ui("profile.no_reviews")}</span>
+      </div>
+      <button class="detail-button" data-ui-type="details" data-profile-target="${subject.id}" data-profile-type="${subject.kind}">
+        <strong>${ui("profile.open_my_profile")}</strong>
+        <span>${ui("profile.public_scope")}</span>
+      </button>
+    </article>
+  `;
+}
+
+function renderProfilePreviewPanel(state) {
+  const selected = selectedTransport(state);
+  if (!selected) return renderSelfProfileCard(state);
+  const participants = [
+    profileParticipant(state, selected.clientCompanyId, "company"),
+    profileParticipant(state, selected.carrierCompanyId, "company"),
+    profileParticipant(state, selected.driverId, "user"),
+    profileParticipant(state, selected.warehouseWorkerId, "user")
+  ].filter(Boolean);
+  return `
+    <article class="panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">${ui("profile.reputation")}</span>
+          <h2>${ui("profile.cooperation_history")}</h2>
+        </div>
+      </div>
+      <div class="list">
+        ${participants.map((participant) => {
+          const rating = profileRating(state, participant);
+          return `
+            <button class="row profile-row detail-card" data-ui-type="details" data-profile-target="${participant.id}" data-profile-type="${participant.kind}">
+              <strong>${participant.name}</strong>
+              <span>${participant.roleLabel}</span>
+              <small>${renderStars(rating.value)} ${rating.hasRating ? rating.label : ui("profile.no_reviews")}</small>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </article>
   `;
 }
 
@@ -466,15 +821,15 @@ function renderModuleMenuPanel(state) {
   const modules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
   return `
     <section class="panel module-menu-panel">
-        <div class="panel-head">
+      <div class="panel-head">
         <div>
-          <span class="eyebrow">${ui("ui.permission_guard")}</span>
+          <span class="eyebrow">${ui("app.available_functions")}</span>
           <h2>${ui("app.module_menu")}</h2>
         </div>
       </div>
       <div class="module-tile-grid">
         ${modules.map((module) => `
-          <button class="module-tile" data-module-route="${module.route}" data-view="${module.id}">
+          <button class="module-tile" data-ui-type="details" data-module-route="${module.route}" data-view="${module.id}">
             <span class="module-icon">${module.icon}</span>
             <strong>${valueLabel(module.label)}</strong>
             <small>${ui("app.available_for_role")}</small>
@@ -540,7 +895,7 @@ function renderRoles(state, engine) {
       <div class="role-grid">
         ${AllRoles.map((role) => `
           <article class="role-card ${state.session.role === role ? "active" : ""}">
-            <button data-role="${role}">${RoleLabels[role]}</button>
+            <button data-ui-type="action" data-role="${role}">${RoleLabels[role]}</button>
             <p>${engine.modules.permissions.listForRole(role).slice(0, 8).join(", ")}</p>
           </article>
         `).join("")}
@@ -551,26 +906,29 @@ function renderRoles(state, engine) {
 
 function renderTransportList(state) {
   if (!state.transports.length) return renderNoTransportTable();
+  const selected = selectedTransport(state);
   return `
+    ${selected ? renderTransportCard(state, selected) : ""}
     <section class="panel">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Transport Engine</span>
-          <h2>Centralny obiekt systemu</h2>
+          <span class="eyebrow">Transporty</span>
+          <h2>Aktywne zlecenia</h2>
         </div>
       </div>
       <div class="transport-table">
         <div class="table-row table-head">
-          <span>ID</span><span>Klient</span><span>Przewoznik</span><span>Status</span><span>GPS</span><span>Platnosc</span>
+          <span>Transport</span><span>Klient</span><span>Przewoznik</span><span>Status</span><span>Trasa</span><span>Platnosc</span>
         </div>
         ${state.transports.map((transport) => `
-          <button class="table-row ${state.session.selectedTransportId === transport.id ? "selected" : ""}" data-transport="${transport.id}">
+          <button class="table-row detail-card ${state.session.selectedTransportId === transport.id ? "selected" : ""}" data-ui-type="details" data-detail-route="/transports" data-transport="${transport.id}">
             <span>${transport.number}</span>
-            <span>${companyName(state, transport.clientCompanyId)}</span>
-            <span>${companyName(state, transport.carrierCompanyId) || "not assigned"}</span>
-            <span><mark class="${tone(transport.status)}">${transport.status}</mark></span>
-            <span>${transport.pickup.gps && transport.delivery.gps ? "confirmed" : "missing"}</span>
-            <span>${state.access?.canViewFinancials ? transport.paymentStatus : "restricted"}</span>
+            <span>${profileLink(state, transport.clientCompanyId, "company")}</span>
+            <span>${transport.carrierCompanyId ? profileLink(state, transport.carrierCompanyId, "company") : ui("ui.not_assigned")}</span>
+            <span><mark class="${tone(transport.status)}">${valueLabel(transport.status)}</mark></span>
+            <span>${transport.pickup.gps && transport.delivery.gps ? ui("ui.confirmed") : ui("ui.missing")}</span>
+            <span>${state.access?.canViewFinancials ? valueLabel(transport.paymentStatus) : ui("ui.restricted")}</span>
+            <small class="detail-hint">Zobacz szczegóły</small>
           </button>
         `).join("")}
       </div>
@@ -583,24 +941,24 @@ function renderShipments(state) {
     <section class="panel">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Shipment Engine</span>
-          <h2>Oddzielne shipment_id dla kazdego ladunku</h2>
+          <span class="eyebrow">Ładunki</span>
+          <h2>Ładunki w obsłudze</h2>
         </div>
       </div>
       <div class="transport-table compact-table">
         <div class="table-row table-head">
-          <span>ID</span><span>Transport</span><span>Client</span><span>Status</span><span>Photos</span><span>Docs</span>
+          <span>Ładunek</span><span>Transport</span><span>Klient</span><span>Status</span><span>Zdjęcia</span><span>Dokumenty</span>
         </div>
         ${state.shipments.map((shipment) => `
-          <div class="table-row">
+          <div class="table-row" data-ui-type="info">
             <span>${shipment.id}</span>
             <span>${transportNumber(state, shipment.transportId)}</span>
             <span>${companyName(state, shipment.clientCompanyId)}</span>
-            <span><mark class="${tone(shipment.status)}">${shipment.status}</mark></span>
+            <span><mark class="${tone(shipment.status)}">${valueLabel(shipment.status)}</mark></span>
             <span>${shipment.photoIds.length}</span>
             <span>${shipment.documentIds.length}</span>
           </div>
-        `).join("") || `<p class="muted">No visible shipments for this role.</p>`}
+        `).join("") || `<p class="muted">Brak ładunków widocznych dla tej roli.</p>`}
       </div>
     </section>
   `;
@@ -611,7 +969,7 @@ function renderDetails(state, engine, selected) {
     <section class="grid two">
       ${renderTransportCard(state, selected)}
       <article class="panel">
-        <h2>Workflow blockers</h2>
+        <h2>Kolejne kroki</h2>
         <div class="blockers">
           ${blockerList(engine, selected)}
         </div>
@@ -619,7 +977,7 @@ function renderDetails(state, engine, selected) {
     </section>
     <section class="grid two">
       ${renderTimeline(state, selected)}
-      ${renderAuditSlice(state, selected)}
+      ${canViewDeveloperPanel(state) ? renderAuditSlice(state, selected) : renderPhotoList(state, selected)}
     </section>
   `;
 }
@@ -630,19 +988,19 @@ function renderCreateLoad(state, engine, selected) {
       <article class="panel">
         <div class="panel-head">
           <div>
-            <span class="eyebrow">Create load</span>
-            <h2>Nowy transport przechodzi przez Core Engine</h2>
+            <span class="eyebrow">Nowy ładunek</span>
+            <h2>Utwórz transport</h2>
           </div>
         </div>
         ${renderCreateTransportForm(state)}
         <div class="actions">
-          ${actionButton(engine, ActionTypes.CREATE_LOAD, "Utworz ladunek demo", {
+          ${actionButton(engine, ActionTypes.CREATE_LOAD, "Utworz ladunek", {
             clientCompanyId: "co-client-a",
-            pickupAddress: "Wroclaw demo pickup",
-            deliveryAddress: "Prague demo delivery",
+            pickupAddress: "Wroclaw pickup",
+            deliveryAddress: "Prague delivery",
             pickupGps: { lat: 51.1079, lng: 17.0385 },
             deliveryGps: { lat: 50.0755, lng: 14.4378 },
-            description: "Nowy ladunek z Core Engine",
+            description: "Nowy ladunek",
             weightKg: 1800,
             dimensions: "6 palet",
             price: 1600,
@@ -662,9 +1020,9 @@ function renderWarehouse(state, engine, selected) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">Photo Engine</span>
-        <h2>Warehouse photo step</h2>
-        <p class="muted">Przed publikacja musi istniec zdjecie ladunku. Zdjecia trafiaja do dokumentacji i audytu.</p>
+        <span class="eyebrow">Załadunek</span>
+        <h2>Zdjęcia i potwierdzenie</h2>
+        <p class="muted">Przed publikacją i załadunkiem dodaj zdjęcia przypisane do transportu.</p>
         ${renderPhotoForm(selected)}
         <div class="actions">
           ${actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Zdjecie przed publikacja", { transportId: selected.id, type: "pre_publish_load", label: "Ladunek przed publikacja" })}
@@ -681,13 +1039,13 @@ function renderCarrier(state, engine, selected) {
   const carriers = state.companies.filter((company) => company.type === "carrier");
   return `
     <section class="panel">
-      <span class="eyebrow">Carrier acceptance</span>
-      <h2>Trust score blokuje ryzykownych przewoznikow</h2>
+      <span class="eyebrow">Przewoźnik</span>
+      <h2>Wybór przewoźnika</h2>
       <div class="card-grid">
         ${carriers.map((carrier) => `
-          <article class="mini-card">
-            <strong>${carrier.name}</strong>
-            <span>Trust ${carrier.trustScore}</span>
+          <article class="mini-card" data-ui-type="info">
+            <strong>${profileLink(state, carrier.id, "company")}</strong>
+            <span>${renderStars(profileRating(state, profileParticipant(state, carrier.id, "company")).value)}</span>
             ${actionButton(engine, ActionTypes.ACCEPT_CARRIER, "Akceptuj przewoznika", { transportId: selected.id, carrierCompanyId: carrier.id })}
           </article>
         `).join("")}
@@ -700,16 +1058,16 @@ function renderDriverAssignment(state, engine, selected) {
   const drivers = state.users.filter((user) => user.roles.includes(Roles.DRIVER));
   return `
     <section class="panel">
-      <span class="eyebrow">Driver Time Engine</span>
-      <h2>Driver assignment</h2>
+      <span class="eyebrow">Kierowca</span>
+      <h2>Przypisanie kierowcy</h2>
       ${renderDriverAssignmentForm(state, selected)}
       <div class="card-grid">
         ${drivers.map((driver) => {
           const vehicle = state.vehicles.find((item) => item.companyId === driver.companyId);
           return `
-            <article class="mini-card">
-              <strong>${driver.name}</strong>
-              <span>${companyName(state, driver.companyId)} / docs ${driver.documentsValid ? "valid" : "invalid"}</span>
+            <article class="mini-card" data-ui-type="info">
+              <strong>${profileLink(state, driver.id, "user")}</strong>
+              <span>${companyName(state, driver.companyId)} / dokumenty ${driver.documentsValid ? ui("ui.valid") : ui("ui.invalid")}</span>
               <span>${driverTimeLabel(state, driver.id)}</span>
               ${actionButton(engine, ActionTypes.ASSIGN_DRIVER, "Przypisz", { transportId: selected.id, driverId: driver.id, vehicleId: vehicle?.id })}
             </article>
@@ -724,13 +1082,13 @@ function renderGps(state, engine, selected) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">GPS pipeline</span>
-        <h2>Koordynaty sa wymagane</h2>
+        <span class="eyebrow">GL GPS</span>
+        <h2>Pozycja i trasa</h2>
         <img class="map" src="./assets/route-network.svg" alt="GL route network" />
         <div class="detail-grid">
-          <div><span>Pickup</span><strong>${gpsLabel(selected.pickup.gps)}</strong></div>
-          <div><span>Delivery</span><strong>${gpsLabel(selected.delivery.gps)}</strong></div>
-          <div><span>Deviation</span><strong>${selected.routeDeviation ? "yes" : "no"}</strong></div>
+          <div><span>Załadunek</span><strong>${gpsLabel(selected.pickup.gps)}</strong></div>
+          <div><span>Dostawa</span><strong>${gpsLabel(selected.delivery.gps)}</strong></div>
+          <div><span>Odchylenie trasy</span><strong>${selected.routeDeviation ? ui("ui.yes") : ui("ui.no")}</strong></div>
         </div>
         ${renderGpsForm(selected)}
         ${actionButton(engine, ActionTypes.CONFIRM_GPS, "Potwierdz wybrany GPS", { transportId: selected.id, pickupGps: { lat: 54.352, lng: 18.6466 }, deliveryGps: { lat: 52.52, lng: 13.405 } })}
@@ -744,17 +1102,17 @@ function renderParking(state, engine, selected) {
   return `
     <section class="panel">
       <span class="eyebrow">Parking Live Network</span>
-      <h2>Reports affect trust score</h2>
+      <h2>Dostępne parkingi</h2>
       ${renderParkingReportForm(state)}
       <div class="card-grid">
         ${state.parking.map((parking) => `
-          <article class="mini-card">
+          <article class="mini-card" data-ui-type="info">
             <strong>${parking.name}</strong>
-            <span>${parking.freePlaces} free / trust ${parking.trustScore}</span>
+            <span>${parking.freePlaces} wolnych miejsc / ocena ${parking.trustScore}</span>
             <span>${parking.amenities.join(", ")}</span>
             ${actionButton(engine, ActionTypes.SELECT_PARKING, "Wybierz", { transportId: selected.id, parkingId: parking.id })}
             ${actionButton(engine, ActionTypes.PARKING_REPORT, "Zglos wolne miejsca", { parkingId: parking.id, freePlaces: parking.freePlaces + 2, photoAdded: true, credible: true })}
-            ${actionButton(engine, ActionTypes.PARKING_REPORT, "Falszywe zgloszenie demo", { parkingId: parking.id, freePlaces: 99, photoAdded: false, credible: false })}
+            ${actionButton(engine, ActionTypes.PARKING_REPORT, "Zglos brak potwierdzenia", { parkingId: parking.id, freePlaces: 99, photoAdded: false, credible: false })}
           </article>
         `).join("")}
       </div>
@@ -768,8 +1126,8 @@ function renderDocuments(state, engine, selected) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">Document Engine</span>
-        <h2>Encrypted docs and integrity hashes</h2>
+        <span class="eyebrow">Dokumenty</span>
+        <h2>Dokumenty transportu</h2>
         <div class="actions">
           ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj CMR", { transportId: selected.id, type: "cmr", label: "CMR transportu" })}
           ${actionButton(engine, ActionTypes.UPLOAD_DOCUMENT, "Dodaj potwierdzenie zaladunku", { transportId: selected.id, type: "pickup_confirmation", label: "Potwierdzenie zaladunku" })}
@@ -778,22 +1136,22 @@ function renderDocuments(state, engine, selected) {
         </div>
       </article>
       <article class="panel">
-        <h2>Transport documents</h2>
+        <h2>Lista dokumentów</h2>
         <div class="list">
           ${cmr ? `
             <div class="row">
               <strong>Digital CMR ${cmr.id}</strong>
               <span>${cmr.signatures.join(", ")}</span>
-              <mark class="${tone(cmr.status)}">${cmr.status}</mark>
+              <mark class="${tone(cmr.status)}">${valueLabel(cmr.status)}</mark>
             </div>
           ` : ""}
           ${docs.map((doc) => `
             <div class="row">
               <strong>${doc.label}</strong>
               <span>${doc.type}</span>
-              <small>${doc.integrityHash}</small>
+              <small>${formatTime(doc.uploadedAt)}</small>
             </div>
-          `).join("") || `<p class="muted">No documents for selected transport.</p>`}
+          `).join("") || `<p class="muted">Brak dokumentów dla wybranego transportu.</p>`}
         </div>
       </article>
     </section>
@@ -806,7 +1164,7 @@ function renderPhotos(state, engine, selected) {
       <article class="panel">
         <span class="eyebrow">Zdjecia GL</span>
         <h2>Dowody zdjeciowe transportu</h2>
-        <p class="muted">Zdjecia sa przypisane do transportu, dokumentow i audytu. Modul dziala w trybie demo.</p>
+        <p class="muted">Dodaj zdjęcia załadunku, rozładunku, szkody albo stanu ładunku.</p>
         <div class="actions">
           ${selected ? actionButton(engine, ActionTypes.ADD_LOAD_PHOTO, "Dodaj zdjecie", { transportId: selected.id, type: "loading", label: "Zdjecie transportowe" }) : disabledAction("Dodaj zdjecie", "Brak transportow")}
         </div>
@@ -823,7 +1181,7 @@ function renderAcademy(state) {
       <article class="panel">
         <span class="eyebrow">Akademia GL</span>
         <h2>${isStudent ? "Panel studenta" : "Panel szkolen"}</h2>
-        <p class="muted">Modul szkoleniowy demo dla kierowcow, przewoznikow, compliance i akademii.</p>
+        <p class="muted">Szkolenia i certyfikaty przypisane do aktywnego profilu.</p>
         <div class="detail-grid">
           <div><span>Kursy</span><strong>4</strong></div>
           <div><span>Certyfikaty</span><strong>2</strong></div>
@@ -834,8 +1192,8 @@ function renderAcademy(state) {
         <h2>Program</h2>
         <div class="list">
           <div class="row"><strong>Bezpieczny zaladunek</strong><span>transport</span><mark class="good">gotowe</mark></div>
-          <div class="row"><strong>CMR i dokumenty</strong><span>workflow</span><mark class="warning">w toku</mark></div>
-          <div class="row"><strong>GPS i ETA</strong><span>operacje</span><mark class="good">demo</mark></div>
+          <div class="row"><strong>CMR i dokumenty</strong><span>praktyka</span><mark class="warning">w toku</mark></div>
+          <div class="row"><strong>GPS i ETA</strong><span>trasa</span><mark class="good">gotowe</mark></div>
         </div>
       </article>
     </section>
@@ -919,7 +1277,7 @@ function renderBillingModule(state, mode) {
         <article class="finance-panel">
           <div class="finance-head">
             <div>
-              <span class="eyebrow">${ui("ui.permission_engine")}</span>
+              <span class="eyebrow">${valueLabel("Zakres dostepu")}</span>
               <h2>${valueLabel("Zakres dostepu")}</h2>
             </div>
           </div>
@@ -968,7 +1326,7 @@ function renderOwnWalletRoute(state) {
         <div class="finance-hero-balance">
           <span>${copy.balanceLabel}</span>
           <strong>${formatMoney(totals.available, wallet?.currency || "EUR")}</strong>
-          <small>${wallet?.glWalletId || valueLabel("brak aktywnego portfela")}</small>
+          <small>${wallet ? "konto rozliczeniowe aktywne" : valueLabel("brak aktywnego portfela")}</small>
         </div>
       </div>
 
@@ -986,7 +1344,7 @@ function renderOwnWalletRoute(state) {
               <span class="eyebrow">${copy.accountEyebrow}</span>
               <h2>${copy.accountTitle}</h2>
             </div>
-             <span class="finance-pill">${valueLabel("właściciel")}: ${valueLabel(wallet?.ownerType || "brak")}/${wallet?.ownerId || valueLabel("brak")}</span>
+             <span class="finance-pill">${wallet ? "aktywny zakres rozliczeń" : valueLabel("brak")}</span>
           </div>
           <div class="wallet-card-grid">
             ${wallet ? renderWalletAccount(state, wallet) : `<p class="finance-muted">${valueLabel("Brak portfela przypisanego do tej roli.")}</p>`}
@@ -1014,9 +1372,9 @@ function renderOwnWalletRoute(state) {
               <span class="eyebrow">${ui("finance.transaction_history")}</span>
               <h2>${copy.historyTitle}</h2>
             </div>
-            <span class="finance-pill">${ui("finance.hash_audit")}</span>
+            <span class="finance-pill">płatności i rozliczenia</span>
           </div>
-          ${renderTransactionHistory(state, transactions)}
+          ${renderOwnTransactionHistory(state, transactions)}
         </article>
 
         <article class="finance-panel">
@@ -1153,7 +1511,7 @@ function renderOwnFinanceRows(state, mode, payments, servicePayments, policies, 
           <span>Polisa</span><span>Transport</span><span>Skladka</span><span>Status</span><span>Prowizja GL</span><span>Zakres</span>
         </div>
         ${policies.map((policy) => `
-          <div class="finance-row">
+          <div class="finance-row" data-ui-type="info">
             <span>${policy.number}</span>
             <span>${transportNumber(state, policy.transportId)}</span>
             <strong>${formatMoney(policy.cost, "EUR")}</strong>
@@ -1174,7 +1532,7 @@ function renderOwnFinanceRows(state, mode, payments, servicePayments, policies, 
         ${servicePayments.map((payment) => {
           const request = (state.serviceRequests || []).find((item) => item.id === payment.serviceRequestId);
           return `
-            <div class="finance-row">
+            <div class="finance-row" data-ui-type="info">
               <span>${payment.id}</span>
               <span>${transportNumber(state, payment.transportId)}</span>
               <strong>${formatMoney(payment.amount, payment.currency)}</strong>
@@ -1190,10 +1548,9 @@ function renderOwnFinanceRows(state, mode, payments, servicePayments, policies, 
   return `
     <div class="finance-table transactions">
       <div class="finance-row finance-head-row">
-        <span>ID</span><span>Transport</span><span>Kwota</span><span>Status</span><span>Rozliczenie</span><span>Audit ID</span>
+        <span>Płatność</span><span>Transport</span><span>Kwota</span><span>Status</span><span>Rozliczenie</span><span>Ostatnia zmiana</span>
       </div>
       ${payments.map((payment) => {
-        const transaction = transactions.find((entry) => entry.transportId === payment.transportId);
         const fee = calculateGlFee({ price: payment.amount, currency: payment.currency });
         const settlementLabel = mode === "payouts"
           ? `do wyplaty: ${formatMoney(fee.carrierAmount, payment.currency)}`
@@ -1201,13 +1558,13 @@ function renderOwnFinanceRows(state, mode, payments, servicePayments, policies, 
           ? "escrow transportu"
           : "faktura / status";
         return `
-          <div class="finance-row">
+          <div class="finance-row" data-ui-type="info">
             <span>${payment.id}</span>
             <span>${transportNumber(state, payment.transportId)}</span>
             <strong>${formatMoney(payment.amount, payment.currency)}</strong>
             <span><mark class="${financeTone(payment.status)}">${payment.status}</mark></span>
             <span>${settlementLabel}</span>
-            <small>${transaction?.auditId || "audit-demo"}</small>
+            <small>${payment.updatedAt ? formatTime(payment.updatedAt) : formatTime(payment.at)}</small>
           </div>
         `;
       }).join("") || `<p class="finance-muted">Brak wlasnych rozliczen.</p>`}
@@ -1452,6 +1809,26 @@ function renderFintechModule(state, engine, selected, mode) {
   `;
 }
 
+function renderOwnTransactionHistory(state, transactions) {
+  return `
+    <div class="finance-table transactions">
+      <div class="finance-row finance-head-row">
+        <span>Data</span><span>Kwota</span><span>Od</span><span>Do</span><span>Status</span><span>Powód</span>
+      </div>
+      ${transactions.map((entry) => `
+        <div class="finance-row" data-ui-type="info">
+          <span>${formatWalletDate(entry.at).day}</span>
+          <strong>${formatMoney(entry.amount, entry.currency)}</strong>
+          <span>${entityName(state, entry.senderId)}</span>
+          <span>${entityName(state, entry.receiverId)}</span>
+          <span><mark class="${financeTone(entry.status)}">${valueLabel(entry.status)}</mark></span>
+          <small>${entry.reason}</small>
+        </div>
+      `).join("") || `<p class="finance-muted">Brak historii płatności.</p>`}
+    </div>
+  `;
+}
+
 function renderTransactionHistory(state, transactions) {
   return `
     <div class="finance-table transactions">
@@ -1461,7 +1838,7 @@ function renderTransactionHistory(state, transactions) {
       ${transactions.map((entry) => {
         const date = formatWalletDate(entry.at);
         return `
-          <div class="finance-row">
+          <div class="finance-row" data-ui-type="info">
             <span>${entry.id}</span>
             <span>${date.day}</span>
             <span>${date.time}</span>
@@ -1480,7 +1857,7 @@ function renderTransactionHistory(state, transactions) {
 
 function renderWalletAccount(state, wallet) {
   return `
-    <div class="wallet-card">
+    <div class="wallet-card" data-ui-type="info">
       <span>${valueLabel(wallet.walletType)}</span>
       <strong>${wallet.glWalletId}</strong>
       <p>${walletOwnerName(state, wallet)}</p>
@@ -1516,7 +1893,7 @@ function renderEscrowRows(state) {
         <span>ID</span><span>Transport</span><span>Platnik</span><span>Status</span><span>Kwota</span><span>Odbiorca</span>
       </div>
       ${(state.escrows || []).map((escrow) => `
-        <div class="finance-row">
+        <div class="finance-row" data-ui-type="info">
           <span>${escrow.id}</span>
           <span>${transportNumber(state, escrow.transportId)}</span>
           <span>${companyName(state, escrow.payerCompanyId)}</span>
@@ -1539,11 +1916,7 @@ function renderDisputeFinance(state) {
           <strong>${transportNumber(state, dispute.transportId)}</strong>
           <span>${valueLabel("Status")}: ${valueLabel(dispute.status)} / ${valueLabel("escrow zamrozone")}</span>
           <small>${valueLabel("AI analizuje historie, dokumenty, GPS i zdjecia.")}</small>
-          <div class="decision-row">
-            <button type="button">${valueLabel("Zwolnij")}</button>
-            <button type="button">${valueLabel("Zwrot")}</button>
-            <button type="button">${valueLabel("Platnosc dzielona")}</button>
-          </div>
+          <small>Decyzję sporu wykonuje administrator w module administracyjnym.</small>
         </div>
       `).join("")}
     </div>
@@ -1577,7 +1950,7 @@ function renderRevenue(state) {
         <span>ID</span><span>Transport</span><span>Typ</span><span>Kwota</span><span>Waluta</span><span>Powod</span>
         </div>
         ${state.revenueLedger.map((entry) => `
-          <div class="table-row">
+          <div class="table-row" data-ui-type="info">
             <span>${entry.id}</span>
             <span>${transportNumber(state, entry.transportId)}</span>
             <span>${entry.type}</span>
@@ -1714,16 +2087,16 @@ function renderInsurance(state, engine, selected) {
 function renderJobs(state) {
   return `
     <section class="panel">
-      <span class="eyebrow">Jobs Engine</span>
-      <h2>Driver work created from transport events</h2>
+      <span class="eyebrow">Praca</span>
+      <h2>Zlecenia kierowców</h2>
       <div class="card-grid">
         ${state.jobs.map((job) => `
-          <article class="mini-card">
+          <article class="mini-card" data-ui-type="info">
             <strong>${transportNumber(state, job.transportId)}</strong>
             <span>${userName(state, job.driverId)} / ${companyName(state, job.carrierCompanyId)}</span>
-            <mark class="${tone(job.status)}">${job.status}</mark>
+            <mark class="${tone(job.status)}">${valueLabel(job.status)}</mark>
           </article>
-        `).join("") || `<p class="muted">No jobs visible for this role.</p>`}
+        `).join("") || `<p class="muted">Brak zleceń widocznych dla tej roli.</p>`}
       </div>
     </section>
   `;
@@ -1734,15 +2107,15 @@ function renderCommunication(state, engine, selected) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">Communication Engine</span>
-        <h2>Transport thread creates message_id and audit</h2>
+        <span class="eyebrow">Komunikaty</span>
+        <h2>Rozmowa transportowa</h2>
         <div class="actions">
           ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Wyslij aktualizacje PL", { transportId: selected.id, body: "Prosze potwierdzic odprawe na bramie przed zaladunkiem.", language: "pl" })}
           ${actionButton(engine, ActionTypes.SEND_MESSAGE, "Wyslij aktualizacje EN", { transportId: selected.id, body: "Please confirm gate clearance before loading.", language: "en" })}
         </div>
       </article>
       <article class="panel">
-        <h2>Thread messages</h2>
+        <h2>Wiadomości</h2>
         <div class="list">
           ${messages.map((message) => `
             <div class="row">
@@ -1750,7 +2123,7 @@ function renderCommunication(state, engine, selected) {
               <span>${message.language}</span>
               <small>${message.body}</small>
             </div>
-          `).join("") || `<p class="muted">No messages for selected transport.</p>`}
+          `).join("") || `<p class="muted">Brak wiadomości dla wybranego transportu.</p>`}
         </div>
       </article>
     </section>
@@ -1761,8 +2134,8 @@ function renderTranslations(state, engine) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">Translation Engine</span>
-        <h2>Message translations are separate records</h2>
+        <span class="eyebrow">Tłumaczenia</span>
+        <h2>Tłumaczenia wiadomości</h2>
         <div class="list">
           ${state.messages.slice(0, 8).map((message) => `
             <div class="row">
@@ -1770,11 +2143,11 @@ function renderTranslations(state, engine) {
               <span>${message.language}: ${message.body}</span>
               ${actionButton(engine, ActionTypes.REQUEST_TRANSLATION, "Przetlumacz na PL", { transportId: message.transportId, messageId: message.id, targetLanguage: "pl" })}
             </div>
-          `).join("") || `<p class="muted">No messages visible.</p>`}
+          `).join("") || `<p class="muted">Brak wiadomości do tłumaczenia.</p>`}
         </div>
       </article>
       <article class="panel">
-        <h2>Translations</h2>
+        <h2>Gotowe tłumaczenia</h2>
         <div class="list">
           ${state.translations.map((translation) => `
             <div class="row">
@@ -1782,7 +2155,7 @@ function renderTranslations(state, engine) {
               <span>${translation.body}</span>
               <small>${translation.messageId}</small>
             </div>
-          `).join("") || `<p class="muted">No translations yet.</p>`}
+          `).join("") || `<p class="muted">Brak gotowych tłumaczeń.</p>`}
         </div>
       </article>
     </section>
@@ -1795,8 +2168,8 @@ function renderSecurity(state, engine, selected) {
   return `
     <section class="grid two">
       <article class="panel">
-        <span class="eyebrow">Security Engine</span>
-        <h2>Gate clearance controls loading and unloading</h2>
+        <span class="eyebrow">Ochrona</span>
+        <h2>Kontrola bramy</h2>
         <div class="actions">
           ${actionButton(engine, ActionTypes.SCAN_LICENSE_PLATE, "Skanuj wybrana tablice", { licensePlate: vehiclePlate(state, selected.vehicleId), reason: "kontrola wjazdu na brame" })}
           ${actionButton(engine, ActionTypes.RECORD_SECURITY_CHECK, "Zatwierdz brame zaladunku", { transportId: selected.id, checkpoint: "pickup", status: "cleared", reason: "Brama zatwierdzona. Kierowca moze rozpoczac zaladunek." })}
@@ -2150,7 +2523,7 @@ function renderService(state, engine, selected) {
         <h2>Warsztat, serwis mobilny, pomoc drogowa</h2>
         <div class="card-grid">
           ${providers.map((item) => `
-            <article class="mini-card">
+            <article class="mini-card" data-ui-type="info">
               <strong>${item.name}</strong>
               <span>${item.type} / ${item.responseMinutes} min</span>
               <mark class="good">${item.baseCost} ${item.currency}</mark>
@@ -2265,7 +2638,7 @@ function renderIntegrations(state, engine) {
       <h2>Status integracji</h2>
       <div class="card-grid">
         ${state.integrations.map((integration) => `
-          <article class="mini-card">
+          <article class="mini-card" data-ui-type="info">
             <strong>${integration.name}</strong>
             <span>${integration.type} / ${companyName(state, integration.companyId)}</span>
             <mark class="${tone(integration.status)}">${integration.status}</mark>
@@ -2371,18 +2744,7 @@ function renderResilience(state, engine) {
 function renderTrust(state) {
   return `
     <section class="panel">
-      <span class="eyebrow">Trust Score Engine</span>
-      <h2>Reputation for companies, drivers, warehouses and parking</h2>
-      <div class="trust-grid">
-        ${state.trustRecords.map((record) => `
-          <article class="trust-card">
-            <strong>${subjectName(state, record.subjectId)}</strong>
-            <span>${record.subjectType}</span>
-            <div class="bar"><span style="width:${record.score}%"></span></div>
-            <b>${record.score}</b>
-          </article>
-        `).join("")}
-      </div>
+      ${renderProfileAdminReputation(state)}
     </section>
   `;
 }
@@ -2470,7 +2832,10 @@ function renderSystemTests(state, engine, selected) {
 
 function renderContextRail(state, engine, selected, roleConfig) {
   const aiAlerts = state.aiAlerts.filter((alert) => !selected || alert.transportId === selected.id).slice(0, 3);
-  const activity = state.audit.filter((row) => !selected || row.transportId === selected.id || row.objectId === selected.id).slice(0, 5);
+  const developer = canViewDeveloperPanel(state);
+  const activity = developer
+    ? state.audit.filter((row) => !selected || row.transportId === selected.id || row.objectId === selected.id).slice(0, 5)
+    : operationalActivity(state, selected).slice(0, 5);
   return `
     <aside class="context-rail">
       <section class="context-panel">
@@ -2502,9 +2867,9 @@ function renderContextRail(state, engine, selected, roleConfig) {
         <div class="list compact-list">
           ${activity.map((row) => `
             <div class="row">
-              <strong>${row.requestedAction || row.action}</strong>
-              <span>${row.result || "success"}</span>
-              <small>${row.reason}</small>
+              <strong>${developer ? row.requestedAction || row.action : row.title}</strong>
+              <span>${developer ? row.result || "success" : row.value}</span>
+              <small>${developer ? row.reason : row.note}</small>
             </div>
           `).join("") || `<p class="muted">Brak aktywnosci.</p>`}
         </div>
@@ -2513,31 +2878,521 @@ function renderContextRail(state, engine, selected, roleConfig) {
   `;
 }
 
+function operationalActivity(state, selected) {
+  const messages = (state.messages || [])
+    .filter((message) => !selected || message.transportId === selected.id)
+    .map((message) => ({
+      title: "Komunikat",
+      value: message.authorRole ? valueLabel(message.authorRole) : "GL",
+      note: message.body || "Nowa wiadomosc"
+    }));
+  const transportItems = selected ? [
+    {
+      title: "Transport",
+      value: selected.number,
+      note: valueLabel(selected.status)
+    },
+    {
+      title: "ETA",
+      value: selected.eta ? formatTime(selected.eta) : "brak",
+      note: selected.delivery?.address || "punkt dostawy"
+    }
+  ] : [];
+  const alerts = (state.aiAlerts || [])
+    .filter((alert) => !selected || alert.transportId === selected.id)
+    .map((alert) => ({
+      title: "Alert",
+      value: valueLabel(alert.severity || alert.status),
+      note: valueLabel(alert.type)
+    }));
+  return [...transportItems, ...messages, ...alerts];
+}
+
 function renderProfile(state) {
-  const user = state.users.find((item) => item.id === state.session.userId);
+  const subject = resolveProfileSubject(state);
+  const rating = profileRating(state, subject);
+  const stats = profileStats(state, subject);
+  const reviews = profileReviews(state, subject);
+  const canViewSensitive = canViewSensitiveProfileData(state, subject);
+  const canReview = canReviewSubject(state, subject);
+  const transports = profileTransports(state, subject).slice(0, 5);
   return `
-    <section class="panel">
-      <span class="eyebrow">Profil</span>
-      <h2>${user?.name || "Uzytkownik demo"}</h2>
-      <div class="detail-grid">
-        <div><span>Rola</span><strong>${RoleLabels[state.session.role]}</strong></div>
-        <div><span>${valueLabel("Kontekst")}</span><strong>${state.access?.activeContextLabel || companyName(state, user?.companyId) || ui("ui.private_person")}</strong></div>
-        <div><span>Rola w firmie</span><strong>${state.access?.actor?.companyRole || "brak"}</strong></div>
-        <div><span>Status</span><strong>${user?.accountStatus || "demo"}</strong></div>
-      </div>
-      <p class="muted">${ui("ui.profile_production_note")}</p>
+    <section class="profile-shell business-profile">
+      <article class="profile-hero clean-profile">
+        <div class="profile-avatar large">${profileInitials(subject.name)}</div>
+        <div class="profile-hero-main">
+          <span class="eyebrow">${ui("profile.eyebrow")}</span>
+          <h2>${subject.name}</h2>
+          <div class="profile-meta-line">
+            <span>${subject.roleLabel}</span>
+            <mark class="${tone(subject.status)}">${profileVerificationLabel(subject.status)}</mark>
+          </div>
+          <div class="profile-rating">
+            <div class="stars" aria-label="${ui("profile.rating")} ${rating.label}">${renderStars(rating.value)}</div>
+            <strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong>
+            <span>${rating.hasRating ? ui("profile.reviews_count", { count: rating.reviewCount }) : ui("profile.no_reviews")}</span>
+          </div>
+        </div>
+        <div class="profile-safe-data">
+          <div><span>${ui("profile.country")}</span><strong>${subject.country}</strong></div>
+          <div><span>${ui("profile.languages")}</span><strong>${subject.languages.join(", ")}</strong></div>
+          <div><span>${ui("profile.joined")}</span><strong>${subject.joinedAt}</strong></div>
+          <div><span>${ui("profile.phone")}</span><strong>${canViewSensitive && subject.phone ? subject.phone : ui("profile.phone_hidden")}</strong></div>
+        </div>
+      </article>
+
+      <section class="profile-grid">
+        <article class="panel business-panel">
+          <div class="panel-head">
+            <div>
+              <span class="eyebrow">${ui("profile.stats")}</span>
+              <h2>${ui("profile.reputation")}</h2>
+            </div>
+          </div>
+          <div class="profile-stat-grid">
+            ${stats.map((item) => `
+              <div class="profile-stat">
+                <span>${item.label}</span>
+                <strong>${item.value}</strong>
+                <small>${item.sub || ui("profile.public_scope")}</small>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+
+        <article class="panel business-panel">
+          <div class="panel-head">
+            <div>
+              <span class="eyebrow">${ui("profile.review_title")}</span>
+              <h2>${ui("profile.reviews")}</h2>
+            </div>
+          </div>
+          <div class="review-list">
+            ${reviews.map((review) => `
+              <article class="review-card">
+                <div class="stars">${renderStars(review.rating)}</div>
+                <strong>${review.author}</strong>
+                <p>${review.comment}</p>
+                <small>${review.date} / ${ui("profile.transports")}: ${review.eventLabel}</small>
+              </article>
+            `).join("") || `<p class="muted">${ui("profile.no_public_reviews")}</p>`}
+          </div>
+          ${canReview ? renderReviewForm() : `<p class="muted review-locked">${ui("profile.review_available_after")}</p>`}
+        </article>
+      </section>
+
+      <section class="grid two">
+        <article class="panel business-panel">
+          <span class="eyebrow">${ui("profile.cooperation_history")}</span>
+          <h2>${ui("profile.transports")}</h2>
+          <div class="business-list">
+            ${transports.map((transport) => `
+              <div class="business-row" data-ui-type="info">
+                <strong>${transport.number}</strong>
+                <span>${valueLabel(transport.status)}</span>
+                <small>${transport.pickup.address} -> ${transport.delivery.address}</small>
+              </div>
+            `).join("") || `<p class="muted">Brak zakończonych współprac w profilu.</p>`}
+          </div>
+        </article>
+        <article class="panel business-panel">
+          <span class="eyebrow">${ui("profile.info")}</span>
+          <h2>Dane publiczne</h2>
+          <p class="muted">${canViewSensitive ? "Widzisz swoje dane kontaktowe i publiczny profil zaufania." : ui("profile.sensitive_hidden")}</p>
+          <div class="detail-grid">
+            <div><span>${ui("profile.role")}</span><strong>${subject.roleLabel}</strong></div>
+            <div><span>${ui("profile.status")}</span><strong>${profileVerificationLabel(subject.status)}</strong></div>
+            <div><span>${ui("profile.country")}</span><strong>${subject.country}</strong></div>
+            <div><span>${ui("profile.rating")}</span><strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong></div>
+          </div>
+        </article>
+      </section>
+      ${platformProfileAdmin(state) ? renderProfileAdminReputation(state) : ""}
     </section>
   `;
+}
+
+function renderReviewForm() {
+  return `
+    <form class="demo-form review-form" data-profile-review-form="true">
+      <label>${ui("profile.rating")}<select name="rating">
+        <option value="5">5 / 5</option>
+        <option value="4">4 / 5</option>
+        <option value="3">3 / 5</option>
+        <option value="2">2 / 5</option>
+        <option value="1">1 / 5</option>
+      </select></label>
+      <label>${ui("profile.review_comment")}<input name="comment" value="Wspolpraca zakonczona poprawnie" /></label>
+      <div class="action-unavailable" data-ui-type="info"><strong>${ui("profile.add_review")}</strong><span>Opinia będzie zapisywana po podłączeniu procesu zatwierdzania.</span></div>
+    </form>
+  `;
+}
+
+function renderProfileAdminReputation(state) {
+  if (!platformProfileAdmin(state)) return `
+    <article class="panel profile-note">
+      <span class="eyebrow">${ui("profile.info")}</span>
+      <h2>${ui("profile.sensitive_hidden")}</h2>
+      <p class="muted">${ui("profile.public_scope")}</p>
+    </article>
+  `;
+  const records = state.trustRecords.slice().sort((a, b) => b.score - a.score).slice(0, 6);
+  return `
+    <article class="panel profile-admin-reputation">
+      <span class="eyebrow">${ui("profile.admin_analysis")}</span>
+      <h2>${ui("profile.reputation")}</h2>
+      <p class="muted">${ui("profile.admin_analysis_note")}</p>
+      <div class="profile-admin-list">
+        ${records.map((record) => {
+          const subject = profileParticipant(state, record.subjectId, record.subjectType === "company" ? "company" : "user");
+          const rating = profileRating(state, subject || { id: record.subjectId, kind: record.subjectType });
+          return `
+            <button class="row profile-row detail-card" data-ui-type="details" data-profile-target="${record.subjectId}" data-profile-type="${subject?.kind || record.subjectType}">
+              <strong>${subject?.name || subjectName(state, record.subjectId)}</strong>
+              <span>${subject?.roleLabel || valueLabel(record.subjectType)}</span>
+              <small>${renderStars(rating.value)} ${rating.label}</small>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function resolveProfileSubject(state) {
+  const targetId = state.session.profileTargetId;
+  if (targetId) {
+    const target = profileParticipant(state, targetId, state.session.profileTargetType);
+    if (target) return target;
+  }
+  const user = state.users.find((item) => item.id === state.session.userId);
+  return profileSubjectForUser(state, user);
+}
+
+function profileSubjectForUser(state, user) {
+  if (!user) {
+    return {
+      id: "demo",
+      kind: "user",
+      name: "Uzytkownik demo",
+      roleLabel: ui("ui.private_person"),
+      role: state.session.role,
+      status: AccountStatuses.DRAFT,
+      country: "PL",
+      languages: ["PL"],
+      joinedAt: "27.05.2026",
+      phone: ""
+    };
+  }
+  return {
+    id: user.id,
+    kind: "user",
+    name: user.name,
+    roleLabel: RoleLabels[user.selectedRole || user.roles?.[0] || state.session.role] || valueLabel(user.selectedRole || state.session.role),
+    role: user.selectedRole || user.roles?.[0] || state.session.role,
+    status: user.accountStatus,
+    country: user.countryOfResidence || user.country || "PL",
+    languages: profileLanguages(user.selectedRole || user.roles?.[0] || state.session.role),
+    joinedAt: "27.05.2026",
+    phone: user.phone,
+    companyId: user.companyId,
+    source: user
+  };
+}
+
+function profileParticipant(state, id, type = null) {
+  if (!id) return null;
+  const company = state.companies.find((item) => item.id === id);
+  if (company && (!type || type === "company" || String(id).startsWith("co-"))) {
+    return {
+      id: company.id,
+      kind: "company",
+      name: company.name,
+      roleLabel: companyTypeLabel(company.type),
+      role: company.type,
+      status: company.verificationStatus || company.status,
+      country: company.country || "PL",
+      languages: profileLanguages(company.type),
+      joinedAt: "27.05.2026",
+      phone: company.publicPhone || "",
+      companyId: company.id,
+      source: company
+    };
+  }
+  const user = state.users.find((item) => item.id === id);
+  if (user) return profileSubjectForUser(state, user);
+  const parking = state.parking?.find((item) => item.id === id);
+  if (parking) {
+    return {
+      id: parking.id,
+      kind: "parking",
+      name: parking.name,
+      roleLabel: "Parking",
+      role: "parking",
+      status: "verified",
+      country: "PL",
+      languages: ["PL"],
+      joinedAt: "27.05.2026",
+      phone: "",
+      source: parking
+    };
+  }
+  return null;
+}
+
+function profileLink(state, id, type) {
+  const subject = profileParticipant(state, id, type);
+  if (!subject) return ui("ui.not_assigned");
+  return `<span class="profile-link" role="button" tabindex="0" data-ui-type="details" data-profile-target="${subject.id}" data-profile-type="${subject.kind}">${subject.name}</span>`;
+}
+
+function profileRating(state, subject) {
+  const record = state.trustRecords.find((item) => item.subjectId === subject?.id);
+  if (!record) return { hasRating: false, value: 0, label: "", score: 0, reviewCount: 0 };
+  const value = Math.max(0, Math.min(5, Math.round((Number(record.score || 0) / 20) * 100) / 100));
+  const reviewCount = Math.max(1, record.history?.length || 0);
+  return {
+    hasRating: true,
+    value,
+    label: `${value.toFixed(2)} / 5.00`,
+    score: record.score,
+    reviewCount
+  };
+}
+
+function renderStars(value = 0) {
+  const rating = Number(value || 0);
+  return [1, 2, 3, 4, 5].map((index) => {
+    const className = rating >= index
+      ? "full"
+      : rating > index - 1
+      ? "partial"
+      : "empty";
+    return `<span class="${className}">${className === "empty" ? "☆" : "★"}</span>`;
+  }).join("");
+}
+
+function profileInitials(name = "GL") {
+  return String(name)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "GL";
+}
+
+function profileVerificationLabel(status) {
+  if ([AccountStatuses.APPROVED, AccountStatuses.VERIFIED, "verified", "approved"].includes(status)) return ui("profile.verified");
+  if ([AccountStatuses.PENDING, AccountStatuses.IDENTITY_PENDING, AccountStatuses.ROLE_DOCUMENTS_PENDING, "pending"].includes(status)) return ui("profile.pending");
+  return ui("profile.unverified");
+}
+
+function profileStats(state, subject) {
+  if (subject.kind === "user" && subject.role === Roles.DRIVER) return driverProfileStats(state, subject);
+  if (subject.kind === "user" && subject.role === Roles.WAREHOUSE_WORKER) return warehouseProfileStats(state, subject);
+  if (subject.kind === "company" && subject.role === "carrier") return carrierProfileStats(state, subject);
+  if (subject.kind === "company" && subject.role === "client") return clientProfileStats(state, subject);
+  if (subject.kind === "company" && ["workshop", "mobile_service", "roadside_assistance"].includes(subject.role)) return serviceProfileStats(state, subject);
+  if (subject.kind === "company" && ["insurance", "insurer"].includes(subject.role)) return insurerProfileStats(state, subject);
+  return [
+    profileStat("profile.transport_count", profileTransports(state, subject).length, ui("profile.public_scope")),
+    profileStat("profile.punctuality", "96%", ui("profile.reputation")),
+    profileStat("profile.complaints", profileDisputes(state, subject).length, ui("profile.reviews"))
+  ];
+}
+
+function driverProfileStats(state, subject) {
+  const transports = profileTransports(state, subject);
+  const damages = transports.flatMap((transport) => state.photos.filter((photo) => photo.transportId === transport.id && photo.type === "damage"));
+  return [
+    profileStat("profile.transport_count", transports.length, ui("profile.transports")),
+    profileStat("profile.punctuality", punctualityLabel(transports), ui("profile.reputation")),
+    profileStat("profile.complaints", profileDisputes(state, subject).length, ui("profile.reviews")),
+    profileStat("profile.damages", damages.length, ui("profile.documents")),
+    profileStat("profile.cancelled_orders", transports.filter((item) => item.status === TransportStatuses.CANCELLED).length, ui("profile.transports")),
+    profileStat("profile.last_activity", transports[0]?.status || ui("ui.missing"), ui("profile.last_activity")),
+    profileStat("profile.documents_verified", subject.source?.documentsValid ? ui("profile.yes") : ui("profile.no"), ui("profile.documents"))
+  ];
+}
+
+function carrierProfileStats(state, subject) {
+  const transports = profileTransports(state, subject);
+  const drivers = state.users.filter((user) => user.companyId === subject.id && user.roles?.includes(Roles.DRIVER));
+  const driverRatings = drivers.map((driver) => profileRating(state, profileSubjectForUser(state, driver)).value).filter(Boolean);
+  return [
+    profileStat("profile.vehicle_count", state.vehicles.filter((vehicle) => vehicle.companyId === subject.id).length, ui("profile.public_scope")),
+    profileStat("profile.transport_count", transports.length, ui("profile.transports")),
+    profileStat("profile.fleet_punctuality", punctualityLabel(transports), ui("profile.reputation")),
+    profileStat("profile.complaints", profileDisputes(state, subject).length, ui("profile.reviews")),
+    profileStat("profile.documents_verified", profileVerificationLabel(subject.status), ui("profile.documents")),
+    profileStat("profile.insurance_status", state.insurancePolicies.some((policy) => transports.some((transport) => transport.id === policy.transportId)) ? ui("profile.verified") : ui("profile.pending"), ui("profile.documents")),
+    profileStat("profile.driver_average", driverRatings.length ? `${average(driverRatings).toFixed(2)} / 5.00` : ui("profile.no_reviews"), ui("profile.rating"))
+  ];
+}
+
+function clientProfileStats(state, subject) {
+  const transports = profileTransports(state, subject);
+  return [
+    profileStat("profile.load_count", transports.length, ui("profile.transports")),
+    profileStat("profile.payment_punctuality", "98%", ui("profile.reputation")),
+    profileStat("profile.disputes", profileDisputes(state, subject).length, ui("profile.reviews")),
+    profileStat("profile.cancelled_orders", transports.filter((item) => item.status === TransportStatuses.CANCELLED).length, ui("profile.transports")),
+    profileStat("profile.cooperation_rating", profileRating(state, subject).label || ui("profile.no_reviews"), ui("profile.rating"))
+  ];
+}
+
+function warehouseProfileStats(state, subject) {
+  const transports = profileTransports(state, subject);
+  return [
+    profileStat("profile.handled_transports", transports.length, ui("profile.transports")),
+    profileStat("profile.average_load_time", "42 min", ui("profile.reputation")),
+    profileStat("profile.driver_rating", profileRating(state, subject).label || ui("profile.no_reviews"), ui("profile.rating")),
+    profileStat("profile.complaints", profileDisputes(state, subject).length, ui("profile.reviews")),
+    profileStat("profile.communication_quality", "97%", ui("profile.reputation"))
+  ];
+}
+
+function serviceProfileStats(state, subject) {
+  const requests = (state.serviceRequests || []).filter((item) => item.providerCompanyId === subject.id);
+  return [
+    profileStat("profile.service_count", requests.length, ui("profile.transports")),
+    profileStat("profile.punctuality", requests.length ? `${Math.max(70, 100 - average(requests.map((item) => item.responseMinutes || 30)))}%` : "95%", ui("profile.reputation")),
+    profileStat("profile.complaints", 0, ui("profile.reviews")),
+    profileStat("profile.rating", profileRating(state, subject).label || ui("profile.no_reviews"), ui("profile.rating")),
+    profileStat("profile.service_scope", companyTypeLabel(subject.role), ui("profile.info"))
+  ];
+}
+
+function insurerProfileStats(state, subject) {
+  return [
+    profileStat("profile.policy_count", state.insurancePolicies.length, ui("profile.documents")),
+    profileStat("profile.claims_status", state.claims?.length ? ui("profile.pending") : ui("profile.verified"), ui("profile.reputation")),
+    profileStat("profile.decision_time", "2 dni", ui("profile.reputation")),
+    profileStat("profile.cooperation_rating", profileRating(state, subject).label || ui("profile.no_reviews"), ui("profile.rating")),
+    profileStat("profile.case_count", state.disputes.length, ui("profile.cooperation_history"))
+  ];
+}
+
+function profileStat(labelKey, value, sub) {
+  return { label: ui(labelKey), value, sub };
+}
+
+function profileTransports(state, subject) {
+  if (subject.kind === "company") {
+    if (subject.role === "client") return state.transports.filter((item) => item.clientCompanyId === subject.id);
+    if (subject.role === "carrier") return state.transports.filter((item) => item.carrierCompanyId === subject.id);
+    return state.transports.filter((item) => item.clientCompanyId === subject.id || item.carrierCompanyId === subject.id);
+  }
+  if (subject.role === Roles.DRIVER) return state.transports.filter((item) => item.driverId === subject.id);
+  if (subject.role === Roles.WAREHOUSE_WORKER) return state.transports.filter((item) => item.warehouseWorkerId === subject.id);
+  return state.transports.filter((item) => item.driverId === subject.id || item.warehouseWorkerId === subject.id);
+}
+
+function profileDisputes(state, subject) {
+  const transportIds = new Set(profileTransports(state, subject).map((item) => item.id));
+  return state.disputes.filter((item) => transportIds.has(item.transportId));
+}
+
+function profileReviews(state, subject) {
+  const record = state.trustRecords.find((item) => item.subjectId === subject.id);
+  const reviews = (record?.history || []).slice(0, 3).map((item) => ({
+    rating: profileRating(state, subject).value,
+    author: "GL Enterprise",
+    comment: valueLabel(item.reason || ui("profile.reputation")),
+    date: formatTime(item.at),
+    eventLabel: ui("profile.cooperation_history")
+  }));
+  (state.serviceRequests || [])
+    .filter((item) => item.providerCompanyId === subject.id && item.status === "completed")
+    .forEach((request) => reviews.unshift({
+      rating: 5,
+      author: companyName(state, request.carrierCompanyId) || "Przewoznik",
+      comment: "Usluga zakonczona poprawnie, szybka reakcja serwisu.",
+      date: formatTime(request.etaAfter),
+      eventLabel: request.id
+    }));
+  return reviews;
+}
+
+function canReviewSubject(state, subject) {
+  if (subject.kind === "company" && ["workshop", "mobile_service", "roadside_assistance"].includes(subject.role)) {
+    return (state.serviceRequests || []).some((item) => item.providerCompanyId === subject.id && item.status === "completed");
+  }
+  return profileTransports(state, subject).some((item) => [TransportStatuses.COMPLETED, TransportStatuses.PAID].includes(item.status));
+}
+
+function canViewSensitiveProfileData(state, subject) {
+  if (platformProfileAdmin(state)) return true;
+  if (subject.kind === "user" && subject.id === state.session.userId) return true;
+  if (subject.kind === "company" && subject.id === state.session.companyId) return true;
+  return false;
+}
+
+function platformProfileAdmin(state) {
+  return canViewDeveloperPanel(state);
+}
+
+function canViewDeveloperPanel(state) {
+  return canViewDeveloperRole(state.session.role);
+}
+
+function canViewDeveloperRole(role) {
+  return [
+    Roles.PLATFORM_OWNER,
+    Roles.GL_OPERATOR,
+    Roles.ADMIN_FINANCE,
+    Roles.SUPER_ADMIN,
+    Roles.ADMIN
+  ].includes(role);
+}
+
+function companyTypeLabel(type) {
+  const labels = {
+    client: "Klient",
+    carrier: "Przewoznik",
+    warehouse: "Magazyn",
+    workshop: "Warsztat",
+    mobile_service: "Serwis mobilny",
+    roadside_assistance: "Pomoc drogowa",
+    insurance: "Ubezpieczyciel",
+    insurer: "Ubezpieczyciel",
+    payment: "Operator platnosci",
+    security: "Ochrona",
+    customs_agent: "Agencja celna",
+    authority: "Organ kontrolny",
+    ferry_operator: "Operator promowy",
+    rail_operator: "Operator kolejowy"
+  };
+  return labels[type] || valueLabel(type);
+}
+
+function profileLanguages(roleOrType) {
+  if ([Roles.DRIVER, "carrier", "workshop", "mobile_service", "roadside_assistance"].includes(roleOrType)) return ["PL", "EN", "DE"];
+  if (["customs_agent", Roles.CUSTOMS_AGENT, "ferry_operator", Roles.FERRY_OPERATOR].includes(roleOrType)) return ["PL", "EN"];
+  return ["PL"];
+}
+
+function punctualityLabel(transports) {
+  if (!transports.length) return "brak danych";
+  const risky = transports.filter((item) => item.status === TransportStatuses.BLOCKED || item.riskFlagged || item.activeDisputeId).length;
+  return `${Math.max(70, 100 - risky * 9)}%`;
+}
+
+function average(values) {
+  const clean = values.map(Number).filter(Number.isFinite);
+  if (!clean.length) return 0;
+  return clean.reduce((sum, value) => sum + value, 0) / clean.length;
 }
 
 function renderCompanies(state) {
   return `
     <section class="panel">
-      <span class="eyebrow">Company Engine</span>
+      <span class="eyebrow">Firmy</span>
       <h2>Firmy</h2>
       <div class="card-grid">
         ${state.companies.map((company) => `
-          <article class="mini-card">
+          <article class="mini-card" data-ui-type="info">
             <strong>${company.name}</strong>
             <span>${company.type}</span>
             <mark class="${tone(company.status || "active")}">${company.status || "active"}</mark>
@@ -2551,11 +3406,11 @@ function renderCompanies(state) {
 function renderUsers(state) {
   return `
     <section class="panel">
-      <span class="eyebrow">User Engine</span>
+      <span class="eyebrow">Użytkownicy</span>
       <h2>Uzytkownicy</h2>
       <div class="transport-table compact-table">
         ${state.users.map((user) => `
-          <div class="table-row">
+          <div class="table-row" data-ui-type="info">
             <span>${user.id}</span>
             <span>${user.name}</span>
             <span>${user.roles?.[0] || "role"}</span>
@@ -2570,19 +3425,28 @@ function renderUsers(state) {
 }
 
 function renderStatistics(state) {
+  if (canViewDeveloperPanel(state)) {
+    return `
+      ${renderDeveloperPanel(state)}
+      <section class="metrics">
+        ${metric(ui("dashboard.metric.active_transports"), state.transports.length, ui("dashboard.metric.all_companies"))}
+        ${metric(ui("dashboard.metric.payments"), state.payments.length, ui("dashboard.metric.payment_status"))}
+        ${metric(ui("dashboard.metric.documents"), state.documents.length, ui("dashboard.metric.transport_files"))}
+        ${metric(ui("dashboard.metric.risk"), state.aiAlerts.length, ui("dashboard.metric.to_review"))}
+        ${metric(ui("dashboard.metric.notifications"), (state.messages || []).length, ui("dashboard.metric.messages"))}
+      </section>
+    `;
+  }
+  const metrics = dashboardOperationalMetrics(state, selectedTransport(state));
   return `
     <section class="metrics">
-      ${metric("Transporty", state.transports.length, "calosc")}
-      ${metric("Zdarzenia", state.events.length, "event bus")}
-      ${metric("Audit", state.audit.length, "read only")}
-      ${metric("Dokumenty", state.documents.length, "transportowe")}
-      ${metric("Trust", state.trustScores?.length || state.trust?.length || 0, "rekordy")}
+      ${metrics.map((item) => metric(item.label, item.value, item.sub)).join("")}
     </section>
     <section class="panel">
-      <span class="eyebrow">Statystyki</span>
-      <h2>Platforma GL Enterprise II</h2>
+      <span class="eyebrow">${ui("dashboard.metric.active_scope")}</span>
+      <h2>${ui("dashboard.title")}</h2>
       <div class="module-grid">
-        ${["workflow", "permissions", "audit", "GPS", "documents", "payments", "AI", "trust"].map((name) => `<div class="module-pill">${name}</div>`).join("")}
+        ${menuForRole(state.session.role, state.access?.actor || { role: state.session.role }).slice(0, 8).map((module) => `<div class="module-pill">${valueLabel(module.label)}</div>`).join("")}
       </div>
     </section>
   `;
@@ -2590,6 +3454,7 @@ function renderStatistics(state) {
 
 function renderSystem(state, engine) {
   return `
+    ${renderDeveloperPanel(state)}
     <section class="grid two">
       <article class="panel">
         <span class="eyebrow">System</span>
@@ -2600,10 +3465,33 @@ function renderSystem(state, engine) {
         </div>
       </article>
       <article class="panel">
-        <span class="eyebrow">Konfiguracja UI</span>
-        <h2>roleConfig</h2>
-        <p class="muted">Menu, dashboard, widgety i akcje sa wybierane przez aktywna role. Ukryte moduly nie sa renderowane w menu roli.</p>
+        <span class="eyebrow">${ui("developer.mode")}</span>
+        <h2>${ui("developer.title")}</h2>
+        <p class="muted">${ui("developer.description")}</p>
       </article>
+    </section>
+  `;
+}
+
+function renderDeveloperPanel(state) {
+  if (!canViewDeveloperPanel(state)) return "";
+  const routeCount = menuForRole(state.session.role, state.access?.actor || { role: state.session.role }).length;
+  return `
+    <section class="panel developer-panel">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">${ui("developer.mode")}</span>
+          <h2>${ui("developer.title")}</h2>
+        </div>
+      </div>
+      <p class="muted">${ui("developer.description")}</p>
+      <div class="metrics">
+        ${metric(ui("developer.modules"), routeCount, ui("developer.routes"))}
+        ${metric(ui("developer.event_bus"), state.events.length, ui("developer.events"))}
+        ${metric(ui("developer.audit_log"), state.audit.length, ui("developer.read_only"))}
+        ${metric(ui("developer.permission_engine"), state.access?.actor?.permissions?.length || 0, ui("developer.permissions"))}
+        ${metric(ui("developer.database"), state.demoDataVersion, ui("developer.demo_snapshot"))}
+      </div>
     </section>
   `;
 }
@@ -2679,20 +3567,20 @@ function renderTransportCard(state, transport) {
     <article class="panel transport-card">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">${transport.id}</span>
+          <span class="eyebrow">Transport</span>
           <h2>${transport.number} / ${transport.cargo.description}</h2>
         </div>
-        <mark class="${tone(transport.status)}">${transport.status}</mark>
+        <mark class="${tone(transport.status)}">${valueLabel(transport.status)}</mark>
       </div>
       <div class="detail-grid">
-        <div><span>Client</span><strong>${companyName(state, transport.clientCompanyId)}</strong></div>
-        <div><span>Carrier</span><strong>${companyName(state, transport.carrierCompanyId) || "not assigned"}</strong></div>
-        <div><span>Driver</span><strong>${userName(state, transport.driverId) || "not assigned"}</strong></div>
-        <div><span>Tryb</span><strong>${transport.transportMode || "ROAD"}</strong></div>
-        <div><span>Pickup GPS</span><strong>${gpsLabel(transport.pickup.gps)}</strong></div>
-        <div><span>Delivery GPS</span><strong>${gpsLabel(transport.delivery.gps)}</strong></div>
+        <div><span>Klient</span><strong>${profileLink(state, transport.clientCompanyId, "company")}</strong></div>
+        <div><span>Przewoznik</span><strong>${transport.carrierCompanyId ? profileLink(state, transport.carrierCompanyId, "company") : ui("ui.not_assigned")}</strong></div>
+        <div><span>Kierowca</span><strong>${transport.driverId ? profileLink(state, transport.driverId, "user") : ui("ui.not_assigned")}</strong></div>
+        <div><span>Tryb</span><strong>${valueLabel(transport.transportMode || "ROAD")}</strong></div>
+        <div><span>Załadunek</span><strong>${transport.pickup.address}</strong></div>
+        <div><span>Dostawa</span><strong>${transport.delivery.address}</strong></div>
         <div><span>ETA</span><strong>${transport.eta ? formatTime(transport.eta) : "brak"}</strong></div>
-        <div><span>Platnosc</span><strong>${state.access?.canViewFinancials ? transport.paymentStatus : "restricted"}</strong></div>
+        <div><span>Platnosc</span><strong>${state.access?.canViewFinancials ? valueLabel(transport.paymentStatus) : ui("ui.restricted")}</strong></div>
       </div>
       <div class="progress">
         <span style="width:${progress}%"></span>
@@ -2705,13 +3593,13 @@ function renderTransportCard(state, transport) {
 function renderTimeline(state, transport) {
   return `
     <article class="panel">
-      <span class="eyebrow">Workflow history</span>
-      <h2>Status history</h2>
+      <span class="eyebrow">Przebieg transportu</span>
+      <h2>Historia statusów</h2>
       <div class="timeline">
         ${transport.statusHistory.slice().reverse().map((item) => `
           <div class="timeline-row">
             <span>${formatTime(item.at)}</span>
-            <strong>${item.from || "start"} -> ${item.to}</strong>
+            <strong>${item.from ? valueLabel(item.from) : "start"} -> ${valueLabel(item.to)}</strong>
             <p>${item.reason}</p>
           </div>
         `).join("")}
@@ -2724,7 +3612,7 @@ function renderAuditSlice(state, transport) {
   const rows = state.audit.filter((item) => item.objectId === transport.id || item.transportId === transport.id).slice(0, 8);
   return `
     <article class="panel">
-      <span class="eyebrow">Transport audit</span>
+      <span class="eyebrow">Dziennik administracyjny</span>
       <h2>${transport.number}</h2>
       <div class="list">
         ${rows.map((row) => `
@@ -2733,7 +3621,7 @@ function renderAuditSlice(state, transport) {
             <span>${row.actorRole}</span>
             <small>${row.reason}</small>
           </div>
-        `).join("") || `<p class="muted">No audit records yet.</p>`}
+        `).join("") || `<p class="muted">Brak wpisów administracyjnych.</p>`}
       </div>
     </article>
   `;
@@ -2758,7 +3646,7 @@ function renderPhotoList(state, transport) {
 }
 
 function blockerList(engine, transport) {
-  if (!transport) return `<div class="blocker blocked"><strong>Workflow</strong><span>Brak transportow</span></div>`;
+  if (!transport) return `<div class="blocker blocked"><strong>Transport</strong><span>Brak transportow</span></div>`;
   const checks = [
     [ActionTypes.PUBLISH_LOAD, "Opublikuj ladunek"],
     [ActionTypes.ACCEPT_CARRIER, "Akceptuj przewoznika"],
@@ -2786,21 +3674,23 @@ function defaultPayloadFor(action, transport) {
 }
 
 function actionButton(engine, action, label, payload = {}) {
+  if (!engine?.explainAction) return disabledAction(label, "Akcja niedostepna w tym widoku");
   const result = engine.explainAction(action, payload);
+  if (!result.ok) return disabledAction(label, valueLabel(result.reasons[0]));
   return `
-    <button class="action ${result.ok ? "ready" : "blocked"}" data-action="${action}" data-payload="${encodePayload(payload)}">
+    <button class="action ready" data-ui-type="action" data-action="${action}" data-payload="${encodePayload(payload)}">
       <strong>${valueLabel(label)}</strong>
-      <span>${result.ok ? readinessMessage(action) : valueLabel(result.reasons[0])}</span>
+      <span>${readinessMessage(action)}</span>
     </button>
   `;
 }
 
 function disabledAction(label, reason) {
   return `
-    <button class="action blocked" type="button" aria-disabled="true">
+    <div class="action-unavailable" data-ui-type="info">
       <strong>${valueLabel(label)}</strong>
       <span>${valueLabel(reason)}</span>
-    </button>
+    </div>
   `;
 }
 
@@ -2820,9 +3710,9 @@ function readinessMessage(action) {
 function renderNoTransport() {
   return `
     <section class="panel empty-state">
-      <span class="eyebrow">Transport Engine</span>
+      <span class="eyebrow">Transporty</span>
       <h2>Brak transportow</h2>
-      <p class="muted">Lista transportow jest pusta albo ta rola nie ma dostepu do transportow. Akcje zalezne od transportu sa zablokowane.</p>
+      <p class="muted">Nie ma teraz transportu przypisanego do tego widoku.</p>
       <div class="actions">
         ${disabledAction("Akcja transportowa", "Brak transportow")}
       </div>
@@ -2833,7 +3723,7 @@ function renderNoTransport() {
 function renderNoTransportTable() {
   return `
     <section class="panel empty-state">
-      <span class="eyebrow">Transport Engine</span>
+      <span class="eyebrow">Transporty</span>
       <h2>Brak transportow</h2>
       <p class="muted">Nie ma transportow do wyswietlenia. Mozesz utworzyc nowy transport w widoku Utworz ladunek.</p>
     </section>
@@ -2869,7 +3759,7 @@ function transportScopedView(view) {
 function renderCreateTransportForm(state) {
   return `
     <form class="demo-form" data-form-action="${ActionTypes.CREATE_LOAD}">
-      <label>Opis ladunku<input name="description" value="Transport testowy GL" /></label>
+      <label>Opis ladunku<input name="description" value="Transport paletowy" /></label>
       <label>Odbior<input name="pickupAddress" value="Gdansk terminal" /></label>
       <label>Dostawa<input name="deliveryAddress" value="Berlin magazyn" /></label>
       <label>GPS odbioru lat<input name="pickupGps.lat" value="54.3520" inputmode="decimal" /></label>
@@ -2877,9 +3767,9 @@ function renderCreateTransportForm(state) {
       <label>GPS dostawy lat<input name="deliveryGps.lat" value="52.5200" inputmode="decimal" /></label>
       <label>GPS dostawy lng<input name="deliveryGps.lng" value="13.4050" inputmode="decimal" /></label>
       <label>Waga kg<input name="weightKg" value="1200" inputmode="numeric" /></label>
-      <label>Cena demo<input name="price" value="1500" inputmode="numeric" /></label>
+      <label>Cena<input name="price" value="1500" inputmode="numeric" /></label>
       <input type="hidden" name="clientCompanyId" value="${state.session.companyId || "co-client-a"}" />
-      <button class="action ready" type="submit"><strong>Utworz transport z formularza</strong><span>Przejdzie przez Core Engine</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Utworz transport</strong><span>Transport pojawi sie na liscie zlecen</span></button>
     </form>
   `;
 }
@@ -2889,7 +3779,7 @@ function renderPhotoForm(selected) {
     <form class="demo-form" data-form-action="${ActionTypes.ADD_LOAD_PHOTO}" data-payload="${encodePayload({ transportId: selected.id })}">
       <label>Typ zdjecia<input name="type" value="loading" /></label>
       <label>Opis zdjecia<input name="label" value="Zdjecie ladunku" /></label>
-      <button class="action ready" type="submit"><strong>Dodaj zdjecie z formularza</strong><span>Mozesz dodac zdjecie ladunku</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Dodaj zdjecie z formularza</strong><span>Mozesz dodac zdjecie ladunku</span></button>
     </form>
   `;
 }
@@ -2901,7 +3791,7 @@ function renderGpsForm(selected) {
       <label>Pickup lng<input name="pickupGps.lng" value="${selected.pickup.gps?.lng ?? 18.6466}" inputmode="decimal" /></label>
       <label>Delivery lat<input name="deliveryGps.lat" value="${selected.delivery.gps?.lat ?? 52.5200}" inputmode="decimal" /></label>
       <label>Delivery lng<input name="deliveryGps.lng" value="${selected.delivery.gps?.lng ?? 13.4050}" inputmode="decimal" /></label>
-      <button class="action ready" type="submit"><strong>Zapisz GPS z formularza</strong><span>Mozesz zapisac GPS</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Zapisz GPS z formularza</strong><span>Mozesz zapisac GPS</span></button>
     </form>
   `;
 }
@@ -2913,7 +3803,7 @@ function renderDriverAssignmentForm(state, selected) {
     <form class="demo-form" data-form-action="${ActionTypes.ASSIGN_DRIVER}" data-payload="${encodePayload({ transportId: selected.id })}">
       <label>Kierowca<select name="driverId">${drivers.map((driver) => `<option value="${driver.id}">${driver.name}</option>`).join("")}</select></label>
       <label>Pojazd<select name="vehicleId">${vehicles.map((vehicle) => `<option value="${vehicle.id}">${vehicle.plate}</option>`).join("")}</select></label>
-      <button class="action ready" type="submit"><strong>Przypisz kierowce z formularza</strong><span>Mozesz przypisac kierowce</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Przypisz kierowce z formularza</strong><span>Mozesz przypisac kierowce</span></button>
     </form>
   `;
 }
@@ -2928,7 +3818,7 @@ function renderDocumentForm(selected) {
         <option value="mrn">MRN</option>
       </select></label>
       <label>Nazwa dokumentu<input name="label" value="Dokument CMR" /></label>
-      <button class="action ready" type="submit"><strong>Dodaj dokument z formularza</strong><span>Mozesz dodac dokument</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Dodaj dokument z formularza</strong><span>Mozesz dodac dokument</span></button>
     </form>
   `;
 }
@@ -2940,14 +3830,14 @@ function renderParkingReportForm(state) {
       <label>Parking<select name="parkingId">${state.parking.map((item) => `<option value="${item.id}">${item.name}</option>`).join("")}</select></label>
       <label>Wolne miejsca<input name="freePlaces" value="${parking?.freePlaces ?? 4}" inputmode="numeric" /></label>
       <input type="hidden" name="credible" value="true" />
-      <button class="action ready" type="submit"><strong>Zglos parking z formularza</strong><span>Mozesz zglosic parking</span></button>
+      <button class="action ready" data-ui-type="action" type="submit"><strong>Zglos parking z formularza</strong><span>Mozesz zglosic parking</span></button>
     </form>
   `;
 }
 
 function metric(label, value, sub) {
   return `
-    <article class="metric">
+    <article class="metric" data-ui-type="info">
       <span>${valueLabel(label)}</span>
       <strong>${value}</strong>
       <small>${valueLabel(sub)}</small>

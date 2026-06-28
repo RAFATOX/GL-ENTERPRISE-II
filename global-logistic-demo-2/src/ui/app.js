@@ -46,6 +46,21 @@ root.addEventListener("click", (event) => {
     return;
   }
 
+  const profileTarget = target.closest("[data-profile-target]");
+  if (profileTarget) {
+    navigateToProfile(profileTarget.dataset.profileTarget, profileTarget.dataset.profileType);
+    return;
+  }
+
+  const detailTarget = target.closest("[data-detail-route]");
+  if (detailTarget) {
+    if (detailTarget.dataset.transport) {
+      engine.dispatchAction(ActionTypes.SELECT_TRANSPORT, { transportId: detailTarget.dataset.transport });
+    }
+    navigateToRoute(detailTarget.dataset.detailRoute);
+    return;
+  }
+
   const submitButton = target.closest('button[type="submit"]');
   const submitForm = submitButton?.closest("[data-form-action]");
   if (submitForm) {
@@ -63,6 +78,7 @@ root.addEventListener("click", (event) => {
   const transportButton = target.closest("[data-transport]");
   if (transportButton) {
     engine.dispatchAction(ActionTypes.SELECT_TRANSPORT, { transportId: transportButton.dataset.transport });
+    navigateToRoute("/transports");
     return;
   }
 
@@ -153,13 +169,23 @@ function navigateToRoute(route) {
   const module = moduleForRoute(route);
   const view = module?.view || normalizeRoute(route).slice(1);
   const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route: normalizeRoute(route) });
-  if (result.ok) setRouteHash(module.route);
+  if (result.ok) setRouteHash(module?.route || normalizeRoute(route));
 }
 
 function navigateToView(view) {
   const route = routeForRoleView(engine.getSnapshot().session.role, view);
   const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
   if (result.ok) setRouteHash(route);
+}
+
+function navigateToProfile(profileTargetId, profileTargetType) {
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId,
+    profileTargetType
+  });
+  if (result.ok) setRouteHash("/profile");
 }
 
 function syncRouteFromHash() {

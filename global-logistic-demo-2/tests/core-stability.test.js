@@ -59,6 +59,50 @@ function renderRoleView(role, view = "dashboard", route = "/dashboard") {
   return renderApp(engine.getSnapshot(), engine);
 }
 
+function assertNoTechnicalDashboardCards(html, label = "dashboard") {
+  [
+    "Event Bus",
+    "Audit Log",
+    "Permission Engine",
+    "Company Engine",
+    "User Engine",
+    "Baza danych",
+    "Dziennik audytu",
+    "magistrala zdarze"
+  ].forEach((text) => assert.equal(html.includes(text), false, `${label}: ${text}`));
+}
+
+function assertNoTechnicalUserUi(html, label = "ui") {
+  [
+    "UI_VIEW_CHANGED",
+    "SELECT_VIEW",
+    "ONBOARDING_APPROVE",
+    "EventBus",
+    "Permission Engine",
+    "Company Engine",
+    "Audit Log",
+    "undefined"
+  ].forEach((text) => assert.equal(html.includes(text), false, `${label}: ${text}`));
+}
+
+function assertAllButtonsHaveBehavior(html, label = "ui") {
+  const buttons = [...html.matchAll(/<button\b([^>]*)>/g)];
+  assert.ok(buttons.length > 0, `${label}: expected buttons`);
+  buttons.forEach((match, index) => {
+    const attrs = match[1];
+    const hasBehavior = [
+      "data-action=",
+      "data-module-route=",
+      "data-profile-target=",
+      "data-detail-route=",
+      "data-role=",
+      "data-reset-demo=",
+      "type=\"submit\""
+    ].some((marker) => attrs.includes(marker));
+    assert.equal(hasBehavior, true, `${label}: button ${index + 1} has no behavior: ${attrs}`);
+  });
+}
+
 function snapshotForRole(role) {
   const engine = new GLCoreEngine({ store: memoryStore() });
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
@@ -482,8 +526,9 @@ test("every role lands on the same main Dashboard", () => {
     Roles.PLATFORM_OWNER
   ].forEach((role) => {
     const html = renderRoleView(role);
-    assert.ok(html.includes("Jedna aplikacja modułowa"), role);
-    assert.ok(html.includes("Menu modułów"), role);
+    assert.ok(html.includes("Pulpit"), role);
+    assert.ok(html.includes("Funkcje"), role);
+    if (role !== Roles.PLATFORM_OWNER) assertNoTechnicalDashboardCards(html, role);
     assert.equal(html.includes("Panel kierowcy"), false, role);
     assert.equal(html.includes("Panel przewoznika"), false, role);
     assert.equal(html.includes("Panel ubezpieczen"), false, role);
@@ -504,6 +549,7 @@ test("driver sees only driver modules and no role panel", () => {
   assert.equal(modules.includes("billing"), false);
   assert.equal(modules.includes("invoices"), false);
   assert.equal(modules.includes("academy"), false);
+  assert.equal(modules.includes("trust"), false);
   assert.equal(html.includes("driver-workspace"), false);
 });
 
@@ -554,6 +600,77 @@ test("permission guard blocks direct route access", () => {
   assert.ok(html.includes("Brak dostępu do modułu"));
 });
 
+test("trust profile replaces old reputation ranking for regular users", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const dashboardHtml = renderApp(engine.getSnapshot(), engine);
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "profile", route: "/profile" });
+  const profileHtml = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, true);
+  assert.ok(dashboardHtml.includes("data-profile-card=\"self\""));
+  assert.ok(dashboardHtml.includes("data-profile-target=\"u-driver-1\""));
+  assert.ok(profileHtml.includes("Profil zaufania GL"));
+  assert.ok(profileHtml.includes("Marek Driver"));
+  assert.ok(profileHtml.includes("★"));
+  assert.ok(profileHtml.includes("4.75 / 5.00"));
+  assert.equal(profileHtml.includes("Trust Score Engine"), false);
+  assert.equal(profileHtml.includes("Reputation for companies"), false);
+});
+
+test("clickable participant target opens company trust profile without sensitive data", () => {
+  const engine = engineForUserContext("u-client-owner", "co-client-a");
+  const transportHtml = renderApp(engine.getSnapshot(), engine);
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "co-carrier-a",
+    profileTargetType: "company"
+  });
+  const profileHtml = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, true);
+  assert.ok(transportHtml.includes("data-profile-target=\"co-carrier-a\""));
+  assert.ok(profileHtml.includes("Baltic Line"));
+  assert.ok(profileHtml.includes("4.80 / 5.00"));
+  assert.ok(profileHtml.includes("Dane wra"));
+  assert.equal(profileHtml.includes("+48500100108"), false);
+  assert.equal(profileHtml.includes("GLW-SYSTEM-0001"), false);
+});
+
+test("reviews are available only after completed cooperation", () => {
+  const engine = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "co-workshop-a",
+    profileTargetType: "company"
+  });
+  const workshopHtml = renderApp(engine.getSnapshot(), engine);
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "u-driver-1",
+    profileTargetType: "user"
+  });
+  const driverHtml = renderApp(engine.getSnapshot(), engine);
+
+  assert.ok(workshopHtml.includes("data-profile-review-form=\"true\""));
+  assert.ok(workshopHtml.includes("Dodaj opini"));
+  assert.ok(driverHtml.includes("Ocena b"));
+  assert.equal(driverHtml.includes("data-profile-review-form=\"true\""), false);
+});
+
+test("old reputation route is not a public module route", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "trust", route: "/trust" });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(modulesConfig.some((module) => module.route === "/trust"), false);
+  assert.equal(menuForRole(Roles.DRIVER, engine.getActor()).some((module) => module.label === "Reputacja GL"), false);
+  assert.equal(result.ok, false);
+  assert.ok(html.includes("Brak dost"));
+});
+
 test("legacy role panel routes are blocked by PermissionGuard", () => {
   const engine = new GLCoreEngine({ store: memoryStore() });
   engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }, { demoOnly: true });
@@ -573,8 +690,26 @@ test("changing active role changes visible modules without changing dashboard st
   assert.equal(driverModules.includes("wallet"), false);
   assert.equal(ownerModules.includes("wallet"), true);
   assert.ok(ownerModules.length > driverModules.length);
-  assert.ok(driverDashboard.includes("Jedna aplikacja modułowa"));
-  assert.ok(ownerDashboard.includes("Jedna aplikacja modułowa"));
+  assert.ok(driverDashboard.includes("Pulpit"));
+  assert.ok(ownerDashboard.includes("Pulpit"));
+  assertNoTechnicalDashboardCards(driverDashboard, "driver");
+});
+
+test("technical platform data is visible only in developer or admin panel", () => {
+  const platformSystem = renderRoleView(Roles.PLATFORM_OWNER, "system", "/system");
+  const operatorSystem = renderRoleView(Roles.GL_OPERATOR, "system", "/system");
+  const driverSystem = renderRoleView(Roles.DRIVER, "system", "/system");
+  const complianceAudit = renderRoleView(Roles.COMPLIANCE, "audit", "/audit");
+
+  ["Tryb developerski", "Event Bus", "Audit Log", "Silnik uprawnie", "Baza danych"].forEach((text) => {
+    assert.ok(platformSystem.includes(text), text);
+    assert.ok(operatorSystem.includes(text), text);
+  });
+  assert.ok(driverSystem.includes("Brak dost"));
+  assert.ok(complianceAudit.includes("Brak dost"));
+  assertNoTechnicalDashboardCards(renderRoleView(Roles.DRIVER), "driver dashboard");
+  assertNoTechnicalDashboardCards(renderRoleView(Roles.CLIENT_OWNER), "client dashboard");
+  assertNoTechnicalDashboardCards(renderRoleView(Roles.CARRIER_OWNER), "carrier dashboard");
 });
 
 test("platform owner sees full GL Wallet with platform permissions", () => {
@@ -1208,7 +1343,6 @@ test("module routes stay flat without role dashboard routes", () => {
     "/chat",
     "/jobs",
     "/academy",
-    "/trust",
     "/wallet",
     "/billing",
     "/policies",
@@ -1216,6 +1350,7 @@ test("module routes stay flat without role dashboard routes", () => {
     "/risk",
     "/service-orders",
     "/invoices",
+    "/profile",
     "/settings"
   ].forEach((route) => assert.ok(routes.includes(route), route));
 
@@ -1232,6 +1367,53 @@ test("module routes stay flat without role dashboard routes", () => {
     "/wyplaty",
     "/escrow-transportu"
   ].forEach((route) => assert.equal(routes.includes(route), false, route));
+});
+
+test("UI interaction model separates info, details and actions", () => {
+  const driverHtml = renderRoleView(Roles.DRIVER);
+  const carrierHtml = renderRoleView(Roles.CARRIER_OWNER, "transports", "/transports");
+  const clientEngine = engineForUserContext("u-client-owner", "co-client-a");
+  clientEngine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "loads", route: "/loads" });
+  const clientHtml = renderApp(clientEngine.getSnapshot(), clientEngine);
+
+  [driverHtml, carrierHtml, clientHtml].forEach((html, index) => {
+    assertAllButtonsHaveBehavior(html, `role ui ${index}`);
+    assert.equal(/<button[^>]*class="[^"]*\bmetric\b/.test(html), false, `metrics are clickable in ${index}`);
+    assert.equal(/<article[^>]*class="[^"]*\bmetric\b[^>]*data-action=/.test(html), false, `metrics have action in ${index}`);
+    assert.equal(html.includes("action blocked"), false, `blocked action button leaked in ${index}`);
+    assertNoTechnicalUserUi(html, `role ui ${index}`);
+  });
+
+  assert.ok(driverHtml.includes('data-ui-type="info"'));
+  assert.ok(driverHtml.includes('data-ui-type="details"'));
+  assert.ok(carrierHtml.includes('data-detail-route="/transports"'));
+  assert.ok(carrierHtml.includes('data-transport="tr-1001"'));
+  assert.ok(carrierHtml.includes("Zobacz szczeg"));
+  assert.ok(clientHtml.includes('data-ui-type="info"') || clientHtml.includes('data-ui-type="details"'));
+});
+
+test("actions without permission are not rendered as clickable buttons", () => {
+  const driverHtml = renderRoleView(Roles.DRIVER, "transports", "/transports");
+  const driverEngine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const blocked = driverEngine.explainAction(ActionTypes.RELEASE_PAYMENT, { transportId: "tr-1001" });
+
+  assert.equal(blocked.ok, false);
+  assert.equal(driverHtml.includes(`data-action="${ActionTypes.RELEASE_PAYMENT}"`), false);
+  assert.equal(driverHtml.includes("action blocked"), false);
+});
+
+test("detail records expose routes for transports, companies and own profile", () => {
+  const engine = engineForUserContext("u-client-owner", "co-client-a");
+  const dashboardHtml = renderApp(engine.getSnapshot(), engine);
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "transports", route: "/transports" });
+  const transportsHtml = renderApp(engine.getSnapshot(), engine);
+
+  assert.ok(dashboardHtml.includes('data-profile-card="self"'));
+  assert.ok(dashboardHtml.includes('data-profile-target="u-client-owner"'));
+  assert.ok(dashboardHtml.includes('data-detail-route="/transports"'));
+  assert.ok(transportsHtml.includes('data-profile-target="co-carrier-a"'));
+  assert.ok(transportsHtml.includes('data-detail-route="/transports"'));
+  assert.ok(transportsHtml.includes('data-transport="tr-1001"'));
 });
 
 test("UI labels are localized through Translation Engine", () => {
@@ -1257,7 +1439,8 @@ test("UI labels are localized through Translation Engine", () => {
 
   assert.ok(walletHtml.includes("Pulpit portfela"));
   assert.ok(walletHtml.includes("Saldo dostępne"));
-  assert.ok(driverHtml.includes("Nawigacja aplikacji / strażnik uprawnień"));
+  assert.ok(driverHtml.includes("Dostepne funkcje"));
+  assertNoTechnicalDashboardCards(driverHtml, "driver localized dashboard");
   assert.equal(rendererSource.includes("localizeHtml"), false);
   assert.equal(translationSource.includes("localizeHtml"), false);
   assert.ok(translationSource.includes("export function t("));

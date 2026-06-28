@@ -308,6 +308,13 @@ export class WorkflowEngine {
         return this.selectRole(state, modules, payload);
       case ActionTypes.SELECT_VIEW:
         state.session.view = payload.view;
+        if (payload.view === "profile") {
+          state.session.profileTargetId = payload.profileTargetId || null;
+          state.session.profileTargetType = payload.profileTargetType || null;
+        } else {
+          state.session.profileTargetId = null;
+          state.session.profileTargetType = null;
+        }
         state.session.deniedView = null;
         state.session.deniedRoute = null;
         return {

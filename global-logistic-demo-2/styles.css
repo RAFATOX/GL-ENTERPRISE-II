@@ -347,6 +347,207 @@ h2 {
   gap: 12px;
 }
 
+.business-dashboard {
+  display: grid;
+  gap: 18px;
+}
+
+.workspace-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 18px;
+  align-items: center;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.workspace-hero h2 {
+  margin: 6px 0 8px;
+  font-size: clamp(26px, 3vw, 42px);
+  line-height: 1.05;
+}
+
+.workspace-hero p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.workspace-identity {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: inherit;
+  text-align: left;
+}
+
+.workspace-identity span,
+.workspace-identity strong,
+.workspace-identity small {
+  display: block;
+}
+
+.workspace-identity small {
+  color: var(--muted);
+}
+
+.business-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.business-panel {
+  min-height: 100%;
+}
+
+.business-list {
+  display: grid;
+  gap: 10px;
+}
+
+.business-row {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.business-row small {
+  color: var(--muted);
+}
+
+.detail-card {
+  position: relative;
+}
+
+button.detail-card,
+.detail-button,
+.profile-row.detail-card {
+  cursor: pointer;
+}
+
+.detail-card:hover,
+.detail-button:hover {
+  border-color: rgba(21, 94, 90, 0.45);
+  box-shadow: 0 18px 46px rgba(21, 37, 33, 0.16);
+}
+
+.detail-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.detail-hint::after {
+  content: ">";
+}
+
+.detail-button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--teal);
+  text-align: left;
+}
+
+.action-unavailable {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f6f8f7;
+  color: var(--muted);
+}
+
+.action-unavailable strong,
+.action-unavailable span {
+  display: block;
+}
+
+.route-points {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.route-points div {
+  display: grid;
+  gap: 3px;
+  padding-left: 14px;
+  border-left: 3px solid var(--teal);
+}
+
+.route-points span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.business-alert {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.business-alert.blocked {
+  border-color: rgba(173, 53, 44, 0.32);
+}
+
+.business-alert strong,
+.business-alert span {
+  display: block;
+}
+
+.role-badge {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.role-badge span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .metric,
 .panel {
   border: 1px solid var(--line);
@@ -977,6 +1178,150 @@ mark.info {
   gap: 8px;
 }
 
+.profile-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-card {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-card-head,
+.profile-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.profile-hero {
+  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 0.7fr);
+  padding: 18px;
+}
+
+.profile-avatar {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #10201f;
+  color: #f5efe0;
+  font-weight: 900;
+}
+
+.profile-avatar.large {
+  width: 94px;
+  height: 94px;
+  font-size: 28px;
+}
+
+.profile-card-score,
+.profile-meta-line,
+.profile-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.stars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--gold);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.stars .empty {
+  color: #c8d0cb;
+}
+
+.stars .partial {
+  opacity: 0.55;
+}
+
+.profile-safe-data,
+.profile-stat-grid,
+.profile-admin-list,
+.review-list {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-safe-data {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-safe-data div,
+.profile-stat,
+.review-card {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 10px;
+}
+
+.profile-safe-data span,
+.profile-stat span,
+.profile-stat small,
+.review-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-tabs span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px 10px;
+  font-weight: 900;
+}
+
+.profile-grid,
+.profile-stat-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 14px;
+}
+
+.profile-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-link,
+.profile-row {
+  color: var(--teal);
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.profile-row {
+  width: 100%;
+  border-color: var(--line);
+  background: #ffffff;
+  text-align: left;
+}
+
+.review-form {
+  margin-bottom: 0;
+}
+
+.review-locked {
+  margin-top: 10px;
+}
+
 .map {
   display: block;
   width: 100%;
@@ -1096,13 +1441,19 @@ mark.info {
   }
 
   .metrics,
+  .business-metrics,
   .finance-metrics,
   .finance-admin-grid,
   .module-grid,
   .module-tile-grid,
   .card-grid,
   .role-grid,
-  .trust-grid {
+  .trust-grid,
+  .profile-stat-grid,
+  .profile-grid,
+  .profile-hero,
+  .workspace-grid,
+  .workspace-hero {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1174,19 +1525,26 @@ mark.info {
   }
 
   .metrics,
+  .business-metrics,
   .finance-metrics,
   .finance-admin-grid,
   .wallet-card-grid,
   .report-grid,
   .api-grid,
-  .module-grid,
-  .module-tile-grid,
-  .card-grid,
-  .role-grid,
-  .trust-grid,
-  .actions,
-  .demo-form,
-  .detail-grid {
+    .module-grid,
+    .module-tile-grid,
+    .card-grid,
+    .role-grid,
+    .trust-grid,
+    .profile-grid,
+    .profile-stat-grid,
+    .profile-safe-data,
+    .profile-hero,
+    .actions,
+    .demo-form,
+    .detail-grid,
+    .workspace-grid,
+    .workspace-hero {
     grid-template-columns: 1fr;
   }
 
