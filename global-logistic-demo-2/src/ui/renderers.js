@@ -3328,47 +3328,81 @@ function operationalActivity(state, selected) {
 function renderProfile(state) {
   const subject = resolveProfileSubject(state);
   const rating = profileRating(state, subject);
-  const stats = profileStats(state, subject);
   const reviews = profileReviews(state, subject);
   const canViewSensitive = canViewSensitiveProfileData(state, subject);
   const canReview = canReviewSubject(state, subject);
-  const transports = profileTransports(state, subject).slice(0, 5);
+  const company = profileCompany(state, subject);
+  const transports = profileTransports(state, subject);
+  const transportBuckets = profileTransportBuckets(transports);
+  const documents = profileDocuments(state, subject, canViewSensitive);
+  const wallet = profileWalletForActiveRole(state);
+  const activity = profileActivityItems(state, subject, reviews, transports, documents);
+  const reputationMetrics = profileReputationMetrics(state, subject, rating, transports);
+
   return `
-    <section class="profile-shell business-profile">
-      <article class="profile-hero clean-profile">
-        <div class="profile-avatar large">${profileInitials(subject.name)}</div>
+    <section class="profile-shell business-profile user-profile" data-profile-view="modern">
+      <article class="profile-hero clean-profile" data-ui-type="info">
+        <div class="profile-photo" aria-label="${ui("profile.photo_alt")}">
+          <div class="profile-avatar large">${profileInitials(subject.name)}</div>
+        </div>
         <div class="profile-hero-main">
           <span class="eyebrow">${ui("profile.eyebrow")}</span>
           <h2>${subject.name}</h2>
           <div class="profile-meta-line">
-            <span>${subject.roleLabel}</span>
+            <span>${ui("profile.gl_id")}: ${profileGlId(subject)}</span>
             <mark class="${tone(subject.status)}">${profileVerificationLabel(subject.status)}</mark>
+            <span>${subject.country}</span>
           </div>
           <div class="profile-rating">
-            <div class="stars" aria-label="${ui("profile.rating")} ${rating.label}">${renderStars(rating.value)}</div>
+            <div class="stars" aria-label="${ui("profile.rating")} ${rating.label || ui("profile.no_reviews")}">${renderStars(rating.value)}</div>
             <strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong>
             <span>${rating.hasRating ? ui("profile.reviews_count", { count: rating.reviewCount }) : ui("profile.no_reviews")}</span>
           </div>
         </div>
         <div class="profile-safe-data">
-          <div><span>${ui("profile.country")}</span><strong>${subject.country}</strong></div>
+          <div><span>${ui("profile.main_role")}</span><strong>${subject.roleLabel}</strong></div>
+          <div><span>${ui("profile.company")}</span><strong>${company?.name || ui("profile.no_company")}</strong></div>
           <div><span>${ui("profile.languages")}</span><strong>${subject.languages.join(", ")}</strong></div>
           <div><span>${ui("profile.joined")}</span><strong>${subject.joinedAt}</strong></div>
-          <div><span>${ui("profile.phone")}</span><strong>${canViewSensitive && subject.phone ? subject.phone : ui("profile.phone_hidden")}</strong></div>
         </div>
       </article>
 
-      <section class="profile-grid">
+      <nav class="profile-tabs" aria-label="${ui("profile.tabs_label")}">
+        ${profileTabs().map((tab, index) => `
+          <button type="button" data-ui-type="details" data-profile-tab="${tab.id}" aria-selected="${index === 0 ? "true" : "false"}">
+            ${ui(tab.labelKey)}
+          </button>
+        `).join("")}
+      </nav>
+
+      <section class="profile-tab-panel is-active" data-profile-panel="info" id="profile-info">
+        <article class="panel business-panel">
+          <span class="eyebrow">${ui("profile.info")}</span>
+          <h2>${ui("profile.information_title")}</h2>
+          <div class="detail-grid">
+            <div><span>${ui("profile.phone")}</span><strong>${canViewSensitive && subject.phone ? subject.phone : ui("profile.phone_hidden")}</strong></div>
+            ${canViewSensitive && subject.email ? `<div><span>${ui("profile.email")}</span><strong>${subject.email}</strong></div>` : ""}
+            <div><span>${ui("profile.company")}</span><strong>${company?.name || ui("profile.no_company")}</strong></div>
+            <div><span>${ui("profile.position")}</span><strong>${profilePosition(state, subject)}</strong></div>
+            <div><span>${ui("profile.country")}</span><strong>${subject.country}</strong></div>
+            <div><span>${ui("profile.languages")}</span><strong>${subject.languages.join(", ")}</strong></div>
+            <div><span>${ui("profile.status")}</span><strong>${profileVerificationLabel(subject.status)}</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="profile-tab-panel" data-profile-panel="reputation" id="profile-reputation" hidden>
         <article class="panel business-panel">
           <div class="panel-head">
             <div>
-              <span class="eyebrow">${ui("profile.stats")}</span>
-              <h2>${ui("profile.reputation")}</h2>
+              <span class="eyebrow">${ui("profile.reputation")}</span>
+              <h2>${ui("profile.reputation_title")}</h2>
             </div>
+            <div class="stars profile-stars-xl">${renderStars(rating.value)}</div>
           </div>
           <div class="profile-stat-grid">
-            ${stats.map((item) => `
-              <div class="profile-stat">
+            ${reputationMetrics.map((item) => `
+              <div class="profile-stat" data-ui-type="info">
                 <span>${item.label}</span>
                 <strong>${item.value}</strong>
                 <small>${item.sub || ui("profile.public_scope")}</small>
@@ -3376,21 +3410,19 @@ function renderProfile(state) {
             `).join("")}
           </div>
         </article>
+      </section>
 
+      <section class="profile-tab-panel" data-profile-panel="reviews" id="profile-reviews" hidden>
         <article class="panel business-panel">
-          <div class="panel-head">
-            <div>
-              <span class="eyebrow">${ui("profile.review_title")}</span>
-              <h2>${ui("profile.reviews")}</h2>
-            </div>
-          </div>
+          <span class="eyebrow">${ui("profile.review_title")}</span>
+          <h2>${ui("profile.reviews")}</h2>
           <div class="review-list">
             ${reviews.map((review) => `
-              <article class="review-card">
+              <article class="review-card" data-ui-type="info">
                 <div class="stars">${renderStars(review.rating)}</div>
                 <strong>${review.author}</strong>
                 <p>${review.comment}</p>
-                <small>${review.date} / ${ui("profile.transports")}: ${review.eventLabel}</small>
+                <small>${review.date} / ${review.eventLabel}</small>
               </article>
             `).join("") || `<p class="muted">${ui("profile.no_public_reviews")}</p>`}
           </div>
@@ -3398,35 +3430,241 @@ function renderProfile(state) {
         </article>
       </section>
 
-      <section class="grid two">
+      <section class="profile-tab-panel" data-profile-panel="transports" id="profile-transports" hidden>
         <article class="panel business-panel">
-          <span class="eyebrow">${ui("profile.cooperation_history")}</span>
-          <h2>${ui("profile.transports")}</h2>
-          <div class="business-list">
-            ${transports.map((transport) => `
-              <div class="business-row" data-ui-type="info">
+          <span class="eyebrow">${ui("profile.transports")}</span>
+          <h2>${ui("profile.transport_summary")}</h2>
+          <div class="profile-stat-grid">
+            <div class="profile-stat" data-ui-type="info"><span>${ui("profile.active_transports")}</span><strong>${transportBuckets.active.length}</strong></div>
+            <div class="profile-stat" data-ui-type="info"><span>${ui("profile.completed_transports")}</span><strong>${transportBuckets.completed.length}</strong></div>
+            <div class="profile-stat" data-ui-type="info"><span>${ui("profile.pending_transports")}</span><strong>${transportBuckets.pending.length}</strong></div>
+            <div class="profile-stat" data-ui-type="info"><span>${ui("profile.disputed_transports")}</span><strong>${transportBuckets.disputed.length}</strong></div>
+          </div>
+          <div class="business-list profile-transport-list">
+            ${transports.slice(0, 8).map((transport) => `
+              <button class="business-row detail-card" data-ui-type="details" data-detail-route="/transports" data-transport="${transport.id}">
                 <strong>${transport.number}</strong>
                 <span>${valueLabel(transport.status)}</span>
                 <small>${transport.pickup.address} -> ${transport.delivery.address}</small>
-              </div>
-            `).join("") || `<p class="muted">Brak zakończonych współprac w profilu.</p>`}
-          </div>
-        </article>
-        <article class="panel business-panel">
-          <span class="eyebrow">${ui("profile.info")}</span>
-          <h2>Dane publiczne</h2>
-          <p class="muted">${canViewSensitive ? "Widzisz swoje dane kontaktowe i publiczny profil zaufania." : ui("profile.sensitive_hidden")}</p>
-          <div class="detail-grid">
-            <div><span>${ui("profile.role")}</span><strong>${subject.roleLabel}</strong></div>
-            <div><span>${ui("profile.status")}</span><strong>${profileVerificationLabel(subject.status)}</strong></div>
-            <div><span>${ui("profile.country")}</span><strong>${subject.country}</strong></div>
-            <div><span>${ui("profile.rating")}</span><strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong></div>
+                <small class="detail-hint">${ui("profile.open_transport")}</small>
+              </button>
+            `).join("") || `<p class="muted">${ui("profile.no_transports")}</p>`}
           </div>
         </article>
       </section>
-      ${platformProfileAdmin(state) ? renderProfileAdminReputation(state) : ""}
+
+      <section class="profile-tab-panel" data-profile-panel="documents" id="profile-documents" hidden>
+        <article class="panel business-panel">
+          <span class="eyebrow">${ui("profile.documents")}</span>
+          <h2>${ui("profile.documents_title")}</h2>
+          <div class="business-list">
+            ${documents.map((document) => `
+              <button class="business-row detail-card" data-ui-type="details" data-detail-route="/documents">
+                <strong>${document.label}</strong>
+                <span>${document.type}</span>
+                <small>${document.status}</small>
+                <small class="detail-hint">${ui("profile.open_document")}</small>
+              </button>
+            `).join("") || `<p class="muted">${ui("profile.no_documents")}</p>`}
+          </div>
+        </article>
+      </section>
+
+      <section class="profile-tab-panel" data-profile-panel="wallet" id="profile-wallet" hidden>
+        <article class="panel business-panel">
+          <span class="eyebrow">${ui("profile.wallet")}</span>
+          <h2>${profileWalletTitle(state)}</h2>
+          ${wallet ? `
+            <div class="profile-wallet-card" data-ui-type="info" data-wallet-scope="${profileWalletScope(wallet)}">
+              <div><span>${ui("profile.wallet_type")}</span><strong>${profileWalletLabel(state, wallet)}</strong></div>
+              <div><span>${ui("finance.available_balance")}</span><strong>${formatMoney(wallet.balance, wallet.currency)}</strong></div>
+              <div><span>${ui("finance.blocked_balance")}</span><strong>${formatMoney((wallet.heldBalance || 0) + (wallet.blockedBalance || 0), wallet.currency)}</strong></div>
+              <div><span>${ui("finance.pending_balance")}</span><strong>${formatMoney(wallet.pendingBalance || 0, wallet.currency)}</strong></div>
+            </div>
+          ` : `<p class="muted empty-profile-wallet">${ui("profile.wallet_auto_create")}</p>`}
+        </article>
+      </section>
+
+      <section class="profile-tab-panel" data-profile-panel="activity" id="profile-activity" hidden>
+        <article class="panel business-panel">
+          <span class="eyebrow">${ui("profile.activity")}</span>
+          <h2>${ui("profile.activity_title")}</h2>
+          <div class="business-list">
+            ${activity.map((item) => `
+              <div class="business-row" data-ui-type="info">
+                <strong>${item.title}</strong>
+                <span>${item.value}</span>
+                <small>${item.note}</small>
+              </div>
+            `).join("") || `<p class="muted">${ui("profile.no_activity")}</p>`}
+          </div>
+        </article>
+      </section>
     </section>
   `;
+}
+
+function profileTabs() {
+  return [
+    { id: "info", labelKey: "profile.info" },
+    { id: "reputation", labelKey: "profile.reputation" },
+    { id: "reviews", labelKey: "profile.reviews" },
+    { id: "transports", labelKey: "profile.transports" },
+    { id: "documents", labelKey: "profile.documents" },
+    { id: "wallet", labelKey: "profile.wallet" },
+    { id: "activity", labelKey: "profile.activity" }
+  ];
+}
+
+function profileReputationMetrics(state, subject, rating, transports) {
+  const completed = transports.filter((item) => [TransportStatuses.COMPLETED, TransportStatuses.PAID, TransportStatuses.INVOICE_PENDING, TransportStatuses.PAYMENT_PENDING].includes(item.status));
+  const cancelled = transports.filter((item) => item.status === TransportStatuses.CANCELLED);
+  const disputes = profileDisputes(state, subject);
+  return [
+    profileStat("profile.average_rating", rating.hasRating ? rating.label : ui("profile.no_reviews"), ui("profile.reviews")),
+    profileStat("profile.rating_count", rating.reviewCount, ui("profile.reviews")),
+    profileStat("profile.transport_count", completed.length, ui("profile.completed_transports")),
+    profileStat("profile.punctuality", punctualityLabel(transports), ui("profile.reputation")),
+    profileStat("profile.effectiveness", successRateLabel(transports), ui("profile.reputation")),
+    profileStat("profile.cancelled_orders", cancelled.length, ui("profile.transports")),
+    profileStat("profile.disputes", disputes.length, ui("profile.reviews")),
+    profileStat("profile.gl_trust_index", rating.hasRating ? `${Math.round(rating.score)} / 100` : ui("profile.no_reviews"), ui("profile.reputation"))
+  ];
+}
+
+function profileTransportBuckets(transports) {
+  const completedStatuses = new Set([TransportStatuses.COMPLETED, TransportStatuses.PAID, TransportStatuses.INVOICE_PENDING, TransportStatuses.PAYMENT_PENDING]);
+  const pendingStatuses = new Set([TransportStatuses.DRAFT, TransportStatuses.PENDING_WAREHOUSE_PHOTO, TransportStatuses.READY_TO_PUBLISH, TransportStatuses.PUBLISHED, TransportStatuses.CARRIER_OFFER_RECEIVED, TransportStatuses.CARRIER_ACCEPTED, TransportStatuses.DRIVER_ASSIGNED]);
+  return {
+    active: transports.filter((item) => !completedStatuses.has(item.status) && !pendingStatuses.has(item.status) && ![TransportStatuses.DISPUTE_OPENED, TransportStatuses.CLAIM_OPENED, TransportStatuses.BLOCKED, TransportStatuses.CANCELLED].includes(item.status)),
+    completed: transports.filter((item) => completedStatuses.has(item.status)),
+    pending: transports.filter((item) => pendingStatuses.has(item.status)),
+    disputed: transports.filter((item) => [TransportStatuses.DISPUTE_OPENED, TransportStatuses.CLAIM_OPENED, TransportStatuses.BLOCKED].includes(item.status))
+  };
+}
+
+function profileDocuments(state, subject, canViewSensitive) {
+  const documents = [];
+  if (subject.kind === "user") {
+    if (canViewSensitive) {
+      documents.push(profileDocument("profile.identity_document", "profile.identity", subject.source?.documentVerified));
+      if (subject.role === Roles.DRIVER) {
+        documents.push(profileDocument("profile.driver_license", "profile.driver_document", subject.source?.documentsValid));
+        documents.push(profileDocument("profile.certificates", "profile.driver_document", subject.source?.documentsValid));
+        documents.push(profileDocument("profile.adr", "profile.driver_document", subject.source?.roleDocuments?.[Roles.DRIVER]?.includes("adr_certificate")));
+      }
+    }
+    if (subject.companyId) documents.push(...profileCompanyDocuments(state, subject.companyId));
+    return documents;
+  }
+  if (subject.kind === "company") return profileCompanyDocuments(state, subject.id);
+  return documents;
+}
+
+function profileCompanyDocuments(state, companyId) {
+  return (state.companyDocuments || [])
+    .filter((item) => item.companyId === companyId)
+    .map((item) => ({
+      label: item.label,
+      type: valueLabel(item.type),
+      status: profileVerificationLabel(item.status || AccountStatuses.VERIFIED)
+    }));
+}
+
+function profileDocument(labelKey, typeKey, verified) {
+  return {
+    label: ui(labelKey),
+    type: ui(typeKey),
+    status: verified ? ui("profile.verified") : ui("profile.pending")
+  };
+}
+
+function profileWalletForActiveRole(state) {
+  const walletView = state.access?.walletView;
+  const userId = activeUserId(state);
+  const companyId = activeCompanyId(state);
+  const wallets = state.wallets || [];
+  if (walletView === "PlatformWallet") return wallets.find((wallet) => wallet.modelType === "PlatformWallet") || null;
+  if (walletView === "CompanyWallet") return wallets.find((wallet) => wallet.modelType === "CompanyWallet" && wallet.ownerCompanyId === companyId) || wallets.find((wallet) => wallet.modelType === "CompanyWallet") || null;
+  if (walletView === "UserWallet") return wallets.find((wallet) => wallet.modelType === "UserWallet" && wallet.ownerUserId === userId) || null;
+  if (walletView === "PartnerWallet") return wallets.find((wallet) => wallet.modelType === "PartnerWallet" && (wallet.ownerCompanyId === companyId || wallet.ownerUserId === userId)) || wallets.find((wallet) => wallet.modelType === "PartnerWallet") || null;
+  return null;
+}
+
+function profileWalletTitle(state) {
+  if (state.access?.walletView === "PlatformWallet") return ui("profile.platform_wallet");
+  if (state.access?.walletView === "CompanyWallet") return ui("profile.company_wallet");
+  if (state.access?.walletView === "UserWallet") return ui("profile.user_wallet");
+  if (state.access?.walletView === "PartnerWallet") return ui("profile.partner_wallet");
+  return ui("profile.wallet");
+}
+
+function profileWalletLabel(state, wallet) {
+  if (wallet.modelType === "PlatformWallet") return ui("profile.platform_wallet");
+  if (wallet.modelType === "CompanyWallet") return ui("profile.company_wallet");
+  if (wallet.modelType === "UserWallet") return ui("profile.user_wallet");
+  if (wallet.modelType === "PartnerWallet") return ui("profile.partner_wallet");
+  return valueLabel(wallet.walletType || state.access?.walletView || "profile.wallet");
+}
+
+function profileWalletScope(wallet) {
+  if (wallet.modelType === "PlatformWallet") return "platform";
+  if (wallet.modelType === "CompanyWallet") return "company";
+  if (wallet.modelType === "UserWallet") return "user";
+  if (wallet.modelType === "PartnerWallet") return "partner";
+  return "none";
+}
+
+function profileActivityItems(state, subject, reviews, transports, documents) {
+  const items = [];
+  if (documents.length) items.push({ title: ui("profile.activity_document"), value: documents[0].label, note: ui("profile.documents") });
+  const started = transports.find((item) => [TransportStatuses.IN_TRANSIT, TransportStatuses.ON_FERRY, TransportStatuses.PICKUP_NAVIGATION_STARTED].includes(item.status));
+  if (started) items.push({ title: ui("profile.activity_transport_started"), value: started.number, note: valueLabel(started.status) });
+  const finished = transports.find((item) => [TransportStatuses.COMPLETED, TransportStatuses.PAID].includes(item.status));
+  if (finished) items.push({ title: ui("profile.activity_transport_finished"), value: finished.number, note: valueLabel(finished.status) });
+  if (reviews.length) items.push({ title: ui("profile.activity_review"), value: reviews[0].author, note: reviews[0].comment });
+  items.push({ title: ui("profile.activity_profile_update"), value: subject.name, note: ui("profile.account_data") });
+  return items.slice(0, 6);
+}
+
+function profileCompany(state, subject) {
+  if (subject.kind === "company") return subject.source;
+  const companyId = subject.companyId || activeCompanyId(state);
+  return (state.companies || []).find((company) => company.id === companyId) || null;
+}
+
+function profilePosition(state, subject) {
+  if (subject.kind === "company") return companyTypeLabel(subject.role);
+  const membership = (state.userCompanyRoles || []).find((item) => item.userId === subject.id && item.companyId === (subject.companyId || activeCompanyId(state)));
+  return companyRoleLabel(membership?.roleName) || subject.roleLabel;
+}
+
+function companyRoleLabel(roleName) {
+  const labels = {
+    owner: "Właściciel",
+    admin: "Administrator",
+    finance: "Finanse",
+    dispatcher: "Dyspozytor",
+    driver_manager: "Opiekun kierowców",
+    warehouse_manager: "Kierownik magazynu",
+    mechanic: "Mechanik",
+    insurance_manager: "Opiekun polis",
+    employee: "Pracownik",
+    viewer: "Obserwator"
+  };
+  return labels[roleName] || "";
+}
+
+function profileGlId(subject) {
+  const seed = String(subject.id || subject.name || "gl").split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const prefix = subject.kind === "company" ? "GL-F" : "GL-U";
+  return `${prefix}-${String(seed).padStart(6, "0")}`;
+}
+
+function successRateLabel(transports) {
+  if (!transports.length) return ui("profile.no_data");
+  const failed = transports.filter((item) => [TransportStatuses.CANCELLED, TransportStatuses.BLOCKED, TransportStatuses.DISPUTE_OPENED, TransportStatuses.CLAIM_OPENED].includes(item.status)).length;
+  return `${Math.max(0, Math.round(((transports.length - failed) / transports.length) * 100))}%`;
 }
 
 function renderReviewForm() {
@@ -3439,8 +3677,8 @@ function renderReviewForm() {
         <option value="2">2 / 5</option>
         <option value="1">1 / 5</option>
       </select></label>
-      <label>${ui("profile.review_comment")}<input name="comment" value="Wspolpraca zakonczona poprawnie" /></label>
-      <div class="action-unavailable" data-ui-type="info"><strong>${ui("profile.add_review")}</strong><span>Opinia będzie zapisywana po podłączeniu procesu zatwierdzania.</span></div>
+      <label>${ui("profile.review_comment")}<input name="comment" value="${ui("profile.review_default_comment")}" /></label>
+      <div class="action-unavailable" data-ui-type="info"><strong>${ui("profile.add_review")}</strong><span>${ui("profile.review_demo_note")}</span></div>
     </form>
   `;
 }
@@ -3498,7 +3736,8 @@ function profileSubjectForUser(state, user) {
       country: "PL",
       languages: ["PL"],
       joinedAt: "27.05.2026",
-      phone: ""
+      phone: "",
+      email: ""
     };
   }
   return {
@@ -3512,6 +3751,7 @@ function profileSubjectForUser(state, user) {
     languages: profileLanguages(user.selectedRole || user.roles?.[0] || state.session.role),
     joinedAt: "27.05.2026",
     phone: user.phone,
+    email: user.email,
     companyId: user.companyId,
     source: user
   };
@@ -3532,6 +3772,7 @@ function profileParticipant(state, id, type = null) {
       languages: profileLanguages(company.type),
       joinedAt: "27.05.2026",
       phone: company.publicPhone || "",
+      email: company.publicEmail || "",
       companyId: company.id,
       source: company
     };
@@ -3551,6 +3792,7 @@ function profileParticipant(state, id, type = null) {
       languages: ["PL"],
       joinedAt: "27.05.2026",
       phone: "",
+      email: "",
       source: parking
     };
   }
@@ -3585,7 +3827,7 @@ function renderStars(value = 0) {
       : rating > index - 1
       ? "partial"
       : "empty";
-    return `<span class="${className}">${className === "empty" ? "☆" : "★"}</span>`;
+    return `<span class="${className}">★</span>`;
   }).join("");
 }
 

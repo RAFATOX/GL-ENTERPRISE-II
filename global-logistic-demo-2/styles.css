@@ -1201,6 +1201,11 @@ mark.info {
   padding: 18px;
 }
 
+.profile-photo {
+  display: grid;
+  place-items: center;
+}
+
 .profile-avatar {
   width: 58px;
   height: 58px;
@@ -1280,12 +1285,33 @@ mark.info {
   gap: 8px;
 }
 
-.profile-tabs span {
+.profile-tabs span,
+.profile-tabs button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   padding: 8px 10px;
   font-weight: 900;
+}
+
+.profile-tabs button {
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.profile-tabs button[aria-selected="true"] {
+  border-color: rgba(20, 139, 122, .5);
+  background: rgba(20, 139, 122, .1);
+  color: var(--teal);
+}
+
+.profile-tab-panel[hidden] {
+  display: none;
+}
+
+.profile-tab-panel {
+  display: grid;
+  gap: 14px;
 }
 
 .profile-grid,
@@ -1297,6 +1323,34 @@ mark.info {
 
 .profile-stat-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-stars-xl {
+  font-size: 24px;
+}
+
+.profile-wallet-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profile-wallet-card div {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 12px;
+}
+
+.profile-wallet-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-wallet-card strong {
+  overflow-wrap: anywhere;
 }
 
 .profile-link,
@@ -1538,6 +1592,7 @@ mark.info {
     .trust-grid,
     .profile-grid,
     .profile-stat-grid,
+    .profile-wallet-card,
     .profile-safe-data,
     .profile-hero,
     .actions,

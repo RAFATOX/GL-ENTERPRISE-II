@@ -96,6 +96,7 @@ function assertAllButtonsHaveBehavior(html, label = "ui") {
       "data-action=",
       "data-module-route=",
       "data-profile-target=",
+      "data-profile-tab=",
       "data-detail-route=",
       "data-role=",
       "data-reset-demo=",
@@ -699,7 +700,7 @@ test("Knowledge route without permission shows access denied", () => {
   assert.ok(html.includes("access-panel"));
 });
 
-test("trust profile replaces old reputation ranking for regular users", () => {
+test("modern user profile replaces old reputation ranking for regular users", () => {
   const engine = engineForUserContext("u-driver-1", "co-carrier-a");
   const dashboardHtml = renderApp(engine.getSnapshot(), engine);
   const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "profile", route: "/profile" });
@@ -708,12 +709,19 @@ test("trust profile replaces old reputation ranking for regular users", () => {
   assert.equal(result.ok, true);
   assert.ok(dashboardHtml.includes("data-profile-card=\"self\""));
   assert.ok(dashboardHtml.includes("data-profile-target=\"u-driver-1\""));
-  assert.ok(profileHtml.includes("Profil zaufania GL"));
+  assert.ok(profileHtml.includes("Profil użytkownika GL"));
   assert.ok(profileHtml.includes("Marek Driver"));
+  assert.ok(profileHtml.includes("Identyfikator GL"));
+  assert.ok(profileHtml.includes("data-profile-tab=\"info\""));
+  assert.ok(profileHtml.includes("data-profile-tab=\"reputation\""));
+  assert.ok(profileHtml.includes("data-profile-tab=\"wallet\""));
   assert.ok(profileHtml.includes("★"));
   assert.ok(profileHtml.includes("4.75 / 5.00"));
+  assert.ok(profileHtml.includes("Prawo jazdy"));
+  assert.ok(profileHtml.includes("Portfel osobisty"));
   assert.equal(profileHtml.includes("Trust Score Engine"), false);
   assert.equal(profileHtml.includes("Reputation for companies"), false);
+  assertNoTechnicalUserUi(profileHtml, "driver profile");
 });
 
 test("clickable participant target opens company trust profile without sensitive data", () => {
@@ -731,9 +739,9 @@ test("clickable participant target opens company trust profile without sensitive
   assert.ok(transportHtml.includes("data-profile-target=\"co-carrier-a\""));
   assert.ok(profileHtml.includes("Baltic Line"));
   assert.ok(profileHtml.includes("4.80 / 5.00"));
-  assert.ok(profileHtml.includes("Dane wra"));
   assert.equal(profileHtml.includes("+48500100108"), false);
   assert.equal(profileHtml.includes("GLW-SYSTEM-0001"), false);
+  assertNoTechnicalUserUi(profileHtml, "company public profile");
 });
 
 test("reviews are available only after completed cooperation", () => {
@@ -757,6 +765,46 @@ test("reviews are available only after completed cooperation", () => {
   assert.ok(workshopHtml.includes("Dodaj opini"));
   assert.ok(driverHtml.includes("Ocena b"));
   assert.equal(driverHtml.includes("data-profile-review-form=\"true\""), false);
+});
+
+test("modern profile tabs render business data and role scoped wallets", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const cases = [
+    ["u-driver-1", "co-carrier-a", "Marek Driver", "Portfel osobisty", "data-wallet-scope=\"user\""],
+    ["u-carrier-owner", "co-carrier-a", "Kamil Carrier", "Portfel firmowy", "data-wallet-scope=\"company\""],
+    ["u-client-owner", "co-client-a", "Jan Client", "Portfel firmowy", "data-wallet-scope=\"company\""],
+    ["u-platform", null, "Ewa Core", "Portfel platformy GL", "data-wallet-scope=\"platform\""]
+  ];
+
+  cases.forEach(([userId, companyId, name, walletLabel, walletScope]) => {
+    const engine = engineForUserContext(userId, companyId);
+    const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "profile", route: "/profile" });
+    const html = renderApp(engine.getSnapshot(), engine);
+
+    assert.equal(result.ok, true, userId);
+    assert.ok(html.includes("data-profile-view=\"modern\""), userId);
+    assert.ok(html.includes(name), userId);
+    assert.ok(html.includes("Informacje"), userId);
+    assert.ok(html.includes("Reputacja"), userId);
+    assert.ok(html.includes("Opinie"), userId);
+    assert.ok(html.includes("Transporty"), userId);
+    assert.ok(html.includes("Dokumenty"), userId);
+    assert.ok(html.includes("Portfel"), userId);
+    assert.ok(html.includes("Aktywność"), userId);
+    assert.ok(html.includes("data-profile-tab=\"info\""), userId);
+    assert.ok(html.includes("data-profile-panel=\"wallet\""), userId);
+    assert.ok(html.includes("★"), userId);
+    assert.ok(html.includes(walletLabel), userId);
+    assert.ok(html.includes(walletScope), userId);
+    assert.equal(html.includes("activeRole"), false, userId);
+    assert.equal(html.includes("activeContext"), false, userId);
+    if (userId !== "u-platform") assertNoTechnicalUserUi(html, userId);
+    else assert.equal(html.includes("undefined"), false, userId);
+    assertAllButtonsHaveBehavior(html, userId);
+  });
+  assert.ok(appSource.includes("function activateProfileTab"));
+  assert.ok(appSource.includes("[data-profile-tab]"));
+  assert.ok(appSource.includes("[data-profile-panel]"));
 });
 
 test("old reputation route is not a public module route", () => {

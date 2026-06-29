@@ -46,6 +46,13 @@ root.addEventListener("click", (event) => {
     return;
   }
 
+  const profileTab = target.closest("[data-profile-tab]");
+  if (profileTab) {
+    event.preventDefault();
+    activateProfileTab(profileTab);
+    return;
+  }
+
   const profileTarget = target.closest("[data-profile-target]");
   if (profileTarget) {
     navigateToProfile(profileTarget.dataset.profileTarget, profileTarget.dataset.profileType);
@@ -188,6 +195,20 @@ function navigateToProfile(profileTargetId, profileTargetType) {
     profileTargetType
   });
   if (result.ok) setRouteHash("/profile");
+}
+
+function activateProfileTab(button) {
+  const shell = button.closest("[data-profile-view]");
+  if (!shell) return;
+  const tabId = button.dataset.profileTab;
+  shell.querySelectorAll("[data-profile-tab]").forEach((item) => {
+    item.setAttribute("aria-selected", item === button ? "true" : "false");
+  });
+  shell.querySelectorAll("[data-profile-panel]").forEach((panel) => {
+    const active = panel.dataset.profilePanel === tabId;
+    panel.hidden = !active;
+    panel.classList.toggle("is-active", active);
+  });
 }
 
 function syncRouteFromHash() {

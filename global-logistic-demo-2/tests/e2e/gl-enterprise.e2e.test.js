@@ -210,6 +210,7 @@ function assertButtonsHaveBehavior(html) {
       "data-action=",
       "data-module-route=",
       "data-profile-target=",
+      "data-profile-tab=",
       "data-detail-route=",
       "data-role=",
       "data-reset-demo=",
@@ -482,7 +483,7 @@ test("e2e: Platform Wallet jest widoczny tylko dla rol finansowych platformy", (
   });
 });
 
-test("e2e: profil zaufania zastepuje osobny modul Reputacja GL", () => {
+test("e2e: profil uzytkownika zawiera reputacje i zastepuje osobny modul Reputacja GL", () => {
   const engine = engineForUserContext("u-driver-1", "co-carrier-a");
   const dashboardHtml = render(engine);
   const profile = selectView(engine, "profile", "/profile");
@@ -493,11 +494,16 @@ test("e2e: profil zaufania zastepuje osobny modul Reputacja GL", () => {
   assert.equal(profile.ok, true);
   assert.ok(dashboardHtml.includes("data-profile-card=\"self\""));
   assert.equal(moduleRoutes(dashboardHtml).includes("/trust"), false);
-  assert.ok(profileHtml.includes("Profil zaufania GL"));
+  assert.ok(profileHtml.includes("Profil użytkownika GL"));
   assert.ok(profileHtml.includes("Marek Driver"));
+  assert.ok(profileHtml.includes("data-profile-tab=\"info\""));
+  assert.ok(profileHtml.includes("data-profile-tab=\"wallet\""));
+  assert.ok(profileHtml.includes("Portfel osobisty"));
+  assert.ok(profileHtml.includes("data-wallet-scope=\"user\""));
   assert.ok(profileHtml.includes("★"));
   assert.ok(profileHtml.includes("4.75 / 5.00"));
   assert.equal(profileHtml.includes("Trust Score Engine"), false);
+  assert.equal(profileHtml.includes("undefined"), false);
   assert.equal(trust.ok, false);
   assert.ok(deniedHtml.includes("access-panel"));
 });
@@ -519,6 +525,27 @@ test("e2e: profil publiczny nie ujawnia danych wrazliwych obcemu uzytkownikowi",
   assert.ok(profileHtml.includes("ukryty"));
   assert.equal(profileHtml.includes("+48500100108"), false);
   assert.equal(profileHtml.includes("GLW-SYSTEM-0001"), false);
+});
+
+test("e2e: profil pokazuje portfel zgodny z aktywna rola", () => {
+  [
+    ["u-driver-1", "co-carrier-a", "Portfel osobisty", "data-wallet-scope=\"user\""],
+    ["u-carrier-owner", "co-carrier-a", "Portfel firmowy", "data-wallet-scope=\"company\""],
+    ["u-client-owner", "co-client-a", "Portfel firmowy", "data-wallet-scope=\"company\""],
+    ["u-platform", null, "Portfel platformy GL", "data-wallet-scope=\"platform\""]
+  ].forEach(([userId, companyId, label, scope]) => {
+    const engine = engineForUserContext(userId, companyId);
+    assert.equal(selectView(engine, "profile", "/profile").ok, true);
+    const html = render(engine);
+
+    assert.ok(html.includes("data-profile-view=\"modern\""), userId);
+    assert.ok(html.includes(label), userId);
+    assert.ok(html.includes(scope), userId);
+    assert.ok(html.includes("Informacje"), userId);
+    assert.ok(html.includes("Reputacja"), userId);
+    assert.ok(html.includes("Aktywność"), userId);
+    assert.equal(html.includes("undefined"), false, userId);
+  });
 });
 
 test("e2e: opinia jest dostepna tylko po zakonczonej wspolpracy", () => {
