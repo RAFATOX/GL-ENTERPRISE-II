@@ -133,6 +133,12 @@
 
     button:hover { background: rgba(34, 52, 62, .98); }
 
+    .mode-button.is-active {
+      border-color: rgba(246,196,77,.72);
+      background: rgba(246,196,77,.18);
+      color: #fff4c8;
+    }
+
     .status-pill {
       max-width: min(58vw, 620px);
       border: 1px solid rgba(255,255,255,.18);
@@ -336,6 +342,8 @@
       <div class="toolbar">
         <div class="status-pill" id="status">Obrót: przeciągnij. Przesunięcie: prawy przycisk albo Shift + przeciągnięcie. Zoom: rolka myszy.</div>
         <div class="toolbar-group">
+          <button id="architectureView" class="mode-button is-active" type="button" data-map-mode="architecture">Architecture View</button>
+          <button id="flowView" class="mode-button" type="button" data-map-mode="flow">Flow View</button>
           <button id="zoomOut" type="button">Oddal</button>
           <button id="zoomIn" type="button">Przybliż</button>
           <button id="resetView" type="button">Reset widoku</button>
@@ -391,10 +399,15 @@
       position: node.position.map((value) => value * positionScale)
     }));
 
-    const links = architectureModel.engineArchitectureLinks(architectureModel.engineArchitecture)
+    const architectureLinks = architectureModel.engineArchitectureLinks(architectureModel.engineArchitecture)
       .map((link) => [link.from, link.to, link.relation === "dependsOn" ? "zależy od" : "dostarcza do"]);
-
+    const flowLinks = architectureModel.engineArchitectureFlowLinks(architectureModel.engineArchitectureFlow, architectureModel.engineArchitecture)
+      .map((link) => [link.from, link.to, link.reason || "przepływ"]);
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const drawableLinks = uniqueLinkTuples([...architectureLinks, ...flowLinks]);
+    let currentViewMode = "architecture";
+    let links = architectureLinks;
+
     const fallback = document.getElementById("fallback");
     const fallbackGrid = document.getElementById("fallbackGrid");
     const stage = document.getElementById("stage");
@@ -472,7 +485,7 @@
       const nodeGroups = [];
       const lineObjects = [];
 
-      links.forEach(([from, to]) => {
+      drawableLinks.forEach(([from, to]) => {
         const fromNode = nodeById.get(from);
         const toNode = nodeById.get(to);
         const geometry = new THREE.BufferGeometry().setFromPoints([
@@ -484,6 +497,7 @@
           new THREE.LineBasicMaterial({ color: 0xaccbd5, transparent: true, opacity: .42 })
         );
         line.userData.layers = [fromNode.layer, toNode.layer];
+        line.userData.key = linkKey(from, to);
         scene.add(line);
         lineObjects.push(line);
       });
@@ -559,11 +573,15 @@
       };
 
       refreshSceneVisibility = () => {
+        const visibleLinkKeys = activeLinkKeys();
         nodeGroups.forEach((group) => {
           group.visible = activeLayers.has(group.userData.node.layer);
         });
         lineObjects.forEach((line) => {
-          line.visible = line.userData.layers.every((layer) => activeLayers.has(layer));
+          line.visible = visibleLinkKeys.has(line.userData.key)
+            && line.userData.layers.every((layer) => activeLayers.has(layer));
+          line.material.opacity = currentViewMode === "flow" ? .68 : .34;
+          line.material.color.set(currentViewMode === "flow" ? 0xf6c44d : 0xaccbd5);
         });
         ensureSelectedVisible();
         updateFallbackGrid();
@@ -672,8 +690,8 @@
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, b.y);
-          ctx.strokeStyle = "rgba(184,213,224,.38)";
-          ctx.lineWidth = Math.max(1.2, (a.scale + b.scale) * .018);
+          ctx.strokeStyle = currentViewMode === "flow" ? "rgba(246,196,77,.72)" : "rgba(184,213,224,.38)";
+          ctx.lineWidth = Math.max(currentViewMode === "flow" ? 2 : 1.2, (a.scale + b.scale) * .018);
           ctx.stroke();
         });
 
@@ -871,6 +889,9 @@
     }
 
     function setupToolbar() {
+      document.querySelectorAll("[data-map-mode]").forEach((button) => {
+        button.addEventListener("click", () => setMapMode(button.dataset.mapMode));
+      });
       document.getElementById("resetView").addEventListener("click", () => viewControls.reset());
       document.getElementById("zoomIn").addEventListener("click", () => viewControls.zoomIn());
       document.getElementById("zoomOut").addEventListener("click", () => viewControls.zoomOut());
@@ -884,11 +905,47 @@
       });
     }
 
+    function setMapMode(mode) {
+      currentViewMode = mode === "flow" ? "flow" : "architecture";
+      links = currentViewMode === "flow" ? flowLinks : architectureLinks;
+      updateMapModeButtons();
+      refreshSceneVisibility();
+      ensureSelectedVisible();
+      status.textContent = currentViewMode === "flow"
+        ? "Flow View: główny przepływ User → Workflow → Transport → Finanse → Zaufanie → UI."
+        : "Architecture View: pełna mapa warstw i zależności silników.";
+    }
+
+    function updateMapModeButtons() {
+      document.querySelectorAll("[data-map-mode]").forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.mapMode === currentViewMode);
+      });
+    }
+
+    function activeLinkKeys() {
+      return new Set(links.map(([from, to]) => linkKey(from, to)));
+    }
+
+    function linkKey(from, to) {
+      return `${from}->${to}`;
+    }
+
+    function uniqueLinkTuples(linkTuples) {
+      const seen = new Set();
+      return linkTuples.filter(([from, to]) => {
+        const key = linkKey(from, to);
+        if (seen.has(key) || !nodeById?.has?.(from) || !nodeById?.has?.(to)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
     async function loadArchitectureModel() {
       try {
         return await import("../src/core/engine-architecture.js");
       } catch {
         // Publiczne demo czyta rzeczywisty model z src/core/engine-architecture.js.
+        // Po zmianie src/core/engine-architecture.js trzeba zaktualizować mapę 3D.
         // Ten minimalny fallback pozwala otworzyć dokument także przez file://, gdy przeglądarka blokuje import modułu.
         const fallbackLayers = {
           identity: { label: "Tożsamość", color: "#4dd4ff" },
@@ -918,10 +975,26 @@
           fallbackEngine("translation", "Translation Engine", "ui", "engine", [4.8, 5.2, -1.6], ["identity"], ["ui"]),
           fallbackEngine("gl-academy", "GL Academy", "future", "future_module", [-6.8, -3.2, -2.5], ["knowledge"], ["profile"])
         ];
+        const fallbackFlow = [
+          ["user", "identity", "user_id"],
+          ["identity", "permission", "verified access"],
+          ["permission", "workflow", "authorized workflow"],
+          ["workflow", "driver", "driver assignment"],
+          ["driver", "vehicle", "active_vehicle_id"],
+          ["workflow", "wallet", "payment status"],
+          ["wallet", "escrow", "secured funds"],
+          ["escrow", "audit-log", "audit proof"],
+          ["knowledge", "workflow", "knowledge context"],
+          ["knowledge", "ai-control", "risk context"],
+          ["ai-control", "workflow", "risk signal"],
+          ["translation", "ui", "translation_key"],
+          ["profile", "ui", "profile view"]
+        ];
         return {
           loadError: "Nie udało się załadować src/core/engine-architecture.js. Pokazano lokalny fallback mapy.",
           engineArchitectureLayers: fallbackLayers,
           engineArchitecture: fallbackNodes,
+          engineArchitectureFlow: fallbackFlow,
           engineArchitectureLinks: (engines) => {
             const links = [];
             engines.forEach((engine) => {
@@ -929,6 +1002,9 @@
               engine.providesTo.forEach((target) => links.push({ from: engine.id, to: target, relation: "providesTo" }));
             });
             return links;
+          },
+          engineArchitectureFlowLinks: (flow = fallbackFlow) => {
+            return flow.map(([from, to, reason]) => ({ from, to, relation: "flow", reason }));
           }
         };
       }

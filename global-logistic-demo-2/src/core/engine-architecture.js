@@ -25,7 +25,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: [],
     providesTo: ["identity"],
     workflowRole: "input identity",
-    mapPosition: [-13, 4, 0]
+    mapPosition: [-14, 1.6, -0.8]
   }),
   engine({
     id: "identity",
@@ -36,7 +36,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["user", "audit-log"],
     providesTo: ["registration-onboarding", "company", "permission", "translation", "profile", "workflow"],
     workflowRole: "input identity engine",
-    mapPosition: [-10.2, 3.2, 1.1]
+    mapPosition: [-11.2, 1.6, -0.4]
   }),
   engine({
     id: "registration-onboarding",
@@ -47,7 +47,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "translation", "audit-log"],
     providesTo: ["company", "permission", "workflow", "ui"],
     workflowRole: "entry verification engine",
-    mapPosition: [-7.4, 1.9, 0.2]
+    mapPosition: [-8.4, 1.5, 0]
   }),
   engine({
     id: "company",
@@ -58,7 +58,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "audit-log"],
     providesTo: ["user-company-role", "permission", "workflow", "wallet", "driver", "vehicle", "profile", "gl-jobs", "gl-fleet-market"],
     workflowRole: "company context engine",
-    mapPosition: [-4.5, 2.2, 0.8]
+    mapPosition: [-5.4, 0.9, 0.2]
   }),
   engine({
     id: "user-company-role",
@@ -69,7 +69,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "company", "audit-log"],
     providesTo: ["permission", "routing-access", "workflow"],
     workflowRole: "membership context model",
-    mapPosition: [-2.2, 3.7, 1.4]
+    mapPosition: [-5.4, -0.8, 1.2]
   }),
   engine({
     id: "permission",
@@ -80,7 +80,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "company", "user-company-role", "audit-log"],
     providesTo: ["routing-access", "ui", "workflow", "wallet", "escrow", "knowledge", "admin-views", "driver", "vehicle", "profile", "notification", "gl-jobs", "gl-fleet-market"],
     workflowRole: "access control engine",
-    mapPosition: [0.2, 2.5, 0.2]
+    mapPosition: [-2.8, 0.9, 0]
   }),
   engine({
     id: "routing-access",
@@ -91,7 +91,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["permission", "identity", "company", "workflow"],
     providesTo: ["ui", "audit-log"],
     workflowRole: "route guard",
-    mapPosition: [3.2, 3.6, -0.4]
+    mapPosition: [-2.3, 5, -0.5]
   }),
   engine({
     id: "ui",
@@ -102,7 +102,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["routing-access", "translation", "permission", "workflow"],
     providesTo: ["workflow", "audit-log"],
     workflowRole: "user interaction layer",
-    mapPosition: [7.2, 4.5, -1.6]
+    mapPosition: [4.8, 5.2, -0.8]
   }),
   engine({
     id: "translation",
@@ -113,7 +113,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "registration-onboarding"],
     providesTo: ["ui", "registration-onboarding", "profile", "workflow"],
     workflowRole: "language information engine",
-    mapPosition: [4.8, 5.4, -1.8]
+    mapPosition: [1.2, 6.4, -1.1]
   }),
   engine({
     id: "workflow",
@@ -121,10 +121,21 @@ export const engineArchitecture = Object.freeze([
     layer: "workflow",
     type: "engine",
     description: "Centralny koordynator procesu transportowego od ladunku po rozliczenie, escrow, reputacje i audit log.",
-    dependsOn: ["identity", "company", "permission", "driver", "vehicle", "wallet", "escrow", "document", "gps", "knowledge", "audit-log", "notification"],
-    providesTo: ["wallet", "escrow", "gps", "reputation", "notification", "ai-control", "knowledge", "profile", "admin-views", "gl-jobs", "ui"],
+    dependsOn: ["identity", "company", "permission", "driver", "vehicle", "wallet", "escrow", "document", "gps", "knowledge", "audit-log", "notification", "transport-load"],
+    providesTo: ["transport-load", "driver", "vehicle", "document", "wallet", "escrow", "gps", "audit-log", "reputation", "notification", "ai-control", "knowledge", "profile", "admin-views", "gl-jobs", "ui"],
     workflowRole: "central process coordinator",
     mapPosition: [0, 0, 0]
+  }),
+  engine({
+    id: "transport-load",
+    name: "Transport Workflow / Load Engine",
+    layer: "workflow",
+    type: "engine",
+    description: "Model ladunku i transportu, publikacja, przyjecie, status transportu oraz etapowe przejscia workflow.",
+    dependsOn: ["workflow", "company", "permission", "driver", "vehicle", "document", "gps", "audit-log"],
+    providesTo: ["workflow", "wallet", "escrow", "notification", "reputation"],
+    workflowRole: "load and transport state engine",
+    mapPosition: [0.8, -2, 0.6]
   }),
   engine({
     id: "driver",
@@ -133,9 +144,9 @@ export const engineArchitecture = Object.freeze([
     type: "engine",
     description: "Dane kierowcy, status weryfikacji, dokumenty, active_vehicle_id, dostepnosc i gotowosc do transportu.",
     dependsOn: ["identity", "company", "permission", "document", "audit-log"],
-    providesTo: ["workflow", "gps", "gl-jobs"],
+    providesTo: ["workflow", "gps", "vehicle", "gl-jobs"],
     workflowRole: "transport execution engine",
-    mapPosition: [-3.6, -3.7, 2.2]
+    mapPosition: [-3.3, -3.1, 1.5]
   }),
   engine({
     id: "vehicle",
@@ -146,7 +157,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["company", "permission", "audit-log"],
     providesTo: ["workflow", "driver", "gps", "gl-fleet-market"],
     workflowRole: "fleet execution engine",
-    mapPosition: [-0.8, -4.4, 2.6]
+    mapPosition: [-1, -4.4, 1.8]
   }),
   engine({
     id: "document",
@@ -157,7 +168,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "company", "permission", "audit-log"],
     providesTo: ["workflow", "driver", "vehicle", "profile", "admin-views"],
     workflowRole: "proof and verification engine",
-    mapPosition: [2.1, -3.8, 2.1]
+    mapPosition: [3.6, -2.4, 1.4]
   }),
   engine({
     id: "gps",
@@ -168,7 +179,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["workflow", "driver", "vehicle", "audit-log"],
     providesTo: ["workflow", "notification", "ai-control"],
     workflowRole: "location proof engine",
-    mapPosition: [4.5, -3.2, 1.7]
+    mapPosition: [2.1, -3.8, 1.4]
   }),
   engine({
     id: "wallet",
@@ -177,9 +188,9 @@ export const engineArchitecture = Object.freeze([
     type: "engine",
     description: "UserWallet, CompanyWallet, PlatformWallet, salda, transakcje, wyplaty i rozliczenia.",
     dependsOn: ["identity", "company", "permission", "financial-audit", "audit-log"],
-    providesTo: ["workflow", "escrow", "admin-views", "notification"],
+    providesTo: ["workflow", "escrow", "audit-log", "admin-views", "notification"],
     workflowRole: "financial execution engine",
-    mapPosition: [5.5, -0.6, 1.8]
+    mapPosition: [6.2, -1.2, 1.3]
   }),
   engine({
     id: "financial-audit",
@@ -190,7 +201,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["audit-log"],
     providesTo: ["wallet", "escrow", "admin-views"],
     workflowRole: "financial audit service",
-    mapPosition: [8.2, -0.8, 1.1]
+    mapPosition: [7.8, 0.8, 1.4]
   }),
   engine({
     id: "escrow",
@@ -199,9 +210,9 @@ export const engineArchitecture = Object.freeze([
     type: "engine",
     description: "Blokada srodkow, status zabezpieczenia platnosci, zwolnienie po odbiorze i zamrozenie przy sporze.",
     dependsOn: ["wallet", "workflow", "financial-audit", "audit-log", "permission"],
-    providesTo: ["workflow", "notification", "dispute", "admin-views"],
+    providesTo: ["workflow", "audit-log", "notification", "dispute", "admin-views"],
     workflowRole: "payment security engine",
-    mapPosition: [8.5, -2.6, 0.2]
+    mapPosition: [8.8, -1.8, 0.2]
   }),
   engine({
     id: "audit-log",
@@ -212,7 +223,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity"],
     providesTo: ["registration-onboarding", "company", "permission", "workflow", "wallet", "escrow", "knowledge", "dispute", "admin-views", "ai-control", "notification", "reputation", "gps"],
     workflowRole: "audit engine",
-    mapPosition: [9.8, 1.2, 0]
+    mapPosition: [10.8, 0.6, 0]
   }),
   engine({
     id: "knowledge",
@@ -223,7 +234,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["audit-log", "permission"],
     providesTo: ["workflow", "ai-control", "gl-academy", "admin-views", "notification"],
     workflowRole: "knowledge information engine",
-    mapPosition: [-3.6, -1.2, -3.8]
+    mapPosition: [-5.2, -2.2, -3.6]
   }),
   engine({
     id: "ai-control",
@@ -234,7 +245,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["workflow", "knowledge", "audit-log", "notification"],
     providesTo: ["workflow", "admin-views", "notification"],
     workflowRole: "control and risk agent",
-    mapPosition: [-6.5, -0.4, -4.5]
+    mapPosition: [-8.1, -1.6, -4.2]
   }),
   engine({
     id: "notification",
@@ -245,7 +256,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["workflow", "audit-log", "permission"],
     providesTo: ["ui", "driver", "company", "ai-control", "workflow"],
     workflowRole: "notification engine",
-    mapPosition: [3.4, 0.9, 4.2]
+    mapPosition: [4.8, 1.5, 4.2]
   }),
   engine({
     id: "reputation",
@@ -253,10 +264,10 @@ export const engineArchitecture = Object.freeze([
     layer: "trust",
     type: "engine",
     description: "Aktualizuje reputacje po transporcie, odbiorze, ocenie, sporze, anulowaniu, opoznieniu i naruszeniu.",
-    dependsOn: ["workflow", "audit-log", "profile"],
+    dependsOn: ["workflow", "audit-log"],
     providesTo: ["profile", "workflow", "gl-academy"],
     workflowRole: "trust score engine",
-    mapPosition: [2.2, -1.2, -4.2]
+    mapPosition: [4.7, -4.4, -2.6]
   }),
   engine({
     id: "profile",
@@ -267,7 +278,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["identity", "company", "reputation", "permission", "translation"],
     providesTo: ["ui", "reputation", "gl-academy", "gl-jobs"],
     workflowRole: "trust presentation engine",
-    mapPosition: [5.3, -0.2, -3.6]
+    mapPosition: [7.1, -4.1, -2.4]
   }),
   engine({
     id: "dispute",
@@ -278,7 +289,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["workflow", "escrow", "audit-log", "permission"],
     providesTo: ["admin-views", "reputation", "workflow"],
     workflowRole: "exception handling engine",
-    mapPosition: [7.2, 1.2, -3.1]
+    mapPosition: [10.2, -3.3, -1.2]
   }),
   engine({
     id: "admin-views",
@@ -289,7 +300,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["permission", "audit-log", "workflow", "wallet", "escrow", "knowledge", "dispute"],
     providesTo: ["ui", "audit-log"],
     workflowRole: "administration and observability view",
-    mapPosition: [9.3, 3.8, -2.3]
+    mapPosition: [9.5, 3.8, -2.5]
   }),
   engine({
     id: "gl-academy",
@@ -300,7 +311,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["knowledge", "profile", "reputation", "permission"],
     providesTo: ["profile", "knowledge"],
     workflowRole: "future knowledge module",
-    mapPosition: [-7.2, -3.3, -2.8]
+    mapPosition: [-8, -4.9, -3.5]
   }),
   engine({
     id: "gl-jobs",
@@ -311,7 +322,7 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["profile", "company", "permission", "workflow"],
     providesTo: ["workflow", "profile"],
     workflowRole: "future work module",
-    mapPosition: [-0.4, -6.3, -2.1]
+    mapPosition: [-2.5, -6.2, -2.1]
   }),
   engine({
     id: "gl-fleet-market",
@@ -322,8 +333,42 @@ export const engineArchitecture = Object.freeze([
     dependsOn: ["vehicle", "company", "permission"],
     providesTo: ["vehicle", "company"],
     workflowRole: "future fleet market module",
-    mapPosition: [5.5, -4.8, -2.4]
+    mapPosition: [2.2, -6.1, -2.3]
   })
+]);
+
+export const engineArchitectureFlow = Object.freeze([
+  ["user", "identity", "user_id"],
+  ["identity", "registration-onboarding", "identity verification"],
+  ["registration-onboarding", "company", "company context"],
+  ["company", "permission", "permissions"],
+  ["permission", "routing-access", "route guard"],
+  ["routing-access", "ui", "visible UI"],
+  ["translation", "ui", "translation_key"],
+  ["permission", "workflow", "authorized action"],
+  ["knowledge", "workflow", "knowledge context"],
+  ["workflow", "driver", "driver assignment"],
+  ["driver", "vehicle", "active_vehicle_id"],
+  ["workflow", "vehicle", "vehicle readiness"],
+  ["workflow", "document", "CMR and proofs"],
+  ["workflow", "gps", "location and ETA"],
+  ["workflow", "transport-load", "load lifecycle"],
+  ["transport-load", "wallet", "secured payment"],
+  ["workflow", "wallet", "payment status"],
+  ["wallet", "escrow", "reserve funds"],
+  ["escrow", "audit-log", "financial proof"],
+  ["workflow", "audit-log", "process audit"],
+  ["workflow", "notification", "status updates"],
+  ["workflow", "reputation", "trust event"],
+  ["reputation", "profile", "trust profile"],
+  ["profile", "ui", "profile view"],
+  ["knowledge", "ai-control", "risk context"],
+  ["ai-control", "notification", "risk alert"],
+  ["knowledge", "gl-academy", "learning content"],
+  ["profile", "gl-jobs", "work identity"],
+  ["company", "gl-jobs", "company context"],
+  ["vehicle", "gl-fleet-market", "fleet asset"],
+  ["company", "gl-fleet-market", "company owner"]
 ]);
 
 export function validateEngineArchitecture(engines = engineArchitecture) {
@@ -383,7 +428,7 @@ export function engineArchitectureLinks(engines = engineArchitecture) {
   return links;
 
   function addLink(from, to, relation) {
-    const key = `${from}->${to}:${relation}`;
+    const key = `${from}->${to}`;
     if (seen.has(key)) return;
     seen.add(key);
     links.push({
@@ -394,6 +439,18 @@ export function engineArchitectureLinks(engines = engineArchitecture) {
       toName: names.get(to)?.name || to
     });
   }
+}
+
+export function engineArchitectureFlowLinks(flow = engineArchitectureFlow, engines = engineArchitecture) {
+  const names = engineArchitectureById(engines);
+  return flow.map(([from, to, reason]) => ({
+    from,
+    to,
+    relation: "flow",
+    reason,
+    fromName: names.get(from)?.name || from,
+    toName: names.get(to)?.name || to
+  }));
 }
 
 function hasPath(engines, fromId, toId) {
