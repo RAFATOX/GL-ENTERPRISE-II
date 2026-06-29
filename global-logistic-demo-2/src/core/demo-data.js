@@ -3,6 +3,7 @@ import {
   AuthoritySubtypes,
   CompanyRoleNames,
   DEMO_DATA_VERSION,
+  KnowledgeSourceTypes,
   PaymentStatuses,
   Roles,
   SourceTypes,
@@ -545,6 +546,23 @@ export function createDemoState() {
     authorityControlHistory: [
       authorityHistory("authhist-1", "authctrl-1", "tr-1001", "u-authority-police", AuthoritySubtypes.POLICE, "A2 Poznan", "vh-1", "sprawdzenie dokumentów", "pozytywny", ["cmr", "transport_license", "road_permit", "insurance_policy"])
     ],
+    companyDocuments: [
+      companyDocument("company-doc-ckz-1", "co-carrier-a", "professional_competence_certificate", "Certyfikat Kompetencji Zawodowych Baltic Line"),
+      companyDocument("company-doc-license-1", "co-carrier-a", "carrier_license", "Licencja transportowa Baltic Line"),
+      companyDocument("company-doc-ocp-1", "co-carrier-a", "ocp", "OCP przewoznika Baltic Line"),
+      companyDocument("company-doc-adr-1", "co-carrier-a", "adr_certificate", "Zaswiadczenie ADR dla floty Baltic Line")
+    ],
+    knowledgeSources: [
+      knowledgeSource("ks-ckz-1", "Certyfikat Kompetencji Zawodowych przewoznika", KnowledgeSourceTypes.PROFESSIONAL_COMPETENCE_CERTIFICATE, "Wymaganie kompetencyjne dla podmiotu wykonujacego transport drogowy.", "PL", ["certyfikat", "przewoznik", "firma"], [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER], ["company", "documents", "transport"]),
+      knowledgeSource("ks-cmr-1", "Konwencja CMR", KnowledgeSourceTypes.CMR_CONVENTION, "Podstawowe zasady miedzynarodowego przewozu drogowego towarow.", "EU", ["cmr", "dokumenty", "transport"], [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.DRIVER, Roles.AUTHORITY_USER], ["documents", "transport"]),
+      knowledgeSource("ks-adr-1", "ADR", KnowledgeSourceTypes.ADR_REGULATION, "Informacyjne zrodlo dotyczace przewozu towarow niebezpiecznych.", "EU", ["adr", "ladunek", "pojazd", "driver"], [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER, Roles.DRIVER], ["documents", "transport", "vehicles"]),
+      knowledgeSource("ks-mobility-1", "Pakiet Mobilnosci", KnowledgeSourceTypes.MOBILITY_PACKAGE, "Reguly organizacji pracy przewoznika i kierowcy w transporcie UE.", "EU", ["mobilnosc", "przewoznik", "driver"], [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER, Roles.DRIVER], ["transport", "driver_time"]),
+      knowledgeSource("ks-driver-time-1", "Czas pracy kierowcy", KnowledgeSourceTypes.DRIVER_WORK_TIME, "Informacyjne wymagania dotyczace czasu pracy, przerw i odpoczynku.", "EU", ["czas_pracy", "tachograf", "driver"], [Roles.DRIVER, Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER], ["driver_time", "transport"]),
+      knowledgeSource("ks-tachograph-1", "Zasady tachografu", KnowledgeSourceTypes.TACHOGRAPH_RULES, "Podstawowe reguly rejestracji aktywnosci kierowcy.", "EU", ["tachograf", "driver", "kontrola"], [Roles.DRIVER, Roles.CARRIER_OWNER, Roles.AUTHORITY_USER], ["driver_time", "authority"]),
+      knowledgeSource("ks-ocp-1", "OCP przewoznika", KnowledgeSourceTypes.INSURANCE_RULES, "Informacja o odpowiedzialnosci cywilnej przewoznika i dokumentach ubezpieczeniowych.", "PL", ["ocp", "ubezpieczenie", "przewoznik"], [Roles.CARRIER_OWNER, Roles.INSURANCE_PARTNER], ["insurance", "documents"]),
+      knowledgeSource("ks-warehouse-1", "Procedura magazynu", KnowledgeSourceTypes.WAREHOUSE_PROCEDURE, "Minimalny opis krokow bramy, rampy, zdjec i potwierdzenia zaladunku.", "PL", ["magazyn", "rampa", "zdjecia"], [Roles.WAREHOUSE_WORKER, Roles.DRIVER, Roles.CLIENT_OWNER], ["photos", "documents", "transport"]),
+      knowledgeSource("ks-academy-transport-1", "Material GL Academy: podstawy transportu", KnowledgeSourceTypes.ACADEMY_MATERIAL, "Material demo dla przyszlych kursow Akademii GL.", "PL", ["akademia", "szkolenie", "podstawy"], [Roles.ACADEMY_TEACHER, Roles.ACADEMY_STUDENT], ["academy"])
+    ],
     companyComplianceEntries: [],
     serviceProviders: [
       serviceProvider("srvprov-1", "co-workshop-a", "TruckFix Warsztat", "workshop", 52.21, 16.91, 45, 320),
@@ -613,6 +631,7 @@ export function createDemoState() {
   tuneDemoCompanyRoles(state);
   seedEvents(state);
   seedFinancialAuditRecords(state);
+  seedKnowledgeAuditRecords(state);
   return state;
 }
 
@@ -689,6 +708,45 @@ function company(id, name, type, trustScore, people, status) {
     invitedUserIds: [],
     documentIds: [],
     auditIds: []
+  };
+}
+
+function companyDocument(id, companyId, type, label) {
+  return {
+    id,
+    document_id: id,
+    companyId,
+    company_id: companyId,
+    type,
+    label,
+    status: "verified",
+    uploadedBy: "seed",
+    uploadedAt: baseTime
+  };
+}
+
+function knowledgeSource(id, title, type, description, country, tags, relatedRoles, relatedModules) {
+  const auditLogId = `audit-${id}`;
+  return {
+    id,
+    knowledge_source_id: id,
+    title,
+    type,
+    description,
+    jurisdiction_country: country,
+    language: "pl",
+    version: "1.0",
+    valid_from: baseTime,
+    valid_to: null,
+    status: "active",
+    tags,
+    related_roles: relatedRoles,
+    related_modules: relatedModules,
+    source_reference: "demo_seed",
+    created_at: baseTime,
+    updated_at: baseTime,
+    auditLogId: auditLogId,
+    audit_log_id: auditLogId
   };
 }
 
@@ -1595,4 +1653,34 @@ function seedFinancialAuditRecords(state) {
     newState: entry.locked ? "locked" : "open",
     at: entry.createdAt
   }));
+}
+
+function seedKnowledgeAuditRecords(state) {
+  (state.knowledgeSources || []).forEach((source) => {
+    const auditLogId = source.audit_log_id || source.auditLogId;
+    if (!auditLogId || state.audit.some((row) => row.id === auditLogId || row.audit_log_id === auditLogId)) return;
+    state.audit.unshift({
+      id: auditLogId,
+      audit_log_id: auditLogId,
+      eventId: `knowledge-seed-${source.knowledge_source_id}`,
+      at: source.created_at || baseTime,
+      actorId: "seed",
+      actorRole: "system",
+      actorCompanyId: null,
+      actorCompanyRole: null,
+      actorContextType: "system",
+      objectType: "knowledge_source",
+      objectId: source.knowledge_source_id,
+      transportId: null,
+      action: "KNOWLEDGE_SOURCE_CREATED",
+      requestedAction: "KNOWLEDGE_SOURCE_CREATED",
+      result: "success",
+      previousState: null,
+      newState: source.status,
+      device: "demo-seed",
+      reason: `demo knowledge source: ${source.title}`,
+      source: SourceTypes.SYSTEM,
+      readOnly: true
+    });
+  });
 }

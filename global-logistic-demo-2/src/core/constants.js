@@ -1,6 +1,6 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 13;
-export const STORAGE_KEY = "global-logistic-gl2-core-engine-v8";
+export const DEMO_DATA_VERSION = 14;
+export const STORAGE_KEY = "global-logistic-gl2-core-engine-v9";
 
 export const Roles = Object.freeze({
   PLATFORM_OWNER: "platform_owner",
@@ -107,6 +107,25 @@ export const CompanyRoleNames = Object.freeze({
   INSURANCE_MANAGER: "insurance_manager",
   EMPLOYEE: "employee",
   VIEWER: "viewer"
+});
+
+export const KnowledgeSourceTypes = Object.freeze({
+  PROFESSIONAL_COMPETENCE_CERTIFICATE: "professional_competence_certificate",
+  CARRIER_LICENSE: "carrier_license",
+  CMR_CONVENTION: "cmr_convention",
+  ADR_REGULATION: "adr_regulation",
+  MOBILITY_PACKAGE: "mobility_package",
+  DRIVER_WORK_TIME: "driver_work_time",
+  TACHOGRAPH_RULES: "tachograph_rules",
+  INSURANCE_RULES: "insurance_rules",
+  CUSTOMS_RULES: "customs_rules",
+  WAREHOUSE_PROCEDURE: "warehouse_procedure",
+  GL_INTERNAL_POLICY: "gl_internal_policy",
+  ACADEMY_MATERIAL: "academy_material",
+  LEGAL_UPDATE: "legal_update",
+  TEST_QUESTION_BANK: "test_question_bank",
+  TRAINING_MODULE: "training_module",
+  CERTIFICATION_PATH: "certification_path"
 });
 
 export const CustomsDocumentTypes = Object.freeze([
@@ -251,6 +270,9 @@ export const ActionTypes = Object.freeze({
   ONBOARDING_REJECT: "ONBOARDING_REJECT",
   ADD_COMPANY_DRIVER: "ADD_COMPANY_DRIVER",
   ADD_VEHICLE: "ADD_VEHICLE",
+  CREATE_KNOWLEDGE_SOURCE: "CREATE_KNOWLEDGE_SOURCE",
+  UPDATE_KNOWLEDGE_SOURCE: "UPDATE_KNOWLEDGE_SOURCE",
+  ARCHIVE_KNOWLEDGE_SOURCE: "ARCHIVE_KNOWLEDGE_SOURCE",
   CREATE_LOAD: "CREATE_LOAD",
   ADD_LOAD_PHOTO: "ADD_LOAD_PHOTO",
   CONFIRM_GPS: "CONFIRM_GPS",
@@ -350,6 +372,9 @@ export const EventTypes = Object.freeze({
   DOCUMENT_REJECTED: "DOCUMENT_REJECTED",
   COMPLIANCE_SIGNAL_RECORDED: "COMPLIANCE_SIGNAL_RECORDED",
   COMPANY_VERIFIED: "COMPANY_VERIFIED",
+  KNOWLEDGE_SOURCE_CREATED: "KNOWLEDGE_SOURCE_CREATED",
+  KNOWLEDGE_SOURCE_UPDATED: "KNOWLEDGE_SOURCE_UPDATED",
+  KNOWLEDGE_SOURCE_ARCHIVED: "KNOWLEDGE_SOURCE_ARCHIVED",
   LOAD_CREATED: "LOAD_CREATED",
   LOAD_PHOTO_ADDED: "LOAD_PHOTO_ADDED",
   LOAD_PUBLISHED: "LOAD_PUBLISHED",

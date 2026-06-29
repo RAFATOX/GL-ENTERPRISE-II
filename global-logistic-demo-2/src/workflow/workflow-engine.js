@@ -175,6 +175,14 @@ export class WorkflowEngine {
       case ActionTypes.ADD_VEHICLE:
         validateAddVehicle(actor, payload, reasons);
         break;
+      case ActionTypes.CREATE_KNOWLEDGE_SOURCE:
+        if (!payload.title) reasons.push(v("knowledge_title_required"));
+        if (!payload.type) reasons.push(v("knowledge_type_required"));
+        break;
+      case ActionTypes.UPDATE_KNOWLEDGE_SOURCE:
+      case ActionTypes.ARCHIVE_KNOWLEDGE_SOURCE:
+        if (!payload.knowledge_source_id && !payload.id) reasons.push(v("knowledge_source_id_required"));
+        break;
       case ActionTypes.CREATE_LOAD:
         if (!actor.companyId && !payload.clientCompanyId) reasons.push(v("client_company_required"));
         if (!payload.description) reasons.push(v("load_description_required"));
@@ -392,6 +400,12 @@ export class WorkflowEngine {
         return this.addCompanyDriver(state, actor, payload);
       case ActionTypes.ADD_VEHICLE:
         return this.addVehicle(state, actor, payload);
+      case ActionTypes.CREATE_KNOWLEDGE_SOURCE:
+        return modules.knowledge.registerSource(actor, payload);
+      case ActionTypes.UPDATE_KNOWLEDGE_SOURCE:
+        return modules.knowledge.updateSource(actor, payload);
+      case ActionTypes.ARCHIVE_KNOWLEDGE_SOURCE:
+        return modules.knowledge.archiveSource(actor, payload);
       case ActionTypes.CREATE_LOAD: {
         const created = modules.transports.createDraft(actor, payload);
         return {
@@ -673,6 +687,10 @@ export class WorkflowEngine {
         reason: "pojazd dodany po weryfikacji przewoznika"
       }]
     };
+  }
+
+  getRelevantKnowledge(context, modules) {
+    return modules.knowledge.getRelevantKnowledge(context);
   }
 
   addCompanyDriver(state, actor, payload) {

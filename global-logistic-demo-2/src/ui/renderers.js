@@ -401,6 +401,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (state.session.deniedView) return renderModuleAccessDenied(state);
   if (view === "system_tests") return renderSystemTests(state, engine, selected);
   if (view === "profile") return renderProfile(state);
+  if (view === "knowledge") return renderKnowledgeLibrary(state, engine, selected);
   if (view === "companies") return renderCompanies(state, engine);
   if (view === "users") return renderUsers(state);
   if (view === "statistics") return renderStatistics(state);
@@ -1447,6 +1448,156 @@ function renderAcademy(state) {
       </article>
     </section>
   `;
+}
+
+function renderKnowledgeLibrary(state, engine, selected) {
+  const sources = state.knowledgeSources || [];
+  const auditIds = new Set((state.audit || []).map((entry) => entry.id || entry.audit_log_id));
+  const relevant = selected && engine?.modules?.workflow
+    ? engine.modules.workflow.getRelevantKnowledge({
+      roles: [state.session.role],
+      countries: ["PL", "EU"],
+      transport_type: selected.transportMode || "ROAD",
+      vehicle_type: state.vehicles.find((vehicle) => vehicle.id === selected.vehicleId)?.type || null,
+      cargo_type: selected.cargo?.description || null,
+      adr_required: Boolean(selected.adrRequired),
+      driver_id: selected.driverId,
+      company_id: selected.carrierCompanyId || state.access?.actor?.companyId
+    }, engine.modules)
+    : { sources: [], warnings: [], carrierDocuments: null };
+
+  return `
+    <section class="grid two">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Silnik wiedzy GL</span>
+            <h2>Biblioteka wiedzy GL</h2>
+          </div>
+          <mark class="info">DEMO</mark>
+        </div>
+        <p class="muted">Centralny rejestr zrodel wiedzy dla workflow, AI Control, Akademii GL, dokumentow i zgodnosci. Na tym etapie system tylko informuje, nie blokuje transportow.</p>
+        <div class="metrics">
+          ${metric("Zrodla aktywne", sources.filter((source) => source.status === "active").length, "wersjonowane")}
+          ${metric("Audyt", sources.filter((source) => auditIds.has(source.audit_log_id)).length, "realne wpisy")}
+          ${metric("Materialy akademii", sources.filter((source) => source.type === "academy_material").length, "przyszle szkolenia")}
+        </div>
+        <div class="actions">
+          ${actionButton(engine, ActionTypes.CREATE_KNOWLEDGE_SOURCE, "Dodaj zrodlo wiedzy", {
+            title: "Aktualizacja prawna demo",
+            type: "legal_update",
+            description: "Informacyjne zrodlo demo dodane przez Knowledge Engine",
+            jurisdiction_country: "PL",
+            language: "pl",
+            tags: ["prawo", "demo"],
+            related_roles: [Roles.CARRIER_OWNER],
+            related_modules: ["documents", "transport"],
+            source_reference: "demo"
+          })}
+        </div>
+      </article>
+      <article class="panel">
+        <span class="eyebrow">Workflow Engine</span>
+        <h2>Dopasowanie do transportu</h2>
+        <div class="list">
+          ${(relevant.sources || []).slice(0, 5).map((source) => `
+            <div class="row" data-ui-type="info">
+              <strong>${valueLabel(source.title)}</strong>
+              <span>${knowledgeTypeLabel(source.type)}</span>
+              <mark class="info">${source.jurisdiction_country}</mark>
+            </div>
+          `).join("") || `<div class="empty-state">Brak dopasowania dla aktualnego transportu.</div>`}
+        </div>
+        ${(relevant.warnings || []).length ? `
+          <div class="notice-list">
+            ${relevant.warnings.map((warning) => `<p class="notice">${valueLabel(warning)}</p>`).join("")}
+          </div>
+        ` : ""}
+      </article>
+    </section>
+    <section class="grid two">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Zrodla wiedzy</span>
+            <h2>Rejestr</h2>
+          </div>
+        </div>
+        <div class="list">
+          ${sources.map((source) => `
+            <div class="row detail-card" data-ui-type="details" data-detail-route="/knowledge">
+              <strong>${valueLabel(source.title)}</strong>
+              <span>${knowledgeTypeLabel(source.type)} / ${source.jurisdiction_country} / v${source.version}</span>
+              <small>${valueLabel(source.description)}</small>
+              <mark class="${auditIds.has(source.audit_log_id) ? "good" : "bad"}">${auditIds.has(source.audit_log_id) ? "audyt OK" : "brak audytu"}</mark>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+      <article class="panel">
+        <span class="eyebrow">Dokumenty przewoznika</span>
+        <h2>Powiazanie z Company Engine</h2>
+        ${renderCarrierKnowledgeDocuments(state, relevant.carrierDocuments)}
+      </article>
+    </section>
+  `;
+}
+
+function renderCarrierKnowledgeDocuments(state, carrierDocuments) {
+  const status = carrierDocuments || {
+    companyId: state.access?.actor?.companyId || null,
+    requiredTypes: ["professional_competence_certificate", "carrier_license", "ocp", "adr_certificate"],
+    presentTypes: [],
+    missingTypes: []
+  };
+  return `
+    <div class="detail-grid">
+      <div><span>Firma</span><strong>${status.companyId ? companyName(state, status.companyId) : "brak kontekstu"}</strong></div>
+      <div><span>Dokumenty obecne</span><strong>${status.presentTypes.length}</strong></div>
+      <div><span>Braki informacyjne</span><strong>${status.missingTypes.length}</strong></div>
+    </div>
+    <div class="list compact">
+      ${status.requiredTypes.map((type) => `
+        <div class="row" data-ui-type="info">
+          <strong>${carrierDocumentLabel(type)}</strong>
+          <span>${status.presentTypes.includes(type) ? "dokument oznaczony w Company Engine" : "moze byc wymagany w workflow"}</span>
+          <mark class="${status.presentTypes.includes(type) ? "good" : "warning"}">${status.presentTypes.includes(type) ? "jest" : "brak"}</mark>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function knowledgeTypeLabel(type) {
+  const labels = {
+    professional_competence_certificate: "Certyfikat kompetencji",
+    carrier_license: "Licencja transportowa",
+    cmr_convention: "Konwencja CMR",
+    adr_regulation: "ADR",
+    mobility_package: "Pakiet Mobilnosci",
+    driver_work_time: "Czas pracy kierowcy",
+    tachograph_rules: "Tachograf",
+    insurance_rules: "Ubezpieczenia",
+    customs_rules: "Reguly celne",
+    warehouse_procedure: "Procedura magazynu",
+    gl_internal_policy: "Polityka GL",
+    academy_material: "Material Akademii GL",
+    legal_update: "Aktualizacja prawna",
+    test_question_bank: "Baza pytan",
+    training_module: "Modul szkoleniowy",
+    certification_path: "Sciezka certyfikacji"
+  };
+  return labels[type] || valueLabel(type);
+}
+
+function carrierDocumentLabel(type) {
+  const labels = {
+    professional_competence_certificate: "Certyfikat Kompetencji Zawodowych",
+    carrier_license: "Licencja transportowa",
+    ocp: "OCP",
+    adr_certificate: "ADR, jesli dotyczy"
+  };
+  return labels[type] || valueLabel(type);
 }
 
 function renderPayments(state, engine, selected) {

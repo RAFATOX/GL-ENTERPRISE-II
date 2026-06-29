@@ -9,6 +9,7 @@ import {
   CompanyVerificationStatuses,
   DEMO_DATA_VERSION,
   EventTypes,
+  KnowledgeSourceTypes,
   PaymentStatuses,
   Roles,
   TransportStatuses
@@ -17,6 +18,7 @@ import { GLCoreEngine } from "../src/core/gl-core-engine.js";
 import {
   DriverPermissions,
   FinancePermissions,
+  KnowledgePermissions,
   LoadPermissions,
   ModulePermissions,
   getVisibleModules,
@@ -598,6 +600,77 @@ test("permission guard blocks direct route access", () => {
   assert.equal(engine.state.session.deniedView, "system");
   assert.ok(html.includes("Brak dostępu"));
   assert.ok(html.includes("Brak dostępu do modułu"));
+});
+
+test("Knowledge Engine registers source and creates real audit log", () => {
+  const engine = engineForUserContext("u-platform");
+  const result = engine.dispatchAction(ActionTypes.CREATE_KNOWLEDGE_SOURCE, {
+    title: "Testowe zrodlo wiedzy",
+    type: KnowledgeSourceTypes.LEGAL_UPDATE,
+    description: "Zakres testowy Knowledge Engine",
+    jurisdiction_country: "PL",
+    language: "pl",
+    tags: ["test", "prawo"],
+    related_roles: [Roles.CARRIER_OWNER],
+    related_modules: ["documents"]
+  });
+  const source = engine.state.knowledgeSources.find((item) => item.title === "Testowe zrodlo wiedzy");
+  const audit = engine.state.audit.find((entry) => entry.id === source.audit_log_id);
+
+  assert.equal(result.ok, true);
+  assert.ok(source.knowledge_source_id);
+  assert.ok(source.audit_log_id);
+  assert.ok(audit);
+  assert.equal(audit.objectType, "knowledge_source");
+});
+
+test("Knowledge Engine searches by type, country and role", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+
+  assert.ok(engine.modules.knowledge.search({ type: KnowledgeSourceTypes.ADR_REGULATION }).some((source) => source.title === "ADR"));
+  assert.ok(engine.modules.knowledge.search({ country: "PL" }).some((source) => source.title.includes("OCP")));
+  assert.ok(engine.modules.knowledge.search({ role: Roles.DRIVER }).some((source) => source.type === KnowledgeSourceTypes.DRIVER_WORK_TIME));
+});
+
+test("Workflow Engine can query Knowledge Engine for relevant sources", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const result = engine.modules.workflow.getRelevantKnowledge({
+    roles: [Roles.DRIVER, Roles.CARRIER_OWNER],
+    countries: ["PL", "CZ"],
+    vehicle_type: "zestaw",
+    cargo_type: "towar ADR",
+    adr_required: true,
+    driver_id: "u-driver-1",
+    company_id: "co-carrier-a"
+  }, engine.modules);
+
+  assert.ok(result.sources.some((source) => source.type === KnowledgeSourceTypes.ADR_REGULATION));
+  assert.ok(result.sources.some((source) => source.type === KnowledgeSourceTypes.DRIVER_WORK_TIME));
+  assert.ok(result.warnings.length > 0);
+  assert.ok(result.carrierDocuments.presentTypes.includes("carrier_license"));
+});
+
+test("Knowledge module visibility follows permissions", () => {
+  const driverModules = moduleIdsFor(Roles.DRIVER);
+  const platformModules = moduleIdsFor(Roles.PLATFORM_OWNER);
+  const compliance = engineForUserContext("u-compliance").getActor();
+  const teacherModules = moduleIdsFor(Roles.ACADEMY_TEACHER);
+
+  assert.equal(driverModules.includes("knowledge"), false);
+  assert.ok(platformModules.includes("knowledge"));
+  assert.ok(teacherModules.includes("knowledge"));
+  assert.ok(compliance.permissions.includes(KnowledgePermissions.MANAGE));
+  assert.ok(compliance.permissions.includes(KnowledgePermissions.COMPLIANCE_READ));
+});
+
+test("Knowledge route without permission shows access denied", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "knowledge", route: "/knowledge" });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, false);
+  assert.equal(engine.state.session.deniedView, "knowledge");
+  assert.ok(html.includes("access-panel"));
 });
 
 test("trust profile replaces old reputation ranking for regular users", () => {

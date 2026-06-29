@@ -64,6 +64,16 @@ export const CompliancePermissions = Object.freeze({
   SUSPEND_COMPANY: "compliance.suspend_company"
 });
 
+export const KnowledgePermissions = Object.freeze({
+  READ: "knowledge.read",
+  MANAGE: "knowledge.manage",
+  SOURCE_CREATE: "knowledge.source.create",
+  SOURCE_UPDATE: "knowledge.source.update",
+  SOURCE_ARCHIVE: "knowledge.source.archive",
+  COMPLIANCE_READ: "knowledge.compliance.read",
+  ACADEMY_READ: "knowledge.academy.read"
+});
+
 export const ModulePermissions = Object.freeze({
   DASHBOARD: "module.dashboard",
   TRANSPORTS: "module.transports",
@@ -88,6 +98,7 @@ export const ModulePermissions = Object.freeze({
   COMPANY: "module.company",
   PROFILE: "module.profile",
   SETTINGS: "module.settings",
+  KNOWLEDGE: KnowledgePermissions.READ,
   SECURITY: "module.security",
   CUSTOMS: "module.customs",
   AUTHORITY: "module.authority",
@@ -248,6 +259,9 @@ export const modulesConfig = Object.freeze([
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...complianceRoles
   ], "Profil firmy i uczestnicy ekosystemu."),
   moduleItem("profile", "Profil", "PR", "/profile", "profile", ModulePermissions.PROFILE, allRoles, "Profil aktywnego uzytkownika."),
+  moduleItem("knowledge", "Biblioteka wiedzy GL", "KN", "/knowledge", "knowledge", ModulePermissions.KNOWLEDGE, [
+    Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.COMPLIANCE, Roles.ACADEMY_TEACHER
+  ], "Centralny rejestr zrodel wiedzy, regulacji i materialow GL."),
   moduleItem("settings", "Ustawienia", "ST", "/settings", "admin", ModulePermissions.SETTINGS, [], "Ustawienia systemowe dla administracji."),
   moduleItem("security", "Ochrona / brama", "SE", "/security", "security", ModulePermissions.SECURITY, [Roles.SECURITY], "Kontrola bramy i skan tablic."),
   moduleItem("customs", "Odprawy celne", "CU", "/customs", "customs", ModulePermissions.CUSTOMS, [Roles.CUSTOMS_AGENT], "Odprawa, MRN i komunikacja celna."),
@@ -336,7 +350,13 @@ const explicitPermissionsByRole = {
     ModulePermissions.PROFILE,
     ModulePermissions.AUTHORITY,
     ModulePermissions.AI,
-    ModulePermissions.RISK
+    ModulePermissions.RISK,
+    ModulePermissions.KNOWLEDGE,
+    KnowledgePermissions.MANAGE,
+    KnowledgePermissions.SOURCE_CREATE,
+    KnowledgePermissions.SOURCE_UPDATE,
+    KnowledgePermissions.SOURCE_ARCHIVE,
+    KnowledgePermissions.COMPLIANCE_READ
   ]
 };
 
@@ -354,7 +374,9 @@ export const PrivateRolePermissionMap = Object.freeze({
   [Roles.ACADEMY_TEACHER]: unique([
     ...PrivateContextPermissions,
     ModulePermissions.ACADEMY,
-    ModulePermissions.REPORTS
+    ModulePermissions.REPORTS,
+    ModulePermissions.KNOWLEDGE,
+    KnowledgePermissions.ACADEMY_READ
   ])
 });
 
@@ -368,7 +390,8 @@ export const PlatformRolePermissionMap = Object.freeze({
     ...Object.values(DocumentPermissions),
     ...Object.values(FinancePermissions),
     ...Object.values(AdminPermissions),
-    ...Object.values(CompliancePermissions)
+    ...Object.values(CompliancePermissions),
+    ...Object.values(KnowledgePermissions)
   ]),
   [Roles.GL_OPERATOR]: unique([
     ModulePermissions.DASHBOARD,
@@ -394,7 +417,9 @@ export const PlatformRolePermissionMap = Object.freeze({
     AdminPermissions.AUDIT_READ,
     CompliancePermissions.REVIEW,
     CompliancePermissions.SUSPEND_COMPANY,
-    CompliancePermissions.SUSPEND_USER
+    CompliancePermissions.SUSPEND_USER,
+    ModulePermissions.KNOWLEDGE,
+    ...Object.values(KnowledgePermissions)
   ]),
   [Roles.ADMIN_FINANCE]: unique([
     ModulePermissions.DASHBOARD,
@@ -495,7 +520,13 @@ export const PlatformRolePermissionMap = Object.freeze({
     LoadPermissions.VIEW_COMPANY,
     CompliancePermissions.REVIEW,
     CompliancePermissions.SUSPEND_COMPANY,
-    CompliancePermissions.SUSPEND_USER
+    CompliancePermissions.SUSPEND_USER,
+    ModulePermissions.KNOWLEDGE,
+    KnowledgePermissions.MANAGE,
+    KnowledgePermissions.SOURCE_CREATE,
+    KnowledgePermissions.SOURCE_UPDATE,
+    KnowledgePermissions.SOURCE_ARCHIVE,
+    KnowledgePermissions.COMPLIANCE_READ
   ]),
   [Roles.SUPPORT_AGENT]: unique([
     ModulePermissions.DASHBOARD,

@@ -28,6 +28,7 @@ import { GpsEngine } from "../gps/gps-engine.js";
 import { InsuranceEngine } from "../insurance/insurance-engine.js";
 import { IntegrationEngine } from "../integrations/integration-engine.js";
 import { JobsEngine } from "../jobs/jobs-engine.js";
+import { KnowledgeEngine } from "../knowledge/knowledge-engine.js";
 import { NotificationEngine } from "../notifications/notification-engine.js";
 import { RegistrationOnboardingEngine } from "../onboarding/registration-onboarding-engine.js";
 import { ParkingEngine } from "../parking/parking-engine.js";
@@ -88,6 +89,7 @@ export class GLCoreEngine {
       parking: new ParkingEngine(this.state),
       driverTime: new DriverTimeEngine(this.state),
       jobs: new JobsEngine(this.state),
+      knowledge: new KnowledgeEngine(this.state),
       communication: new CommunicationEngine(this.state),
       translation: new TranslationEngine(this.state),
       plateToDriver: new PlateToDriverEngine(this.state),

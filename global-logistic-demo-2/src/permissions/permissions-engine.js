@@ -6,6 +6,7 @@ import {
   DocumentPermissions,
   DriverPermissions,
   FinancePermissions,
+  KnowledgePermissions,
   LoadPermissions,
   ModulePermissions,
   VehiclePermissions,
@@ -354,6 +355,9 @@ const actionPermissionRequirements = {
   [ActionTypes.CHANGE_PHONE]: [[ModulePermissions.PROFILE]],
   [ActionTypes.ADD_COMPANY_DRIVER]: [[DriverPermissions.MANAGE]],
   [ActionTypes.ADD_VEHICLE]: [[VehiclePermissions.CREATE]],
+  [ActionTypes.CREATE_KNOWLEDGE_SOURCE]: [[KnowledgePermissions.MANAGE], [KnowledgePermissions.SOURCE_CREATE]],
+  [ActionTypes.UPDATE_KNOWLEDGE_SOURCE]: [[KnowledgePermissions.MANAGE], [KnowledgePermissions.SOURCE_UPDATE]],
+  [ActionTypes.ARCHIVE_KNOWLEDGE_SOURCE]: [[KnowledgePermissions.MANAGE], [KnowledgePermissions.SOURCE_ARCHIVE]],
   [ActionTypes.CREATE_LOAD]: [[LoadPermissions.CREATE]],
   [ActionTypes.ADD_LOAD_PHOTO]: [[DocumentPermissions.UPLOAD], [ModulePermissions.PHOTOS]],
   [ActionTypes.CONFIRM_GPS]: [[ModulePermissions.GPS]],
@@ -651,6 +655,15 @@ export class PermissionsEngine {
       snapshot.resilienceChecks = [];
     }
 
+    if (!canViewKnowledgeLibrary(actor)) {
+      snapshot.knowledgeSources = [];
+      snapshot.knowledgeQueries = [];
+    } else if (hasPermission(actor, KnowledgePermissions.ACADEMY_READ) && !canManageKnowledge(actor)) {
+      snapshot.knowledgeSources = (snapshot.knowledgeSources || []).filter((source) => (
+        ["academy_material", "test_question_bank", "training_module", "certification_path"].includes(source.type)
+      ));
+    }
+
     const scope = financialScope(actor);
     const owner = financeOwnerForActor(actor, scope);
     snapshot.access = {
@@ -768,6 +781,9 @@ function transportForContext(context) {
     ActionTypes.ONBOARDING_SUBMIT_COMPANY,
     ActionTypes.ONBOARDING_APPROVE,
     ActionTypes.ONBOARDING_REJECT,
+    ActionTypes.CREATE_KNOWLEDGE_SOURCE,
+    ActionTypes.UPDATE_KNOWLEDGE_SOURCE,
+    ActionTypes.ARCHIVE_KNOWLEDGE_SOURCE,
     ActionTypes.ADD_COMPANY_DRIVER,
     ActionTypes.ADD_VEHICLE,
     ActionTypes.CREATE_LOAD,
@@ -988,6 +1004,25 @@ function userFinanceRecordVisible(record, actor) {
 
 function platformFinanceRole(actor) {
   return hasPermission(actor, FinancePermissions.WALLET_PLATFORM_READ);
+}
+
+function canViewKnowledgeLibrary(actor) {
+  return [
+    KnowledgePermissions.READ,
+    KnowledgePermissions.MANAGE,
+    KnowledgePermissions.COMPLIANCE_READ,
+    KnowledgePermissions.ACADEMY_READ
+  ].some((permission) => hasPermission(actor, permission));
+}
+
+function canManageKnowledge(actor) {
+  return [
+    KnowledgePermissions.MANAGE,
+    KnowledgePermissions.SOURCE_CREATE,
+    KnowledgePermissions.SOURCE_UPDATE,
+    KnowledgePermissions.SOURCE_ARCHIVE,
+    KnowledgePermissions.COMPLIANCE_READ
+  ].some((permission) => hasPermission(actor, permission));
 }
 
 function hasPermission(actor, permission) {

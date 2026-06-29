@@ -29,10 +29,15 @@ const textKeys = new Set([
   "reason",
   "registrationCountry",
   "role",
+  "source_reference",
   "status",
+  "title",
   "type",
   "userId",
   "userType",
+  "valid_from",
+  "valid_to",
+  "version",
   "vat",
   "vatEu"
 ]);
