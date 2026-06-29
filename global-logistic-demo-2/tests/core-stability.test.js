@@ -115,16 +115,42 @@ function engineForUserContext(userId, companyId = null) {
   const engine = new GLCoreEngine({ store: memoryStore() });
   const user = engine.state.users.find((item) => item.id === userId);
   const context = companyId
-    ? engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId)
+    ? engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId && item.compatibleRoles.includes(user.selectedRole))
+      || engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId)
     : engine.modules.companies.defaultContextForUser(user);
+  const activeRole = context.compatibleRoles.includes(user.selectedRole)
+    ? user.selectedRole
+    : context.compatibleRoles[0] || user.selectedRole;
   engine.state.session.userId = userId;
-  engine.state.session.role = user.selectedRole;
+  engine.state.session.role = activeRole;
   engine.state.session.contextType = context.contextType;
   engine.state.session.companyId = context.companyId || null;
   engine.state.session.companyRoleId = context.userCompanyRoleId || null;
   engine.state.session.onboardingRequired = false;
   engine.state.session.onboardingUserId = null;
   return engine;
+}
+
+function activateUserRole(engine, userId, role, preferred = {}) {
+  const context = engine.modules.companies.contextForRole(userId, role, preferred);
+  assert.ok(context, `missing context for ${userId} as ${role}`);
+  engine.state.session.userId = userId;
+  engine.state.session.role = role;
+  engine.state.session.activeRole = role;
+  engine.state.session.contextType = context.contextType;
+  engine.state.session.companyId = context.contextType === "company" ? context.companyId : null;
+  engine.state.session.activeCompanyId = engine.state.session.companyId;
+  engine.state.session.companyRoleId = context.userCompanyRoleId || null;
+  engine.state.session.activeContext = {
+    contextType: context.contextType,
+    companyId: context.companyId || null,
+    userCompanyRoleId: context.userCompanyRoleId || null,
+    label: context.label || null
+  };
+  engine.state.session.view = "dashboard";
+  engine.state.session.onboardingRequired = false;
+  engine.state.session.onboardingUserId = null;
+  return context;
 }
 
 function payloadFromRenderedForm(html, actionType, overrides = {}) {
@@ -925,6 +951,79 @@ test("permission engine rejects raw role actors outside controlled demo mode", (
   assert.match(rawAccess.reason, /Company Engine/);
   assert.equal(uncontrolledRoleSwitch.ok, false);
   assert.equal(controlledRoleSwitch.ok, true);
+});
+
+test("same user can switch active role without relogin and receives fresh permissions, menu and wallet scope", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  activateUserRole(engine, "u-role-switch", Roles.DRIVER, { contextType: "company", companyId: "co-carrier-a" });
+
+  const expected = [
+    [Roles.DRIVER, "company", "co-carrier-a", "user", "UserWallet", ["wallet", "gps", "documents"], ["billing", "audit", "system"]],
+    [Roles.CARRIER_OWNER, "company", "co-carrier-a", "carrier", "CompanyWallet", ["loads", "company", "wallet"], ["audit", "system"]],
+    [Roles.CLIENT_OWNER, "company", "co-client-a", "client", "CompanyWallet", ["loads", "billing", "wallet"], ["audit", "system"]],
+    [Roles.WAREHOUSE_WORKER, "company", "co-client-b", "none", null, ["photos", "documents"], ["wallet", "audit", "system"]],
+    [Roles.WORKSHOP, "company", "co-workshop-a", "service", "PartnerWallet", ["service-orders", "billing", "invoices"], ["wallet", "audit", "system"]],
+    [Roles.INSURANCE_PARTNER, "company", "co-insurance-a", "insurance", "PartnerWallet", ["policies", "claims", "risk"], ["wallet", "audit", "system"]],
+    [Roles.PLATFORM_OWNER, "platform", null, "platform", "PlatformWallet", ["wallet", "audit", "system"], []],
+    [Roles.DRIVER, "company", "co-carrier-a", "user", "UserWallet", ["wallet", "gps", "documents"], ["billing", "audit", "system"]]
+  ];
+
+  expected.forEach(([role, contextType, companyId, financialScope, walletView, includedModules, excludedModules]) => {
+    const result = engine.dispatchAction(ActionTypes.SELECT_ROLE, { role });
+    const actor = engine.getActor();
+    const snapshot = engine.getSnapshot();
+    const modules = getVisibleModules(actor, actor.role).map((module) => module.id);
+
+    assert.equal(result.ok, true, role);
+    assert.equal(engine.state.session.userId, "u-role-switch", role);
+    assert.equal(actor.userId, "u-role-switch", role);
+    assert.equal(actor.role, role);
+    assert.equal(actor.contextType, contextType, role);
+    assert.equal(actor.companyId || null, companyId, role);
+    assert.equal(snapshot.access.financialScope, financialScope, role);
+    assert.equal(snapshot.access.walletView, walletView, role);
+    includedModules.forEach((moduleId) => assert.ok(modules.includes(moduleId), `${role} should see ${moduleId}`));
+    excludedModules.forEach((moduleId) => assert.equal(modules.includes(moduleId), false, `${role} should not see ${moduleId}`));
+    assert.equal(actor.permissions.includes(FinancePermissions.WALLET_PLATFORM_READ), role === Roles.PLATFORM_OWNER, role);
+  });
+});
+
+test("changing company context refreshes active role, dashboard menu and wallet scope", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  activateUserRole(engine, "u-role-switch", Roles.CARRIER_OWNER, { contextType: "company", companyId: "co-carrier-a" });
+
+  const carrier = engine.getActor();
+  assert.equal(carrier.role, Roles.CARRIER_OWNER);
+  assert.equal(carrier.companyId, "co-carrier-a");
+  assert.ok(carrier.permissions.includes(DriverPermissions.ASSIGN));
+
+  const clientSwitch = engine.dispatchAction(ActionTypes.SELECT_CONTEXT, { contextType: "company", companyId: "co-client-a" });
+  const client = engine.getActor();
+  const clientModules = getVisibleModules(client, client.role).map((module) => module.id);
+  assert.equal(clientSwitch.ok, true);
+  assert.equal(engine.state.session.userId, "u-role-switch");
+  assert.equal(client.role, Roles.CLIENT_OWNER);
+  assert.equal(client.companyId, "co-client-a");
+  assert.equal(engine.getSnapshot().access.financialScope, "client");
+  assert.ok(clientModules.includes("loads"));
+  assert.equal(client.permissions.includes(DriverPermissions.ASSIGN), false);
+
+  const warehouseSwitch = engine.dispatchAction(ActionTypes.SELECT_CONTEXT, { contextType: "company", companyId: "co-client-b" });
+  const warehouse = engine.getActor();
+  const warehouseModules = getVisibleModules(warehouse, warehouse.role).map((module) => module.id);
+  assert.equal(warehouseSwitch.ok, true);
+  assert.equal(warehouse.role, Roles.WAREHOUSE_WORKER);
+  assert.equal(warehouse.companyId, "co-client-b");
+  assert.equal(engine.getSnapshot().access.financialScope, "none");
+  assert.ok(warehouseModules.includes("photos"));
+  assert.equal(warehouseModules.includes("wallet"), false);
+
+  const platformSwitch = engine.dispatchAction(ActionTypes.SELECT_CONTEXT, { contextType: "platform" });
+  const platform = engine.getActor();
+  assert.equal(platformSwitch.ok, true);
+  assert.equal(platform.role, Roles.PLATFORM_OWNER);
+  assert.equal(platform.contextType, "platform");
+  assert.equal(engine.getSnapshot().access.walletView, "PlatformWallet");
 });
 
 test("company.people does not grant access without active UserCompanyRole", () => {

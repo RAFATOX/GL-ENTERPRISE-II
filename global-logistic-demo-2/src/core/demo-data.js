@@ -69,16 +69,30 @@ export function createDemoState() {
       user("u-compliance", "Monika Compliance", "+48500100129", Roles.COMPLIANCE, null, AccountStatuses.VERIFIED),
       user("u-support", "Sara Support", "+48500100116", Roles.SUPPORT_AGENT, null, AccountStatuses.VERIFIED),
       user("u-auditor", "Igor Auditor", "+48500100117", Roles.READONLY_AUDITOR, null, AccountStatuses.VERIFIED),
+      user("u-role-switch", "Laura Multirola", "+48500100134", Roles.DRIVER, "co-carrier-a", AccountStatuses.VERIFIED, {
+        roles: [
+          Roles.DRIVER,
+          Roles.CARRIER_OWNER,
+          Roles.CLIENT_OWNER,
+          Roles.WAREHOUSE_WORKER,
+          Roles.WORKSHOP,
+          Roles.INSURANCE_PARTNER,
+          Roles.PLATFORM_OWNER
+        ],
+        selectedRole: Roles.DRIVER,
+        documentsValid: true,
+        faceVerified: true
+      }),
       user("u-demo-pending", "New Pending", "+48500100999", Roles.CLIENT_DISPATCHER, "co-client-c", AccountStatuses.PENDING, { documentVerified: false, faceVerified: false })
     ],
     companies: [
-      company("co-client-a", "Nord Market BV", "client", 93, ["u-client-owner", "u-client-dispatcher", "u-multi-company"], AccountStatuses.VERIFIED),
-      company("co-client-b", "Mazovia Med", "client", 88, ["u-warehouse"], AccountStatuses.VERIFIED),
+      company("co-client-a", "Nord Market BV", "client", 93, ["u-client-owner", "u-client-dispatcher", "u-multi-company", "u-role-switch"], AccountStatuses.VERIFIED),
+      company("co-client-b", "Mazovia Med", "client", 88, ["u-warehouse", "u-role-switch"], AccountStatuses.VERIFIED),
       company("co-client-c", "Casa Verde", "client", 79, ["u-demo-pending"], AccountStatuses.PENDING),
-      company("co-carrier-a", "Baltic Line", "carrier", 96, ["u-carrier-owner", "u-carrier-dispatcher", "u-carrier-finance", "u-multi-company", "u-driver-1", "u-driver-4"], AccountStatuses.VERIFIED),
+      company("co-carrier-a", "Baltic Line", "carrier", 96, ["u-carrier-owner", "u-carrier-dispatcher", "u-carrier-finance", "u-multi-company", "u-driver-1", "u-driver-4", "u-role-switch"], AccountStatuses.VERIFIED),
       company("co-carrier-b", "Cold Link", "carrier", 91, ["u-driver-2", "u-driver-5"], AccountStatuses.VERIFIED),
       company("co-carrier-c", "Oder Freight", "carrier", 61, ["u-driver-3", "u-driver-6"], AccountStatuses.VERIFIED),
-      company("co-insurance-a", "ShieldCargo Insurance", "insurance", 94, ["u-insurance"], AccountStatuses.VERIFIED),
+      company("co-insurance-a", "ShieldCargo Insurance", "insurance", 94, ["u-insurance", "u-role-switch"], AccountStatuses.VERIFIED),
       company("co-payment-a", "DemoPay Operator", "payment", 99, ["u-payment"], AccountStatuses.VERIFIED),
       company("co-security-a", "GatePoint Security", "security", 89, ["u-security"], AccountStatuses.VERIFIED),
       company("co-customs-a", "Baltic Customs Agency", "customs_agent", 90, ["u-customs"], AccountStatuses.VERIFIED),
@@ -86,7 +100,7 @@ export function createDemoState() {
       company("co-authority-itd", "Inspekcja Transportu Drogowego", "authority", 100, ["u-authority-itd"], AccountStatuses.VERIFIED),
       company("co-ferry-dfds", "DFDS Ferry", "ferry_operator", 92, ["u-ferry"], AccountStatuses.VERIFIED),
       company("co-rail-terminal", "EuroRail Terminal", "rail_operator", 86, ["u-rail"], AccountStatuses.VERIFIED),
-      company("co-workshop-a", "TruckFix Warsztat", "workshop", 88, ["u-workshop"], AccountStatuses.VERIFIED),
+      company("co-workshop-a", "TruckFix Warsztat", "workshop", 88, ["u-workshop", "u-role-switch"], AccountStatuses.VERIFIED),
       company("co-mobile-service-a", "MobileTruck Serwis", "mobile_service", 91, ["u-mobile-service"], AccountStatuses.VERIFIED),
       company("co-roadside-a", "RoadHelp 24", "roadside_assistance", 85, ["u-roadside"], AccountStatuses.VERIFIED)
     ],
@@ -290,6 +304,7 @@ export function createDemoState() {
       wallet("wal-carrier-b", "co-carrier-b", 6800, 0, { walletType: "Carrier Wallet", ownerType: "company", modelType: "CompanyWallet", glWalletId: "GLW-CARRIER-0002" }),
       wallet("wal-carrier-c", "co-carrier-c", 2100, 0, { walletType: "Carrier Wallet", ownerType: "company", modelType: "CompanyWallet", glWalletId: "GLW-CARRIER-0003" }),
       wallet("wal-driver-1", "co-carrier-a", 1260, 0, { walletType: "Driver Wallet", ownerType: "user", modelType: "UserWallet", ownerUserId: "u-driver-1", pendingBalance: 180, glWalletId: "GLW-DRIVER-0001" }),
+      wallet("wal-role-switch-driver", "co-carrier-a", 990, 0, { walletType: "Driver Wallet", ownerType: "user", modelType: "UserWallet", ownerUserId: "u-role-switch", pendingBalance: 120, glWalletId: "GLW-DRIVER-MULTI" }),
       wallet("wal-warehouse-a", "co-client-b", 820, 0, { walletType: "Warehouse Wallet", ownerType: "user", modelType: "UserWallet", ownerUserId: "u-warehouse", glWalletId: "GLW-WAREHOUSE-0001" }),
       wallet("wal-insurance-a", "co-insurance-a", 12400, 0, { walletType: "Insurance Wallet", ownerType: "partner", modelType: "PartnerWallet", ownerUserId: "u-insurance", pendingBalance: 320, glWalletId: "GLW-INSURANCE-0001" }),
       wallet("wal-customs-a", "co-customs-a", 1200, 0, { walletType: "Customs Wallet", ownerType: "partner", modelType: "PartnerWallet", glWalletId: "GLW-CUSTOMS-0001" }),
@@ -638,6 +653,14 @@ export function createDemoState() {
 function user(id, name, phone, primaryRole, companyId, accountStatus, options = {}) {
   const approved = accountStatus === AccountStatuses.APPROVED || accountStatus === AccountStatuses.VERIFIED;
   const [firstName = name, ...lastNameParts] = String(name).split(" ");
+  const roles = options.roles || [primaryRole];
+  const selectedRole = options.selectedRole || primaryRole;
+  const roleVerificationStatus = Object.fromEntries(
+    roles.map((role) => [role, approved ? AccountStatuses.APPROVED : AccountStatuses.ROLE_DOCUMENTS_PENDING])
+  );
+  const roleDocuments = approved
+    ? Object.fromEntries(roles.map((role) => [role, ["identity_document", "selfie", "role_documents_demo"]]))
+    : {};
   return {
     id,
     name,
@@ -650,8 +673,8 @@ function user(id, name, phone, primaryRole, companyId, accountStatus, options = 
     countryOfResidence: options.countryOfResidence || options.country || "PL",
     userType: options.userType || primaryRole,
     companyId,
-    roles: [primaryRole],
-    selectedRole: primaryRole,
+    roles,
+    selectedRole,
     accountStatus,
     verificationStatus: accountStatus,
     onboardingStage: approved ? "approved" : "role_documents",
@@ -667,15 +690,11 @@ function user(id, name, phone, primaryRole, companyId, accountStatus, options = 
       selfieConfirmed: true,
       submittedAt: baseTime
     } : null,
-    roleVerificationStatus: {
-      [primaryRole]: approved ? AccountStatuses.APPROVED : AccountStatuses.ROLE_DOCUMENTS_PENDING
-    },
-    roleDocuments: approved ? {
-      [primaryRole]: ["identity_document", "selfie", "role_documents_demo"]
-    } : {},
+    roleVerificationStatus,
+    roleDocuments,
     companyVerification: companyId && approved ? {
       id: `company-ver-${id}`,
-      role: primaryRole,
+      role: selectedRole,
       companyName: companyId,
       vatEu: "DEMO-VAT",
       walletReady: true,
@@ -771,6 +790,54 @@ function tuneDemoCompanyRoles(state) {
     multiClient.roleId = `company_role_${CompanyRoleNames.FINANCE}`;
     multiClient.role_id = multiClient.roleId;
   }
+
+  const roleSwitchCarrierEmployee = state.userCompanyRoles.find((item) => item.userId === "u-role-switch" && item.companyId === "co-carrier-a");
+  if (roleSwitchCarrierEmployee) setDemoMembershipRole(roleSwitchCarrierEmployee, CompanyRoleNames.EMPLOYEE);
+  ensureDemoMembership(state, "ucr-role-switch-carrier-owner", "u-role-switch", "co-carrier-a", CompanyRoleNames.OWNER);
+
+  const roleSwitchClient = state.userCompanyRoles.find((item) => item.userId === "u-role-switch" && item.companyId === "co-client-a");
+  if (roleSwitchClient) setDemoMembershipRole(roleSwitchClient, CompanyRoleNames.OWNER);
+
+  const roleSwitchWarehouse = state.userCompanyRoles.find((item) => item.userId === "u-role-switch" && item.companyId === "co-client-b");
+  if (roleSwitchWarehouse) setDemoMembershipRole(roleSwitchWarehouse, CompanyRoleNames.WAREHOUSE_MANAGER);
+
+  const roleSwitchWorkshop = state.userCompanyRoles.find((item) => item.userId === "u-role-switch" && item.companyId === "co-workshop-a");
+  if (roleSwitchWorkshop) setDemoMembershipRole(roleSwitchWorkshop, CompanyRoleNames.MECHANIC);
+
+  const roleSwitchInsurance = state.userCompanyRoles.find((item) => item.userId === "u-role-switch" && item.companyId === "co-insurance-a");
+  if (roleSwitchInsurance) setDemoMembershipRole(roleSwitchInsurance, CompanyRoleNames.INSURANCE_MANAGER);
+}
+
+function ensureDemoMembership(state, id, userId, companyId, roleName) {
+  let membership = state.userCompanyRoles.find((item) => item.id === id);
+  if (!membership) {
+    membership = {
+      id,
+      userCompanyRole_id: id,
+      userId,
+      user_id: userId,
+      companyId,
+      company_id: companyId,
+      status: "active",
+      permissions: [],
+      deniedPermissions: [],
+      invitedBy: userId,
+      invitedAt: baseTime,
+      acceptedAt: baseTime
+    };
+    state.userCompanyRoles.push(membership);
+  }
+  setDemoMembershipRole(membership, roleName);
+  const company = state.companies.find((item) => item.id === companyId);
+  company.people ||= [];
+  if (!company.people.includes(userId)) company.people.push(userId);
+  return membership;
+}
+
+function setDemoMembershipRole(membership, roleName) {
+  membership.roleName = roleName;
+  membership.roleId = `company_role_${roleName}`;
+  membership.role_id = membership.roleId;
 }
 
 function vehicle(id, plate, companyId, type, documentsValid, available) {

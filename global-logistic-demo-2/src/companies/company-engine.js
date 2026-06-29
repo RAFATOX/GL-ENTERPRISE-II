@@ -11,11 +11,14 @@ import {
   CompanyPermissions,
   CompanyRolePermissionMap,
   CompanyTypePermissionMap,
+  DriverPermissions,
   FinancePermissions,
+  LoadPermissions,
   ModulePermissions,
   PlatformRolePermissionMap,
   PrivateContextPermissions,
-  PrivateRolePermissionMap
+  PrivateRolePermissionMap,
+  VehiclePermissions
 } from "../core/modules-config.js";
 
 export class CompanyEngine {
@@ -47,34 +50,47 @@ export class CompanyEngine {
     if (!user) return systemActor(session);
 
     const contexts = this.contextsForUser(user.id);
-    const requestedContext = session.contextType || defaultContextForUser(user, contexts).contextType;
+    const role = this.roleForSession(user, session, contexts);
+    const defaultContext = defaultContextForUser(user, contexts, role);
+    const requestedContext = session.contextType || defaultContext.contextType;
     const requestedCompanyId = session.companyId || user.companyId || null;
-    const platformPermissions = PlatformRolePermissionMap[session.role] || PlatformRolePermissionMap[user.selectedRole] || [];
+    const requestedCompanyRoleId = session.companyRoleId || null;
+    const platformPermissions = PlatformRolePermissionMap[role] || [];
     const platformContext = requestedContext === "platform" && platformPermissions.length
-      ? platformActor(user, session, contexts, platformPermissions)
+      ? platformActor(user, session, contexts, role, platformPermissions)
       : null;
     if (platformContext) return platformContext;
 
     const membership = contexts.find((context) => (
       context.contextType === "company"
       && context.companyId === requestedCompanyId
-      && (!session.companyRoleId || context.userCompanyRoleId === session.companyRoleId)
-    )) || contexts.find((context) => context.contextType === "company" && context.companyId === requestedCompanyId)
-      || contexts.find((context) => context.contextType === "company" && context.companyId === user.companyId);
+      && (!requestedCompanyRoleId || context.userCompanyRoleId === requestedCompanyRoleId)
+      && context.compatibleRoles.includes(role)
+    )) || contexts.find((context) => (
+      context.contextType === "company"
+      && context.companyId === requestedCompanyId
+      && context.compatibleRoles.includes(role)
+    )) || contexts.find((context) => (
+      context.contextType === "company"
+      && context.companyId === user.companyId
+      && context.compatibleRoles.includes(role)
+    )) || defaultContext;
 
-    if (membership) {
-      return companyActor(user, session, contexts, membership);
+    if (membership?.contextType === "company") {
+      return companyActor(user, session, contexts, role, membership);
     }
 
-    return privateActor(user, session, contexts);
+    return privateActor(user, session, contexts, role);
   }
 
   contextsForUser(userId) {
     ensureCompanyAccessState(this.state);
+    const user = this.state.users.find((item) => item.id === userId);
     const memberships = this.userCompanyRoles(userId)
       .filter((membership) => membership.status === "active")
       .map((membership) => {
         const company = this.getById(membership.companyId);
+        const compatibleRoles = compatibleRolesForCompanyContext(user, membership, company);
         return {
           contextType: "company",
           id: membership.id,
@@ -86,14 +102,13 @@ export class CompanyEngine {
           companyRoleId: membership.roleId,
           verificationStatus: verificationStatus(company),
           permissions: this.permissionsForMembership(membership, company),
+          compatibleRoles,
           label: `${company?.name || membership.companyId} / ${membership.roleName}`
         };
       });
 
-    const user = this.state.users.find((item) => item.id === userId);
-    const privatePermissions = PrivateRolePermissionMap[user?.selectedRole]
-      || PrivateRolePermissionMap[user?.roles?.[0]]
-      || PrivateContextPermissions;
+    const privateRoles = privateRolesForUser(user);
+    const privatePermissions = unique(privateRoles.flatMap((role) => PrivateRolePermissionMap[role] || PrivateContextPermissions));
     const privateContext = {
       contextType: "private",
       id: "private",
@@ -104,24 +119,55 @@ export class CompanyEngine {
       companyRoleId: null,
       verificationStatus: user?.accountStatus || AccountStatuses.DRAFT,
       permissions: [...privatePermissions],
+      compatibleRoles: privateRoles,
       label: "Osoba prywatna"
     };
 
-    const platformPermissions = PlatformRolePermissionMap[user?.selectedRole] || PlatformRolePermissionMap[user?.roles?.[0]] || [];
-    const platformContext = platformPermissions.length ? [{
+    const platformRoles = platformRolesForUser(user);
+    const platformPermissions = unique(platformRoles.flatMap((role) => PlatformRolePermissionMap[role] || []));
+    const platformContext = platformRoles.length ? [{
       contextType: "platform",
       id: "platform",
       companyId: null,
       companyName: "GL Enterprise",
       companyType: "platform",
-      companyRole: user?.selectedRole || user?.roles?.[0] || Roles.PLATFORM_OWNER,
+      companyRole: platformRoles[0],
       companyRoleId: "platform",
       verificationStatus: CompanyVerificationStatuses.VERIFIED,
       permissions: [...platformPermissions],
+      compatibleRoles: platformRoles,
       label: "Operator GL"
     }] : [];
 
     return [privateContext, ...memberships, ...platformContext];
+  }
+
+  roleForSession(user, session, contexts = user ? this.contextsForUser(user.id) : []) {
+    if (!user) return Roles.READONLY_AUDITOR;
+    const roles = this.availableRolesForUser(user.id, contexts);
+    return [session.role, user.selectedRole, ...(user.roles || [])].find((role) => roles.includes(role))
+      || roles[0]
+      || Roles.READONLY_AUDITOR;
+  }
+
+  availableRolesForUser(userId, contexts = this.contextsForUser(userId)) {
+    const user = this.state.users.find((item) => item.id === userId);
+    return unique([
+      ...(user?.roles || []),
+      ...contexts.flatMap((context) => context.compatibleRoles || [])
+    ]);
+  }
+
+  contextForRole(userId, role, preferred = {}) {
+    const user = this.state.users.find((item) => item.id === userId);
+    const contexts = this.contextsForUser(userId);
+    const preferredContext = contexts.find((context) => (
+      context.contextType === preferred.contextType
+      && (context.companyId || null) === (preferred.companyId || null)
+      && (!preferred.userCompanyRoleId || context.userCompanyRoleId === preferred.userCompanyRoleId)
+      && context.compatibleRoles.includes(role)
+    ));
+    return preferredContext || defaultContextForUser(user, contexts, role);
   }
 
   userCompanyRoles(userId) {
@@ -130,10 +176,11 @@ export class CompanyEngine {
   }
 
   permissionsForMembership(membership, company) {
-    const rolePermissions = CompanyRolePermissionMap[membership.roleName] || [];
-    const typePermissions = CompanyTypePermissionMap[normalizeCompanyType(company?.type)] || [];
+    const companyType = normalizeCompanyType(company?.type);
+    const rolePermissions = companyTypeFilteredRolePermissions(CompanyRolePermissionMap[membership.roleName] || [], companyType);
+    const typePermissions = CompanyTypePermissionMap[companyType] || [];
     const user = this.state.users.find((item) => item.id === membership.userId);
-    const driverPersonalWalletPermissions = user?.roles?.includes(Roles.DRIVER)
+    const driverPersonalWalletPermissions = membership.roleName === CompanyRoleNames.EMPLOYEE && user?.roles?.includes(Roles.DRIVER)
       ? [ModulePermissions.WALLET, FinancePermissions.WALLET_OWN_READ]
       : [];
     return unique([
@@ -146,8 +193,8 @@ export class CompanyEngine {
       .filter((permission) => !(membership.deniedPermissions || []).includes(permission));
   }
 
-  defaultContextForUser(user) {
-    return defaultContextForUser(user, this.contextsForUser(user.id));
+  defaultContextForUser(user, role = null) {
+    return defaultContextForUser(user, this.contextsForUser(user.id), role);
   }
 
   canUseCompany(actor, companyId) {
@@ -441,10 +488,10 @@ function systemActor(session) {
   };
 }
 
-function platformActor(user, session, contexts, permissions) {
+function platformActor(user, session, contexts, role, permissions) {
   return {
     ...baseActor(user, session, contexts),
-    role: session.role || user.selectedRole || user.roles?.[0],
+    role,
     companyId: null,
     companyName: "GL Enterprise",
     companyType: "platform",
@@ -456,10 +503,10 @@ function platformActor(user, session, contexts, permissions) {
   };
 }
 
-function companyActor(user, session, contexts, context) {
+function companyActor(user, session, contexts, role, context) {
   return {
     ...baseActor(user, session, contexts),
-    role: session.role || user.selectedRole || user.roles?.[0],
+    role,
     companyId: context.companyId,
     companyName: context.companyName,
     companyType: context.companyType,
@@ -472,22 +519,26 @@ function companyActor(user, session, contexts, context) {
   };
 }
 
-function privateActor(user, session, contexts) {
+function privateActor(user, session, contexts, role) {
   return {
     ...baseActor(user, session, contexts),
-    role: session.role || user.selectedRole || user.roles?.[0] || Roles.READONLY_AUDITOR,
+    role,
     companyId: null,
     companyName: null,
     companyType: null,
     companyRole: null,
     contextType: "private",
-    permissions: [...PrivateContextPermissions],
+    permissions: unique(PrivateRolePermissionMap[role] || PrivateContextPermissions),
     permissionsSource: "company_engine",
     companyVerificationStatus: null
   };
 }
 
 function baseActor(user, session, contexts) {
+  const roleOptions = unique([
+    ...(user.roles || []),
+    ...contexts.flatMap((context) => context.compatibleRoles || [])
+  ]);
   return {
     userId: user.id,
     name: user.name,
@@ -500,15 +551,21 @@ function baseActor(user, session, contexts) {
     documentsValid: Boolean(user.documentsValid),
     selectedRole: user.selectedRole || null,
     roleVerificationStatus: user.roleVerificationStatus || {},
+    roleOptions,
     contextOptions: contexts.map(({ permissions, ...context }) => context)
   };
 }
 
-function defaultContextForUser(user, contexts) {
-  const platform = contexts.find((context) => context.contextType === "platform");
-  if (platform && PlatformRolePermissionMap[user.selectedRole || user.roles?.[0]]) return platform;
-  return contexts.find((context) => context.contextType === "company" && context.companyId === user.companyId)
-    || contexts.find((context) => context.contextType === "company")
+function defaultContextForUser(user, contexts, role = null) {
+  const activeRole = role || user?.selectedRole || user?.roles?.[0];
+  const platform = contexts.find((context) => context.contextType === "platform" && context.compatibleRoles.includes(activeRole));
+  if (platform) return platform;
+  return contexts.find((context) => (
+    context.contextType === "company"
+    && context.companyId === user?.companyId
+    && context.compatibleRoles.includes(activeRole)
+  )) || contexts.find((context) => context.contextType === "company" && context.compatibleRoles.includes(activeRole))
+    || contexts.find((context) => context.compatibleRoles.includes(activeRole))
     || contexts[0];
 }
 
@@ -621,6 +678,61 @@ function roleNameForUserCompany(user, company) {
   if (user.roles?.includes(Roles.INSURANCE_PARTNER)) return CompanyRoleNames.INSURANCE_MANAGER;
   if (user.roles?.includes(Roles.PAYMENT_OPERATOR)) return CompanyRoleNames.FINANCE;
   return CompanyRoleNames.EMPLOYEE;
+}
+
+function companyTypeFilteredRolePermissions(permissions, companyType) {
+  if (companyType === CompanyTypes.CARRIER) return permissions;
+  const carrierOnlyPermissions = [
+    DriverPermissions.ASSIGN,
+    DriverPermissions.MANAGE,
+    VehiclePermissions.CREATE,
+    VehiclePermissions.MANAGE,
+    LoadPermissions.ACCEPT,
+    LoadPermissions.ASSIGN_DRIVER,
+    ModulePermissions.JOBS,
+    ModulePermissions.PARKING
+  ];
+  return permissions.filter((permission) => !carrierOnlyPermissions.includes(permission));
+}
+
+function compatibleRolesForCompanyContext(user, membership, company) {
+  const companyType = normalizeCompanyType(company?.type);
+  const userRoles = user?.roles || [];
+  if (membership.roleName === CompanyRoleNames.WAREHOUSE_MANAGER && userRoles.includes(Roles.WAREHOUSE_WORKER)) {
+    return [Roles.WAREHOUSE_WORKER];
+  }
+  if (companyType === CompanyTypes.CARRIER) {
+    if (membership.roleName === CompanyRoleNames.EMPLOYEE && userRoles.includes(Roles.DRIVER)) return [Roles.DRIVER];
+    if (membership.roleName === CompanyRoleNames.DISPATCHER) return [Roles.CARRIER_DISPATCHER];
+    if ([CompanyRoleNames.OWNER, CompanyRoleNames.ADMIN, CompanyRoleNames.FINANCE, CompanyRoleNames.DRIVER_MANAGER].includes(membership.roleName)) return [Roles.CARRIER_OWNER];
+    return userRoles.includes(Roles.DRIVER) ? [Roles.DRIVER] : [Roles.CARRIER_DISPATCHER];
+  }
+  if (companyType === CompanyTypes.CLIENT) {
+    if ([CompanyRoleNames.OWNER, CompanyRoleNames.ADMIN, CompanyRoleNames.FINANCE].includes(membership.roleName)) return [Roles.CLIENT_OWNER];
+    return [Roles.CLIENT_DISPATCHER];
+  }
+  if (companyType === CompanyTypes.WAREHOUSE) return [Roles.WAREHOUSE_WORKER];
+  if (companyType === CompanyTypes.WORKSHOP) return [Roles.WORKSHOP];
+  if (companyType === CompanyTypes.MOBILE_SERVICE) return [Roles.MOBILE_SERVICE];
+  if (companyType === CompanyTypes.ROADSIDE_ASSISTANCE) return [Roles.ROADSIDE_ASSISTANCE];
+  if ([CompanyTypes.INSURER, CompanyTypes.INSURANCE].includes(companyType)) return [Roles.INSURANCE_PARTNER];
+  if (companyType === CompanyTypes.PAYMENT) return [Roles.PAYMENT_OPERATOR];
+  if (companyType === CompanyTypes.SECURITY) return [Roles.SECURITY_GUARD];
+  if (companyType === CompanyTypes.CUSTOMS_AGENT) return [Roles.CUSTOMS_AGENT];
+  if (companyType === CompanyTypes.AUTHORITY) return [Roles.AUTHORITY_USER];
+  if (companyType === CompanyTypes.FERRY_OPERATOR) return [Roles.FERRY_OPERATOR];
+  if (companyType === CompanyTypes.RAIL_OPERATOR) return [Roles.RAIL_OPERATOR];
+  if (companyType === CompanyTypes.ACADEMY_PARTNER) return userRoles.filter((role) => [Roles.ACADEMY_TEACHER, Roles.ACADEMY_STUDENT].includes(role));
+  return userRoles.length ? userRoles : [Roles.READONLY_AUDITOR];
+}
+
+function privateRolesForUser(user) {
+  const roles = (user?.roles || []).filter((role) => PrivateRolePermissionMap[role]);
+  return roles.length ? roles : [user?.selectedRole || user?.roles?.[0] || Roles.READONLY_AUDITOR].filter(Boolean);
+}
+
+function platformRolesForUser(user) {
+  return (user?.roles || []).filter((role) => PlatformRolePermissionMap[role]);
 }
 
 function normalizeVerificationStatus(status) {

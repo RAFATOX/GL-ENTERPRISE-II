@@ -317,9 +317,9 @@ export class WorkflowEngine {
 
     switch (actionType) {
       case ActionTypes.SELECT_CONTEXT:
-        return this.selectContext(state, payload, actor);
+        return this.selectContext(state, modules, payload, actor);
       case ActionTypes.SELECT_ROLE:
-        return this.selectRole(state, modules, payload);
+        return this.selectRole(state, modules, payload, context);
       case ActionTypes.SELECT_VIEW:
         state.session.view = payload.view;
         state.session.selectedVehicleId = payload.view === "companies" ? payload.selectedVehicleId || state.session.selectedVehicleId || null : null;
@@ -586,11 +586,24 @@ export class WorkflowEngine {
     }
   }
 
-  selectContext(state, payload, actor) {
+  selectContext(state, modules, payload, actor) {
     const previous = `${state.session.contextType || "private"}:${state.session.companyId || "none"}`;
-    state.session.contextType = payload.contextType;
-    state.session.companyId = payload.contextType === "company" ? payload.companyId : null;
-    state.session.companyRoleId = payload.companyRoleId || payload.userCompanyRoleId || null;
+    const user = modules.users.getById(state.session.userId);
+    const requestedRole = state.session.role || user?.selectedRole || user?.roles?.[0];
+    const contexts = modules.companies.contextsForUser(state.session.userId);
+    const selectedContext = contexts.find((context) => (
+      context.contextType === payload.contextType
+      && (context.companyId || null) === (payload.companyId || null)
+      && (!payload.userCompanyRoleId || context.userCompanyRoleId === payload.userCompanyRoleId)
+    )) || modules.companies.contextForRole(state.session.userId, requestedRole, payload);
+    const nextRole = selectedContext.compatibleRoles.includes(requestedRole)
+      ? requestedRole
+      : selectedContext.compatibleRoles[0];
+    applySessionContext(state, modules, {
+      userId: state.session.userId,
+      role: nextRole,
+      context: selectedContext
+    });
     state.session.deniedView = null;
     state.session.deniedRoute = null;
     return {
@@ -605,14 +618,30 @@ export class WorkflowEngine {
     };
   }
 
-  selectRole(state, modules, payload) {
-    const demoUser = modules.users.findDemoUserForRole(payload.role);
-    const context = modules.companies.defaultContextForUser(demoUser);
-    state.session.role = payload.role;
-    state.session.userId = demoUser.id;
-    state.session.contextType = context.contextType;
-    state.session.companyId = context.companyId || null;
-    state.session.companyRoleId = context.userCompanyRoleId || null;
+  selectRole(state, modules, payload, context) {
+    const previous = `${state.session.userId}:${state.session.role}:${state.session.companyId || "none"}`;
+    const currentUser = modules.users.getById(state.session.userId);
+    const currentRoles = currentUser ? modules.companies.availableRolesForUser(currentUser.id) : [];
+    const sameIdentity = currentUser && currentRoles.includes(payload.role);
+    const user = sameIdentity
+      ? currentUser
+      : context.meta?.demoOnly
+      ? modules.users.findDemoUserForRole(payload.role)
+      : currentUser;
+    if (!user) return { events: [] };
+    const role = sameIdentity || user?.roles?.includes(payload.role) ? payload.role : modules.companies.roleForSession(user, { role: payload.role });
+    const selectedContext = modules.companies.contextForRole(user.id, role, {
+      contextType: payload.contextType || state.session.contextType,
+      companyId: payload.companyId || state.session.companyId,
+      userCompanyRoleId: payload.userCompanyRoleId || payload.companyRoleId || state.session.companyRoleId
+    });
+    applySessionContext(state, modules, {
+      userId: user.id,
+      role,
+      context: selectedContext
+    });
+    user.selectedRole = role;
+    user.companyId = selectedContext.companyId || user.companyId || null;
     state.session.onboardingRequired = false;
     state.session.onboardingUserId = null;
     state.session.deniedView = null;
@@ -622,9 +651,9 @@ export class WorkflowEngine {
         type: EventTypes.SESSION_ROLE_CHANGED,
         objectType: "session",
         objectId: "demo-session",
-        previousState: null,
-        newState: payload.role,
-        reason: "demo role switcher selected"
+        previousState: previous,
+        newState: `${state.session.userId}:${state.session.role}:${state.session.companyId || "none"}`,
+        reason: sameIdentity ? "rola zmieniona w ramach tej samej tozsamosci" : "demo role switcher selected"
       }]
     };
   }
@@ -801,6 +830,67 @@ export class WorkflowEngine {
     }
     return { events };
   }
+}
+
+function applySessionContext(state, modules, input) {
+  const context = input.context || modules.companies.contextForRole(input.userId, input.role);
+  const role = input.role || context.compatibleRoles?.[0] || state.session.role;
+  state.session.userId = input.userId;
+  state.session.role = role;
+  state.session.activeRole = role;
+  state.session.contextType = context.contextType;
+  state.session.companyId = context.contextType === "company" ? context.companyId : null;
+  state.session.activeCompanyId = state.session.companyId;
+  state.session.companyRoleId = context.userCompanyRoleId || null;
+  state.session.activeContext = {
+    contextType: context.contextType,
+    companyId: context.companyId || null,
+    userCompanyRoleId: context.userCompanyRoleId || null,
+    label: context.label || null
+  };
+  state.session.view = "dashboard";
+  state.session.selectedVehicleId = null;
+  state.session.profileTargetId = null;
+  state.session.profileTargetType = null;
+  state.session.selectedTransportId = firstVisibleTransportForSession(state, role, context);
+}
+
+function firstVisibleTransportForSession(state, role, context) {
+  const current = state.transports.find((transport) => transport.id === state.session.selectedTransportId);
+  const companyId = context.companyId || null;
+  const userId = state.session.userId;
+  const transport = state.transports.find((item) => transportVisibleForRole(state, item, role, companyId, userId))
+    || (current && transportVisibleForRole(state, current, role, companyId, userId) ? current : null);
+  return transport?.id || null;
+}
+
+function transportVisibleForRole(state, transport, role, companyId, userId) {
+  if (!transport) return false;
+  if ([Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.ADMIN_FINANCE, Roles.SUPER_ADMIN, Roles.ADMIN, Roles.COMPLIANCE, Roles.SUPPORT_AGENT, Roles.READONLY_AUDITOR].includes(role)) {
+    return true;
+  }
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(role)) {
+    return transport.carrierCompanyId === companyId || (!transport.carrierCompanyId && [
+      TransportStatuses.PUBLISHED,
+      TransportStatuses.CARRIER_OFFER_RECEIVED
+    ].includes(transport.status));
+  }
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(role)) return transport.clientCompanyId === companyId;
+  if (role === Roles.DRIVER) return transport.driverId === userId;
+  if (role === Roles.WAREHOUSE_WORKER) return transport.warehouseWorkerId === userId || transport.clientCompanyId === companyId;
+  if ([Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE].includes(role)) {
+    return (state.serviceRequests || []).some((request) => (
+      request.transportId === transport.id
+      && (request.providerCompanyId === companyId || request.status === "breakdown_reported")
+    ));
+  }
+  if (role === Roles.INSURANCE_PARTNER) {
+    return (state.insurancePolicies || []).some((policy) => policy.id === transport.insuranceId)
+      || Boolean(transport.activeClaimId || transport.riskFlagged);
+  }
+  if (role === Roles.SECURITY_GUARD || role === Roles.AUTHORITY_USER || role === Roles.CUSTOMS_AGENT) return true;
+  if (role === Roles.FERRY_OPERATOR || role === Roles.RAIL_OPERATOR) return ["FERRY", "TRAIN", "INTERMODAL"].includes(transport.transportMode);
+  return false;
 }
 
 function sessionOnly(actionType) {

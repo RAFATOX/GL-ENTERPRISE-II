@@ -492,6 +492,10 @@ export class PermissionsEngine {
       return canSelectContext(context);
     }
 
+    if (actionType === ActionTypes.SELECT_ROLE) {
+      return canSelectRole(context);
+    }
+
     const requirementGroups = actionPermissionRequirements[actionType] || [];
     if (!requirementGroups.length) {
       return {
@@ -1050,6 +1054,22 @@ function canSelectContext(context) {
   return canUseCompany
     ? { ok: true, reason: "company context allowed" }
     : { ok: false, reason: "uzytkownik nie jest przypisany do tej firmy" };
+}
+
+function canSelectRole(context) {
+  const requestedRole = context.payload?.role;
+  const actor = context.actor || {};
+  const user = (context.state.users || []).find((item) => item.id === actor.userId);
+  const directRoles = user?.roles || [];
+  const contextRoles = (actor.contextOptions || []).flatMap((option) => option.compatibleRoles || []);
+  const allowedRoles = [...new Set([...directRoles, ...contextRoles])];
+  if (allowedRoles.includes(requestedRole)) {
+    return { ok: true, reason: "rola przypisana do aktywnego uzytkownika" };
+  }
+  return {
+    ok: false,
+    reason: "rola nie jest przypisana do aktywnego user_id"
+  };
 }
 
 function accountApproved(actor) {

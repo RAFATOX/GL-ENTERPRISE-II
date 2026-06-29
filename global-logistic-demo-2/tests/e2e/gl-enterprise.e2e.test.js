@@ -37,17 +37,43 @@ function engineForUserContext(userId, companyId = null) {
   const user = engine.state.users.find((item) => item.id === userId);
   assert.ok(user, `missing demo user ${userId}`);
   const context = companyId
-    ? engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId)
+    ? engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId && item.compatibleRoles.includes(user.selectedRole))
+      || engine.modules.companies.contextsForUser(userId).find((item) => item.companyId === companyId)
     : engine.modules.companies.defaultContextForUser(user);
   assert.ok(context, `missing context for ${userId}`);
+  const activeRole = context.compatibleRoles.includes(user.selectedRole)
+    ? user.selectedRole
+    : context.compatibleRoles[0] || user.selectedRole;
   engine.state.session.userId = userId;
-  engine.state.session.role = user.selectedRole;
+  engine.state.session.role = activeRole;
   engine.state.session.contextType = context.contextType;
   engine.state.session.companyId = context.companyId || null;
   engine.state.session.companyRoleId = context.userCompanyRoleId || null;
   engine.state.session.onboardingRequired = false;
   engine.state.session.onboardingUserId = null;
   return engine;
+}
+
+function activateUserRole(engine, userId, role, preferred = {}) {
+  const context = engine.modules.companies.contextForRole(userId, role, preferred);
+  assert.ok(context, `missing context for ${userId} as ${role}`);
+  engine.state.session.userId = userId;
+  engine.state.session.role = role;
+  engine.state.session.activeRole = role;
+  engine.state.session.contextType = context.contextType;
+  engine.state.session.companyId = context.contextType === "company" ? context.companyId : null;
+  engine.state.session.activeCompanyId = engine.state.session.companyId;
+  engine.state.session.companyRoleId = context.userCompanyRoleId || null;
+  engine.state.session.activeContext = {
+    contextType: context.contextType,
+    companyId: context.companyId || null,
+    userCompanyRoleId: context.userCompanyRoleId || null,
+    label: context.label || null
+  };
+  engine.state.session.view = "dashboard";
+  engine.state.session.onboardingRequired = false;
+  engine.state.session.onboardingUserId = null;
+  return context;
 }
 
 function submitRenderedForm(engine, actionType, overrides = {}) {
@@ -307,6 +333,72 @@ test("e2e: bezposredni URL bez permission pokazuje Brak dostepu", () => {
   assert.equal(result.ok, false);
   assert.ok(html.includes("Brak dostępu"));
   assert.equal(engine.state.session.deniedRoute, "/billing");
+});
+
+test("e2e: przełączanie ról i firm odswieza menu, pulpit, permissions i wallet scope", () => {
+  const engine = createEngine();
+  activateUserRole(engine, "u-role-switch", Roles.DRIVER, { contextType: "company", companyId: "co-carrier-a" });
+  let html = render(engine);
+  let routes = moduleRoutes(html);
+
+  assert.ok(html.includes("data-role-select"));
+  assert.ok(html.includes("data-context-select"));
+  assert.ok(routes.includes("/gps"));
+  assert.ok(routes.includes("/wallet"));
+  assert.equal(routes.includes("/billing"), false);
+  assert.equal(routes.includes("/audit"), false);
+  assert.equal(engine.getSnapshot().access.walletView, "UserWallet");
+
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER }).ok, true);
+  html = render(engine);
+  routes = moduleRoutes(html);
+  assert.equal(engine.state.session.userId, "u-role-switch");
+  assert.equal(engine.getActor().companyId, "co-carrier-a");
+  assert.equal(engine.getSnapshot().access.walletView, "CompanyWallet");
+  assert.ok(routes.includes("/loads"));
+  assert.ok(routes.includes("/company"));
+  assert.equal(routes.includes("/audit"), false);
+
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CLIENT_OWNER }).ok, true);
+  routes = moduleRoutes(render(engine));
+  assert.equal(engine.state.session.userId, "u-role-switch");
+  assert.equal(engine.getActor().companyId, "co-client-a");
+  assert.equal(engine.getSnapshot().access.financialScope, "client");
+  assert.ok(routes.includes("/billing"));
+  assert.equal(routes.includes("/service-orders"), false);
+
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_CONTEXT, { contextType: "company", companyId: "co-client-b" }).ok, true);
+  routes = moduleRoutes(render(engine));
+  assert.equal(engine.state.session.userId, "u-role-switch");
+  assert.equal(engine.getActor().role, Roles.WAREHOUSE_WORKER);
+  assert.equal(engine.getActor().companyId, "co-client-b");
+  assert.equal(engine.getSnapshot().access.financialScope, "none");
+  assert.ok(routes.includes("/photos"));
+  assert.equal(routes.includes("/wallet"), false);
+
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_CONTEXT, { contextType: "platform" }).ok, true);
+  routes = moduleRoutes(render(engine));
+  assert.equal(engine.state.session.userId, "u-role-switch");
+  assert.equal(engine.getActor().role, Roles.PLATFORM_OWNER);
+  assert.equal(engine.getActor().contextType, "platform");
+  assert.equal(engine.getSnapshot().access.walletView, "PlatformWallet");
+  assert.ok(routes.includes("/wallet"));
+  assert.ok(routes.includes("/audit"));
+  assert.ok(routes.includes("/system"));
+
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }).ok, true);
+  routes = moduleRoutes(render(engine));
+  assert.equal(engine.state.session.userId, "u-role-switch");
+  assert.equal(engine.getActor().role, Roles.DRIVER);
+  assert.equal(engine.getActor().companyId, "co-carrier-a");
+  assert.equal(engine.getSnapshot().access.walletView, "UserWallet");
+  assert.ok(routes.includes("/gps"));
+  assert.equal(routes.includes("/audit"), false);
+
+  const singleRoleDriver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const singleRoleHtml = render(singleRoleDriver);
+  assert.equal(singleRoleHtml.includes("data-role-select"), false);
+  assert.equal(singleRoleHtml.includes("data-context-select"), false);
 });
 
 test("e2e: driver nie widzi finansow firmy ani historii escrow, tylko UserWallet", () => {

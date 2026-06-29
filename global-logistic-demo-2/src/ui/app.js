@@ -3,7 +3,7 @@ import { GLCoreEngine } from "../core/gl-core-engine.js";
 import { moduleForRoute, normalizeRoute } from "../core/modules-config.js";
 import { renderApp } from "./renderers.js";
 import { parsePayload, payloadFromForm } from "./action-handler.js";
-import { firstRouteForRole, firstViewForRole, routeForRoleView } from "./role-config.js";
+import { firstRouteForRole, routeForRoleView } from "./role-config.js";
 
 const engine = new GLCoreEngine();
 const root = document.querySelector("#app");
@@ -111,11 +111,11 @@ root.addEventListener("change", (event) => {
   const roleSelect = event.target.closest("[data-role-select]");
   if (!roleSelect) return;
   const role = roleSelect.value;
-  engine.dispatchAction(ActionTypes.SELECT_ROLE, { role }, { demoOnly: true });
-  const route = firstRouteForRole(role);
-  const view = firstViewForRole(role);
-  const result = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route });
-  if (result.ok) setRouteHash(route);
+  const result = engine.dispatchAction(ActionTypes.SELECT_ROLE, { role });
+  if (result.ok) {
+    const viewResult = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "dashboard", route: "/dashboard" });
+    if (viewResult.ok) setRouteHash("/dashboard");
+  }
 });
 
 root.addEventListener("submit", (event) => {

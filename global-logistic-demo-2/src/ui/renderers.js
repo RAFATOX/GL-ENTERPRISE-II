@@ -323,7 +323,8 @@ function renderAppNavigation(state, activeView) {
 }
 
 function renderTopbar(state, activeView, roleConfig) {
-  const contexts = state.access?.contextOptions || [];
+  const contexts = contextOptionsForTopbar(state);
+  const roleOptions = roleOptionsForTopbar(state);
   const developer = canViewDeveloperPanel(state);
   return `
     <header class="topbar">
@@ -332,7 +333,7 @@ function renderTopbar(state, activeView, roleConfig) {
         <h1>${viewTitle(state.session.role, activeView, state.access?.actor || { role: state.session.role })}</h1>
       </div>
       <div class="role-login">
-        ${contexts.length ? `
+        ${contexts.length > 1 ? `
           <label>
             <span>${ui("topbar.active_context")}</span>
             <select data-context-select aria-label="${ui("topbar.active_context")}">
@@ -342,22 +343,24 @@ function renderTopbar(state, activeView, roleConfig) {
             </select>
           </label>
         ` : ""}
-        ${developer ? `
+        ${roleOptions.length > 1 ? `
           <label>
             <span>${ui("topbar.active_role")}</span>
             <select data-role-select aria-label="${ui("topbar.active_role")}">
-              ${AllRoles.map((role) => `
-                <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role]}</option>
+              ${roleOptions.map((role) => `
+                <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role] || valueLabel(role)}</option>
               `).join("")}
             </select>
           </label>
-          <button class="reset-demo" data-ui-type="action" data-reset-demo="true">${ui("topbar.reset_demo")}</button>
         ` : `
           <div class="role-badge">
             <span>${ui("topbar.active_role")}</span>
             <strong>${RoleLabels[state.session.role] || valueLabel(state.session.role)}</strong>
           </div>
         `}
+        ${developer ? `
+          <button class="reset-demo" data-ui-type="action" data-reset-demo="true">${ui("topbar.reset_demo")}</button>
+        ` : ""}
       </div>
     </header>
   `;
@@ -4660,6 +4663,27 @@ function encodePayload(payload) {
 
 function viewTitle(role, view, actor = { role }) {
   return menuForRole(role, actor).find((item) => item.id === view)?.label || "Panel";
+}
+
+function roleOptionsForTopbar(state) {
+  const actor = state.access?.actor || {};
+  const currentUser = (state.users || []).find((user) => user.id === state.session.userId);
+  return [...new Set([
+    ...(actor.roleOptions || []),
+    ...(currentUser?.roles || []),
+    ...((state.access?.contextOptions || []).flatMap((context) => context.compatibleRoles || [])),
+    state.session.role
+  ].filter(Boolean))];
+}
+
+function contextOptionsForTopbar(state) {
+  const contexts = state.access?.contextOptions || [];
+  const companyContexts = contexts.filter((context) => context.contextType === "company");
+  const platformContexts = contexts.filter((context) => context.contextType === "platform");
+  if (companyContexts.length <= 1 && platformContexts.length === 0) return [];
+  if (companyContexts.length === 0 && platformContexts.length <= 1) return [];
+  const visibleContexts = contexts.filter((context) => context.contextType !== "private" || companyContexts.length === 0);
+  return visibleContexts.length > 1 ? visibleContexts : [];
 }
 
 function contextSelected(state, context) {
