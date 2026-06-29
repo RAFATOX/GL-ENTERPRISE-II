@@ -373,75 +373,26 @@
   </div>
 
   <script type="module">
-    const layers = {
-      identity: { label: "Tożsamość", color: "#4dd4ff" },
-      company: { label: "Firma", color: "#8fd36b" },
-      workflow: { label: "Workflow", color: "#f6c44d" },
-      finance: { label: "Finanse", color: "#41d28a" },
-      knowledge: { label: "Wiedza/AI", color: "#b794ff" },
-      ux: { label: "UI", color: "#ff8f70" },
-      future: { label: "Moduły przyszłe", color: "#66d9c7" }
-    };
+    const architectureModel = await loadArchitectureModel();
+    const layers = architectureModel.engineArchitectureLayers;
 
     const positionScale = 2.55;
-    const rawNodes = [
-      { id: "User", label: "User", layer: "ux", type: "aktor", position: [-9, 4, 0], description: "Człowiek wchodzący do systemu. Nie działa jako anonimowa rola, tylko jako zweryfikowany user_id." },
-      { id: "Identity Engine", label: "Identity Engine", layer: "identity", type: "silnik", position: [-6.6, 3.1, .8], description: "Zarządza logowaniem, sesją, OTP, tożsamością użytkownika i głównym user_id." },
-      { id: "Registration / Onboarding Engine", label: "Registration / Onboarding", layer: "identity", type: "silnik", position: [-4.2, 1.7, .1], description: "Prowadzi użytkownika przez język, telefon, konto, role, dokumenty i status weryfikacji." },
-      { id: "Company Engine", label: "Company Engine", layer: "company", type: "silnik", position: [-1.7, 1.9, .7], description: "Tworzy firmę, company_id, dokumenty firmowe oraz relację UserCompanyRole." },
-      { id: "Permission Engine", label: "Permission Engine", layer: "company", type: "silnik", position: [1.1, 1.8, 0], description: "Jest centralnym źródłem praw dostępu. Moduły i routing używają permissions, nie samych nazw ról." },
-      { id: "Routing / Access", label: "Routing / Access", layer: "ux", type: "brama", position: [3.7, 3.5, -.5], description: "Strażnik tras i widoczności modułów. Ręczny URL bez permission pokazuje brak dostępu." },
-      { id: "Workflow Engine", label: "Workflow Engine", layer: "workflow", type: "silnik", position: [0, -1.7, 0], description: "Steruje kolejnością transportu: ładunek, akceptacja, kierowca, pojazd, GPS, dokumenty, dostawa i rozliczenie." },
-      { id: "Driver Engine", label: "Driver Engine", layer: "workflow", type: "silnik", position: [-3.5, -4, 1.8], description: "Obsługuje kierowcę, jego status, dokumenty roli, zadania i osobisty zakres danych." },
-      { id: "Vehicle Engine", label: "Vehicle Engine", layer: "workflow", type: "silnik", position: [-.9, -4.7, 2.5], description: "Przechowuje pojazdy przewoźnika, zgodność typu pojazdu, dokumenty, ADR, chłodnię, windę i status floty." },
-      { id: "GPS Engine", label: "GPS Engine", layer: "workflow", type: "silnik", position: [2.2, -4.3, 1.7], description: "Dostarcza punkty GPS, ETA i potwierdzenia lokalizacji etapów transportu." },
-      { id: "Wallet Engine", label: "Wallet Engine", layer: "finance", type: "silnik", position: [4.8, -1.5, 1.7], description: "Obsługuje portfele firmy, użytkownika i platformy zgodnie z permissions oraz zakresem finansowym." },
-      { id: "Escrow Engine", label: "Escrow Engine", layer: "finance", type: "silnik", position: [7.2, -2.1, .8], description: "Blokuje i zwalnia środki transportu. Każda operacja wymaga śladu audytowego." },
-      { id: "Audit Log Engine", label: "Audit Log Engine", layer: "finance", type: "silnik", position: [8.8, .7, 0], description: "Niezmienny dziennik działań: kto, kiedy, co zrobił, na jakim obiekcie i z jakim skutkiem." },
-      { id: "Translation Engine", label: "Translation Engine", layer: "ux", type: "silnik", position: [5.2, 5.2, -1.7], description: "Zapewnia teksty UI przez klucze tłumaczeń i tłumaczenia komunikacji w GL." },
-      { id: "UI", label: "UI", layer: "ux", type: "warstwa", position: [7.7, 4.4, -1.9], description: "Interfejs użytkownika renderowany na podstawie roli, kontekstu firmy i permissions." },
-      { id: "Knowledge Engine", label: "Knowledge Engine", layer: "knowledge", type: "silnik", position: [-2.9, -1.2, -3.4], description: "Centralny fundament wiedzy dla workflow, dokumentów, zgodności, Akademii GL i AI Control Agent." },
-      { id: "AI Control Agent", label: "AI Control Agent", layer: "knowledge", type: "agent", position: [-5.2, -.2, -4], description: "Korzysta z danych workflow i wiedzy, aby tworzyć informacyjne alerty ryzyka. Nie zastępuje decyzji prawnej." },
-      { id: "Reputation Engine", label: "Reputation Engine", layer: "knowledge", type: "silnik", position: [2.2, -1.2, -3.8], description: "Buduje profil zaufania uczestników: przewoźnika, kierowcy, klienta, magazynu i partnerów." },
-      { id: "Profile", label: "Profile", layer: "ux", type: "widok", position: [4.7, -.1, -3.3], description: "Publiczny i prywatny profil zaufania, ograniczony uprawnieniami i zakresem danych." },
-      { id: "Notification Engine", label: "Notification Engine", layer: "ux", type: "silnik", position: [3.1, .2, 3.8], description: "Powiadamia uczestników o zmianach statusu, blokadach, ETA, dokumentach i decyzjach." },
-      { id: "GL Academy", label: "GL Academy", layer: "future", type: "moduł", position: [-6.2, -3.1, -2.4], description: "Przyszłe szkolenia, materiały, testy i ścieżki certyfikacji powiązane z Knowledge Engine." },
-      { id: "GL Jobs", label: "GL Jobs", layer: "future", type: "moduł", position: [0, -6.3, -1.7], description: "Zadania kierowców i operacji transportowych tworzone z Workflow Engine." },
-      { id: "GL Fleet Market", label: "GL Fleet Market", layer: "future", type: "moduł", position: [5.9, -4.4, -2.1], description: "Przyszły rynek floty, pojazdów, usług i zasobów przewoźnika." }
-    ];
+    const rawNodes = architectureModel.engineArchitecture.map((node) => ({
+      id: node.id,
+      label: node.name,
+      layer: node.layer,
+      type: node.type,
+      position: node.mapPosition,
+      description: `${node.description} Rola w workflow: ${node.workflowRole}.`
+    }));
 
     const nodes = rawNodes.map((node) => ({
       ...node,
       position: node.position.map((value) => value * positionScale)
     }));
 
-    const links = [
-      ["User", "Identity Engine", "identyfikacja"],
-      ["Identity Engine", "Registration / Onboarding Engine", "konto i OTP"],
-      ["Registration / Onboarding Engine", "Company Engine", "firma i dokumenty"],
-      ["Company Engine", "Permission Engine", "role i permissions"],
-      ["Permission Engine", "Routing / Access", "strażnik tras"],
-      ["Permission Engine", "UI", "widoczność modułów"],
-      ["Workflow Engine", "Driver Engine", "przypisanie"],
-      ["Workflow Engine", "Vehicle Engine", "zgodność pojazdu"],
-      ["Workflow Engine", "Wallet Engine", "status płatności"],
-      ["Workflow Engine", "Escrow Engine", "blokada środków"],
-      ["Workflow Engine", "Audit Log Engine", "zdarzenia"],
-      ["Workflow Engine", "GPS Engine", "lokalizacja i ETA"],
-      ["Wallet Engine", "Escrow Engine", "rezerwacja"],
-      ["Escrow Engine", "Audit Log Engine", "ślad finansowy"],
-      ["Workflow Engine", "Knowledge Engine", "źródła wiedzy"],
-      ["Knowledge Engine", "AI Control Agent", "kontekst ryzyka"],
-      ["Knowledge Engine", "GL Academy", "materiały"],
-      ["Reputation Engine", "Profile", "profil zaufania"],
-      ["Notification Engine", "Workflow Engine", "statusy"],
-      ["Notification Engine", "Wallet Engine", "płatności"],
-      ["Notification Engine", "Escrow Engine", "escrow"],
-      ["Notification Engine", "AI Control Agent", "alerty"],
-      ["Translation Engine", "UI", "język UI"],
-      ["Workflow Engine", "GL Jobs", "zadania"],
-      ["Vehicle Engine", "GL Fleet Market", "flota"]
-    ];
+    const links = architectureModel.engineArchitectureLinks(architectureModel.engineArchitecture)
+      .map((link) => [link.from, link.to, link.relation === "dependsOn" ? "zależy od" : "dostarcza do"]);
 
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const fallback = document.getElementById("fallback");
@@ -450,8 +401,9 @@
     const layerControls = document.getElementById("layerControls");
     const status = document.getElementById("status");
     const activeLayers = new Set(Object.keys(layers));
+    if (architectureModel.loadError) status.textContent = architectureModel.loadError;
 
-    let selectedNode = nodeById.get("Workflow Engine");
+    let selectedNode = nodeById.get("workflow");
     let refreshSceneVisibility = () => {};
     let viewControls = {
       reset: () => {},
@@ -887,9 +839,9 @@
       const dependencies = links.filter(([from, to]) => from === node.id || to === node.id);
       document.getElementById("dependencyList").innerHTML = dependencies.map(([from, to, reason]) => `
         <div class="dependency-row">
-          <b>${from}</b>
+          <b>${nodeById.get(from)?.label || from}</b>
           <small>${reason}</small>
-          <b>${to}</b>
+          <b>${nodeById.get(to)?.label || to}</b>
         </div>
       `).join("") || "<p>Brak bezpośrednich zależności.</p>";
       status.textContent = `Wybrano: ${node.label}`;
@@ -930,6 +882,70 @@
           status.textContent = "Tryb pełnoekranowy nie jest dostępny w tej przeglądarce.";
         }
       });
+    }
+
+    async function loadArchitectureModel() {
+      try {
+        return await import("../src/core/engine-architecture.js");
+      } catch {
+        // Publiczne demo czyta rzeczywisty model z src/core/engine-architecture.js.
+        // Ten minimalny fallback pozwala otworzyć dokument także przez file://, gdy przeglądarka blokuje import modułu.
+        const fallbackLayers = {
+          identity: { label: "Tożsamość", color: "#4dd4ff" },
+          access: { label: "Dostęp", color: "#79a7ff" },
+          workflow: { label: "Workflow", color: "#f6c44d" },
+          finance: { label: "Finanse", color: "#41d28a" },
+          transport: { label: "Transport", color: "#58c7ff" },
+          knowledge: { label: "Wiedza i AI", color: "#b794ff" },
+          ui: { label: "UI", color: "#ff8f70" },
+          future: { label: "Moduły przyszłe", color: "#b7e36b" }
+        };
+        const fallbackNodes = [
+          fallbackEngine("user", "User", "identity", "actor", [-9, 4, 0], [], ["identity"]),
+          fallbackEngine("identity", "Identity Engine", "identity", "engine", [-6.2, 3, 0], ["user"], ["workflow"]),
+          fallbackEngine("permission", "Permission Engine", "access", "engine", [-2.4, 2.2, 0], ["identity"], ["workflow", "routing-access"]),
+          fallbackEngine("routing-access", "Routing / Access", "access", "gateway", [2.4, 3.2, 0], ["permission"], ["ui"]),
+          fallbackEngine("ui", "UI", "ui", "presentation", [6.2, 3.5, -1], ["routing-access", "workflow"], ["workflow"]),
+          fallbackEngine("workflow", "Workflow Engine", "workflow", "engine", [0, 0, 0], ["identity", "permission"], ["wallet", "escrow", "driver", "vehicle", "knowledge", "ui"]),
+          fallbackEngine("driver", "Driver Engine", "transport", "engine", [-3.4, -3.4, 1.5], ["workflow"], ["workflow"]),
+          fallbackEngine("vehicle", "Vehicle Engine", "transport", "engine", [0, -4.2, 2], ["workflow"], ["workflow"]),
+          fallbackEngine("wallet", "Wallet Engine", "finance", "engine", [4, -1.3, 1.4], ["workflow"], ["escrow"]),
+          fallbackEngine("escrow", "Escrow Engine", "finance", "engine", [6.6, -2, .6], ["wallet", "workflow"], ["workflow"]),
+          fallbackEngine("audit-log", "Audit Log Engine", "finance", "engine", [7.6, .9, 0], ["identity"], ["workflow", "wallet", "escrow"]),
+          fallbackEngine("knowledge", "Knowledge Engine", "knowledge", "engine", [-3.4, -1.2, -3.2], ["permission"], ["workflow", "ai-control"]),
+          fallbackEngine("ai-control", "AI Control Agent", "knowledge", "agent", [-6, -.4, -3.8], ["workflow", "knowledge"], ["workflow"]),
+          fallbackEngine("profile", "Profile Engine", "ui", "engine", [3.8, -.2, -3.2], ["identity", "permission"], ["ui"]),
+          fallbackEngine("translation", "Translation Engine", "ui", "engine", [4.8, 5.2, -1.6], ["identity"], ["ui"]),
+          fallbackEngine("gl-academy", "GL Academy", "future", "future_module", [-6.8, -3.2, -2.5], ["knowledge"], ["profile"])
+        ];
+        return {
+          loadError: "Nie udało się załadować src/core/engine-architecture.js. Pokazano lokalny fallback mapy.",
+          engineArchitectureLayers: fallbackLayers,
+          engineArchitecture: fallbackNodes,
+          engineArchitectureLinks: (engines) => {
+            const links = [];
+            engines.forEach((engine) => {
+              engine.dependsOn.forEach((target) => links.push({ from: target, to: engine.id, relation: "dependsOn" }));
+              engine.providesTo.forEach((target) => links.push({ from: engine.id, to: target, relation: "providesTo" }));
+            });
+            return links;
+          }
+        };
+      }
+    }
+
+    function fallbackEngine(id, name, layer, type, mapPosition, dependsOn, providesTo) {
+      return {
+        id,
+        name,
+        layer,
+        type,
+        mapPosition,
+        dependsOn,
+        providesTo,
+        description: "Fallback lokalny. W publicznym demo dane pochodzą z src/core/engine-architecture.js.",
+        workflowRole: "fallback"
+      };
     }
 
     function ensureSelectedVisible() {
