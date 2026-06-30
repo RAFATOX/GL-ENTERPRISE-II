@@ -13,7 +13,7 @@ import { buildCompanyAccessSeed } from "../companies/company-engine.js";
 
 const baseTime = "2026-05-27T07:00:00.000Z";
 
-export function createDemoState() {
+export function createDemoState(options = {}) {
   const state = {
     schemaVersion: DEMO_DATA_VERSION,
     demoDataVersion: DEMO_DATA_VERSION,
@@ -644,10 +644,50 @@ export function createDemoState() {
 
   buildCompanyAccessSeed(state);
   tuneDemoCompanyRoles(state);
+  if (options.startInApp) activatePublicRoleSwitchDemo(state);
   seedEvents(state);
   seedFinancialAuditRecords(state);
   seedKnowledgeAuditRecords(state);
   return state;
+}
+
+function activatePublicRoleSwitchDemo(state) {
+  const membership = state.userCompanyRoles.find((item) => (
+    item.userId === "u-role-switch"
+    && item.companyId === "co-carrier-a"
+    && item.roleName === CompanyRoleNames.EMPLOYEE
+  )) || state.userCompanyRoles.find((item) => item.userId === "u-role-switch" && item.companyId === "co-carrier-a");
+  const user = state.users.find((item) => item.id === "u-role-switch");
+  if (user) {
+    user.selectedRole = Roles.DRIVER;
+    user.companyId = "co-carrier-a";
+    user.accountStatus = AccountStatuses.VERIFIED;
+  }
+  state.session = {
+    ...state.session,
+    userId: "u-role-switch",
+    role: Roles.DRIVER,
+    activeRole: Roles.DRIVER,
+    language: "pl",
+    view: "dashboard",
+    selectedTransportId: null,
+    contextType: "company",
+    companyId: "co-carrier-a",
+    activeCompanyId: "co-carrier-a",
+    companyRoleId: membership?.id || null,
+    activeContext: {
+      contextType: "company",
+      companyId: "co-carrier-a",
+      userCompanyRoleId: membership?.id || null,
+      label: "Baltic Line / kierowca"
+    },
+    authSessionId: null,
+    onboardingRequired: false,
+    onboardingUserId: null,
+    deniedView: null,
+    deniedRoute: null,
+    lastResult: null
+  };
 }
 
 function user(id, name, phone, primaryRole, companyId, accountStatus, options = {}) {

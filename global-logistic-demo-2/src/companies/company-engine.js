@@ -1,5 +1,6 @@
 import {
   AccountStatuses,
+  CompanyRoleLabels,
   CompanyRoleNames,
   CompanyTypes,
   CompanyVerificationStatuses,
@@ -103,7 +104,7 @@ export class CompanyEngine {
           verificationStatus: verificationStatus(company),
           permissions: this.permissionsForMembership(membership, company),
           compatibleRoles,
-          label: `${company?.name || membership.companyId} / ${membership.roleName}`
+          label: `${company?.name || membership.companyId} / ${CompanyRoleLabels[membership.roleName] || membership.roleName}`
         };
       });
 

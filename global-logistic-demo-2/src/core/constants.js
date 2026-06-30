@@ -1,5 +1,5 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 14;
+export const DEMO_DATA_VERSION = 15;
 export const STORAGE_KEY = "global-logistic-gl2-core-engine-v9";
 
 export const Roles = Object.freeze({
@@ -107,6 +107,19 @@ export const CompanyRoleNames = Object.freeze({
   INSURANCE_MANAGER: "insurance_manager",
   EMPLOYEE: "employee",
   VIEWER: "viewer"
+});
+
+export const CompanyRoleLabels = Object.freeze({
+  [CompanyRoleNames.OWNER]: "właściciel",
+  [CompanyRoleNames.ADMIN]: "administrator",
+  [CompanyRoleNames.FINANCE]: "finanse",
+  [CompanyRoleNames.DISPATCHER]: "dyspozytor",
+  [CompanyRoleNames.DRIVER_MANAGER]: "koordynator kierowców",
+  [CompanyRoleNames.WAREHOUSE_MANAGER]: "magazyn",
+  [CompanyRoleNames.MECHANIC]: "serwis",
+  [CompanyRoleNames.INSURANCE_MANAGER]: "ubezpieczenia",
+  [CompanyRoleNames.EMPLOYEE]: "pracownik",
+  [CompanyRoleNames.VIEWER]: "podgląd"
 });
 
 export const KnowledgeSourceTypes = Object.freeze({

@@ -12,18 +12,18 @@ export class StateStore {
     }
 
     const saved = window.localStorage.getItem(this.storageKey);
-    if (!saved) return createDemoState();
+    if (!saved) return this.browserDemoState();
 
     try {
       const parsed = JSON.parse(saved);
       if (parsed?.schemaVersion !== DEMO_DATA_VERSION || parsed?.demoDataVersion !== DEMO_DATA_VERSION) {
         window.localStorage.removeItem(this.storageKey);
-        return createDemoState();
+        return this.browserDemoState();
       }
       return parsed;
     } catch (error) {
       window.localStorage.removeItem(this.storageKey);
-      return createDemoState();
+      return this.browserDemoState();
     }
   }
 
@@ -36,6 +36,11 @@ export class StateStore {
     if (typeof window !== "undefined" && window.localStorage) {
       window.localStorage.removeItem(this.storageKey);
     }
+    if (typeof window !== "undefined" && window.localStorage) return this.browserDemoState();
     return createDemoState();
+  }
+
+  browserDemoState() {
+    return createDemoState({ startInApp: true });
   }
 }
