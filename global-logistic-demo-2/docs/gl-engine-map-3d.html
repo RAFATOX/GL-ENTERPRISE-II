@@ -333,7 +333,7 @@
         </div>
         <div class="summary-card">
           <strong>Warstwa wiedzy</strong>
-          <p>Knowledge Engine zasila workflow, AI Control Agent, Akademię GL i zgodność regulacyjną.</p>
+          <p>Silnik Wiedzy zasila workflow, Agenta AI, Akademię GL i zgodność regulacyjną.</p>
         </div>
       </div>
     </aside>
@@ -342,8 +342,8 @@
       <div class="toolbar">
         <div class="status-pill" id="status">Obrót: przeciągnij. Przesunięcie: prawy przycisk albo Shift + przeciągnięcie. Zoom: rolka myszy.</div>
         <div class="toolbar-group">
-          <button id="architectureView" class="mode-button is-active" type="button" data-map-mode="architecture">Architecture View</button>
-          <button id="flowView" class="mode-button" type="button" data-map-mode="flow">Flow View</button>
+          <button id="architectureView" class="mode-button is-active" type="button" data-map-mode="architecture">Widok architektury</button>
+          <button id="flowView" class="mode-button" type="button" data-map-mode="flow">Widok przepływu</button>
           <button id="zoomOut" type="button">Oddal</button>
           <button id="zoomIn" type="button">Przybliż</button>
           <button id="resetView" type="button">Reset widoku</button>
@@ -375,8 +375,16 @@
           <strong id="nodeType">-</strong>
         </div>
       </div>
+      <h2>Odpowiedzialność</h2>
+      <p id="nodeResponsibility">-</p>
+      <h2>Wejścia</h2>
+      <div id="nodeInputs" class="dependency-list"></div>
+      <h2>Wyjścia</h2>
+      <div id="nodeOutputs" class="dependency-list"></div>
       <h2>Zależności</h2>
       <div id="dependencyList" class="dependency-list"></div>
+      <h2>Moduły korzystające z silnika</h2>
+      <div id="nodeUsedBy" class="dependency-list"></div>
     </section>
   </div>
 
@@ -391,7 +399,11 @@
       layer: node.layer,
       type: node.type,
       position: node.mapPosition,
-      description: `${node.description} Rola w workflow: ${node.workflowRole}.`
+      description: node.description,
+      responsibility: node.responsibility || node.workflowRole,
+      inputs: node.inputs || node.dependsOn || [],
+      outputs: node.outputs || node.providesTo || [],
+      usedBy: node.usedBy || node.providesTo || []
     }));
 
     const nodes = rawNodes.map((node) => ({
@@ -854,6 +866,10 @@
       document.getElementById("nodeDescription").textContent = node.description;
       document.getElementById("nodeLayer").textContent = layers[node.layer].label;
       document.getElementById("nodeType").textContent = node.type;
+      document.getElementById("nodeResponsibility").textContent = node.responsibility || "-";
+      document.getElementById("nodeInputs").innerHTML = renderEngineList(node.inputs, "Brak wejść.");
+      document.getElementById("nodeOutputs").innerHTML = renderEngineList(node.outputs, "Brak wyjść.");
+      document.getElementById("nodeUsedBy").innerHTML = renderEngineList(node.usedBy, "Brak modułów korzystających bezpośrednio.");
       const dependencies = links.filter(([from, to]) => from === node.id || to === node.id);
       document.getElementById("dependencyList").innerHTML = dependencies.map(([from, to, reason]) => `
         <div class="dependency-row">
@@ -863,6 +879,16 @@
         </div>
       `).join("") || "<p>Brak bezpośrednich zależności.</p>";
       status.textContent = `Wybrano: ${node.label}`;
+    }
+
+    function renderEngineList(ids, emptyText) {
+      const visibleIds = (ids || []).filter((id) => nodeById.has(id));
+      if (!visibleIds.length) return `<p>${emptyText}</p>`;
+      return visibleIds.map((id) => `
+        <div class="dependency-row">
+          <b>${nodeById.get(id)?.label || id}</b>
+        </div>
+      `).join("");
     }
 
     function renderLayerControls() {
@@ -912,8 +938,8 @@
       refreshSceneVisibility();
       ensureSelectedVisible();
       status.textContent = currentViewMode === "flow"
-        ? "Flow View: główny przepływ User → Workflow → Transport → Finanse → Zaufanie → UI."
-        : "Architecture View: pełna mapa warstw i zależności silników.";
+        ? "Widok przepływu: główny przepływ Użytkownik → Silnik Workflow → Transport → Finanse → Zaufanie → Interfejs Użytkownika."
+        : "Widok architektury: pełna mapa warstw i zależności silników.";
     }
 
     function updateMapModeButtons() {
@@ -950,45 +976,45 @@
         const fallbackLayers = {
           identity: { label: "Tożsamość", color: "#4dd4ff" },
           access: { label: "Dostęp", color: "#79a7ff" },
-          workflow: { label: "Workflow", color: "#f6c44d" },
+          workflow: { label: "Workflow transportu", color: "#f6c44d" },
           finance: { label: "Finanse", color: "#41d28a" },
           transport: { label: "Transport", color: "#58c7ff" },
           knowledge: { label: "Wiedza i AI", color: "#b794ff" },
-          ui: { label: "UI", color: "#ff8f70" },
+          ui: { label: "Prezentacja", color: "#ff8f70" },
           future: { label: "Moduły przyszłe", color: "#b7e36b" }
         };
         const fallbackNodes = [
-          fallbackEngine("user", "User", "identity", "actor", [-9, 4, 0], [], ["identity"]),
-          fallbackEngine("identity", "Identity Engine", "identity", "engine", [-6.2, 3, 0], ["user"], ["workflow"]),
-          fallbackEngine("permission", "Permission Engine", "access", "engine", [-2.4, 2.2, 0], ["identity"], ["workflow", "routing-access"]),
-          fallbackEngine("routing-access", "Routing / Access", "access", "gateway", [2.4, 3.2, 0], ["permission"], ["ui"]),
-          fallbackEngine("ui", "UI", "ui", "presentation", [6.2, 3.5, -1], ["routing-access", "workflow"], ["workflow"]),
-          fallbackEngine("workflow", "Workflow Engine", "workflow", "engine", [0, 0, 0], ["identity", "permission"], ["wallet", "escrow", "driver", "vehicle", "knowledge", "ui"]),
-          fallbackEngine("driver", "Driver Engine", "transport", "engine", [-3.4, -3.4, 1.5], ["workflow"], ["workflow"]),
-          fallbackEngine("vehicle", "Vehicle Engine", "transport", "engine", [0, -4.2, 2], ["workflow"], ["workflow"]),
-          fallbackEngine("wallet", "Wallet Engine", "finance", "engine", [4, -1.3, 1.4], ["workflow"], ["escrow"]),
-          fallbackEngine("escrow", "Escrow Engine", "finance", "engine", [6.6, -2, .6], ["wallet", "workflow"], ["workflow"]),
-          fallbackEngine("audit-log", "Audit Log Engine", "finance", "engine", [7.6, .9, 0], ["identity"], ["workflow", "wallet", "escrow"]),
-          fallbackEngine("knowledge", "Knowledge Engine", "knowledge", "engine", [-3.4, -1.2, -3.2], ["permission"], ["workflow", "ai-control"]),
-          fallbackEngine("ai-control", "AI Control Agent", "knowledge", "agent", [-6, -.4, -3.8], ["workflow", "knowledge"], ["workflow"]),
-          fallbackEngine("profile", "Profile Engine", "ui", "engine", [3.8, -.2, -3.2], ["identity", "permission"], ["ui"]),
-          fallbackEngine("translation", "Translation Engine", "ui", "engine", [4.8, 5.2, -1.6], ["identity"], ["ui"]),
-          fallbackEngine("gl-academy", "GL Academy", "future", "future_module", [-6.8, -3.2, -2.5], ["knowledge"], ["profile"])
+          fallbackEngine("user", "Użytkownik", "identity", "actor", [-9, 4, 0], [], ["identity"]),
+          fallbackEngine("identity", "Silnik Tożsamości", "identity", "engine", [-6.2, 3, 0], ["user"], ["workflow"]),
+          fallbackEngine("permission", "Silnik Uprawnień", "access", "engine", [-2.4, 2.2, 0], ["identity"], ["workflow", "routing-access"]),
+          fallbackEngine("routing-access", "Routing i Dostęp", "access", "gateway", [2.4, 3.2, 0], ["permission"], ["ui"]),
+          fallbackEngine("ui", "Interfejs Użytkownika", "ui", "presentation", [6.2, 3.5, -1], ["routing-access", "workflow"], ["workflow"]),
+          fallbackEngine("workflow", "Silnik Workflow", "workflow", "engine", [0, 0, 0], ["identity", "permission"], ["wallet", "escrow", "driver", "vehicle", "knowledge", "ui"]),
+          fallbackEngine("driver", "Silnik Kierowcy", "transport", "engine", [-3.4, -3.4, 1.5], ["workflow"], ["workflow"]),
+          fallbackEngine("vehicle", "Silnik Pojazdów", "transport", "engine", [0, -4.2, 2], ["workflow"], ["workflow"]),
+          fallbackEngine("wallet", "Silnik Portfeli", "finance", "engine", [4, -1.3, 1.4], ["workflow"], ["escrow"]),
+          fallbackEngine("escrow", "Silnik Escrow", "finance", "engine", [6.6, -2, .6], ["wallet", "workflow"], ["workflow"]),
+          fallbackEngine("audit-log", "Silnik Audytu", "finance", "engine", [7.6, .9, 0], ["identity"], ["workflow", "wallet", "escrow"]),
+          fallbackEngine("knowledge", "Silnik Wiedzy", "knowledge", "engine", [-3.4, -1.2, -3.2], ["permission"], ["workflow", "ai-control"]),
+          fallbackEngine("ai-control", "Agent AI", "knowledge", "agent", [-6, -.4, -3.8], ["workflow", "knowledge"], ["workflow"]),
+          fallbackEngine("profile", "Silnik Profilu", "ui", "engine", [3.8, -.2, -3.2], ["identity", "permission"], ["ui"]),
+          fallbackEngine("translation", "Silnik Tłumaczeń", "ui", "engine", [4.8, 5.2, -1.6], ["identity"], ["ui"]),
+          fallbackEngine("gl-academy", "Akademia GL", "future", "future_module", [-6.8, -3.2, -2.5], ["knowledge"], ["profile"])
         ];
         const fallbackFlow = [
-          ["user", "identity", "user_id"],
-          ["identity", "permission", "verified access"],
-          ["permission", "workflow", "authorized workflow"],
-          ["workflow", "driver", "driver assignment"],
-          ["driver", "vehicle", "active_vehicle_id"],
-          ["workflow", "wallet", "payment status"],
-          ["wallet", "escrow", "secured funds"],
-          ["escrow", "audit-log", "audit proof"],
-          ["knowledge", "workflow", "knowledge context"],
-          ["knowledge", "ai-control", "risk context"],
-          ["ai-control", "workflow", "risk signal"],
-          ["translation", "ui", "translation_key"],
-          ["profile", "ui", "profile view"]
+          ["user", "identity", "tożsamość użytkownika"],
+          ["identity", "permission", "zweryfikowany dostęp"],
+          ["permission", "workflow", "dozwolony proces"],
+          ["workflow", "driver", "przypisanie kierowcy"],
+          ["driver", "vehicle", "aktywny pojazd"],
+          ["workflow", "wallet", "status płatności"],
+          ["wallet", "escrow", "zabezpieczone środki"],
+          ["escrow", "audit-log", "dowód audytu"],
+          ["knowledge", "workflow", "kontekst wiedzy"],
+          ["knowledge", "ai-control", "kontekst ryzyka"],
+          ["ai-control", "workflow", "sygnał ryzyka"],
+          ["translation", "ui", "klucze tłumaczeń"],
+          ["profile", "ui", "widok profilu"]
         ];
         return {
           loadError: "Nie udało się załadować src/core/engine-architecture.js. Pokazano lokalny fallback mapy.",
@@ -1020,7 +1046,7 @@
         dependsOn,
         providesTo,
         description: "Fallback lokalny. W publicznym demo dane pochodzą z src/core/engine-architecture.js.",
-        workflowRole: "fallback"
+        workflowRole: "tryb awaryjny"
       };
     }
 

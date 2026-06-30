@@ -111,14 +111,20 @@ root.addEventListener("change", (event) => {
       companyId: companyId || null,
       userCompanyRoleId: userCompanyRoleId || null
     });
-    navigateToRoute("#/dashboard");
+    navigateToRoute("/dashboard");
     return;
   }
 
   const roleSelect = event.target.closest("[data-role-select]");
   if (!roleSelect) return;
   const role = roleSelect.value;
-  const result = engine.dispatchAction(ActionTypes.SELECT_ROLE, { role });
+  const selectedOption = roleSelect.selectedOptions?.[0];
+  const result = engine.dispatchAction(ActionTypes.SELECT_ROLE, {
+    role,
+    contextType: selectedOption?.dataset.contextType || null,
+    companyId: selectedOption?.dataset.companyId || null,
+    userCompanyRoleId: selectedOption?.dataset.companyRoleId || null
+  });
   if (result.ok) {
     const viewResult = engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "dashboard", route: "/dashboard" });
     if (viewResult.ok) setRouteHash("/dashboard");

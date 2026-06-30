@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   WORKFLOW_ENGINE_ID,
@@ -10,13 +11,13 @@ import {
   validateEngineArchitecture
 } from "../src/core/engine-architecture.js";
 
-test("engine architecture has no isolated engines and keeps Workflow Engine central", () => {
+test("engine architecture has no isolated engines and keeps Silnik Workflow central", () => {
   const result = validateEngineArchitecture(engineArchitecture);
   const byId = engineArchitectureById(engineArchitecture);
 
   assert.equal(result.ok, true, result.errors.join("\n"));
   assert.ok(byId.has(WORKFLOW_ENGINE_ID));
-  assert.equal(byId.get(WORKFLOW_ENGINE_ID).name, "Workflow Engine");
+  assert.equal(byId.get(WORKFLOW_ENGINE_ID).name, "Silnik Workflow");
 });
 
 test("engine architecture keeps required access, UI, finance, knowledge and transport links", () => {
@@ -25,13 +26,13 @@ test("engine architecture keeps required access, UI, finance, knowledge and tran
   const byId = engineArchitectureById(engineArchitecture);
 
   [
-    ["company", "Company Engine"],
-    ["registration-onboarding", "Registration / Onboarding Engine"],
-    ["document", "Document Engine"],
-    ["gps", "GPS Engine"],
-    ["notification", "Notification Engine"],
-    ["reputation", "Reputation Engine"],
-    ["transport-load", "Transport Workflow / Load Engine"]
+    ["company", "Silnik Firm"],
+    ["registration-onboarding", "Rejestracja i Wdrożenie"],
+    ["document", "Silnik Dokumentów"],
+    ["gps", "Silnik GPS"],
+    ["notification", "Silnik Powiadomień"],
+    ["reputation", "Silnik Reputacji"],
+    ["transport-load", "Silnik Transportów i Ładunków"]
   ].forEach(([id, name]) => assert.equal(byId.get(id)?.name, name));
 
   assert.ok(isConnected(links, "permission", "routing-access"), "Permission Engine must connect to Routing / Access");
@@ -70,6 +71,74 @@ test("engine architecture keeps required access, UI, finance, knowledge and tran
   assert.equal(byId.get("gl-academy").layer, "future");
   assert.equal(byId.get("gl-jobs").layer, "future");
   assert.equal(byId.get("gl-fleet-market").layer, "future");
+});
+
+test("3D engine map exposes Polish engine names and details, without English visible engine labels", () => {
+  const html = readFileSync(new URL("../docs/gl-engine-map-3d.html", import.meta.url), "utf8");
+  const byId = engineArchitectureById(engineArchitecture);
+
+  [
+    ["user", "Użytkownik"],
+    ["identity", "Silnik Tożsamości"],
+    ["registration-onboarding", "Rejestracja i Wdrożenie"],
+    ["company", "Silnik Firm"],
+    ["permission", "Silnik Uprawnień"],
+    ["routing-access", "Routing i Dostęp"],
+    ["workflow", "Silnik Workflow"],
+    ["profile", "Silnik Profilu"],
+    ["reputation", "Silnik Reputacji"],
+    ["wallet", "Silnik Portfeli"],
+    ["escrow", "Silnik Escrow"],
+    ["audit-log", "Silnik Audytu"],
+    ["knowledge", "Silnik Wiedzy"],
+    ["ai-control", "Agent AI"],
+    ["driver", "Silnik Kierowcy"],
+    ["vehicle", "Silnik Pojazdów"],
+    ["gps", "Silnik GPS"],
+    ["document", "Silnik Dokumentów"],
+    ["translation", "Silnik Tłumaczeń"],
+    ["notification", "Silnik Powiadomień"],
+    ["gl-academy", "Akademia GL"],
+    ["gl-jobs", "Giełda Pracy GL"],
+    ["gl-fleet-market", "Giełda Pojazdów GL"]
+  ].forEach(([id, name]) => assert.equal(byId.get(id)?.name, name));
+
+  [
+    "Odpowiedzialność",
+    "Wejścia",
+    "Wyjścia",
+    "Moduły korzystające z silnika",
+    "Widok architektury",
+    "Widok przepływu"
+  ].forEach((text) => assert.ok(html.includes(text), `map should show ${text}`));
+
+  [
+    "User",
+    "Identity Engine",
+    "Registration / Onboarding",
+    "Company Engine",
+    "Permission Engine",
+    "Routing / Access",
+    "Workflow Engine",
+    "Profile Engine",
+    "Reputation Engine",
+    "Wallet Engine",
+    "Escrow Engine",
+    "Audit Log Engine",
+    "Knowledge Engine",
+    "AI Control Agent",
+    "Driver Engine",
+    "Vehicle Engine",
+    "GPS Engine",
+    "Document Engine",
+    "Translation Engine",
+    "Notification Engine",
+    "GL Academy",
+    "GL Jobs",
+    "GL Fleet Market",
+    "Architecture View",
+    "Flow View"
+  ].forEach((text) => assert.equal(html.includes(text), false, `map still contains English label: ${text}`));
 });
 
 function isConnected(links, left, right) {

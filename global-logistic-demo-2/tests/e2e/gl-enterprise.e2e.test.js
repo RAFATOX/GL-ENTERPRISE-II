@@ -173,6 +173,10 @@ function moduleRoutes(html) {
   return [...html.matchAll(/data-module-route="([^"]+)"/g)].map((match) => match[1]);
 }
 
+function roleOptionTag(html, role) {
+  return html.match(new RegExp(`<option\\b[^>]*value="${role}"[^>]*>`))?.[0] || "";
+}
+
 function selectView(engine, view, route) {
   return engine.dispatchAction(ActionTypes.SELECT_VIEW, { view, route }, { source: "e2e-route" });
 }
@@ -344,6 +348,10 @@ test("e2e: przełączanie ról i firm odswieza menu, pulpit, permissions i walle
 
   assert.ok(html.includes("data-role-select"));
   assert.ok(html.includes("data-context-select"));
+  assert.ok(html.includes("Osoba prywatna"));
+  assert.equal(attribute(roleOptionTag(html, Roles.CARRIER_OWNER), "data-company-id"), "co-carrier-a");
+  assert.equal(attribute(roleOptionTag(html, Roles.CLIENT_OWNER), "data-company-id"), "co-client-a");
+  assert.equal(attribute(roleOptionTag(html, Roles.PLATFORM_OWNER), "data-context-type"), "platform");
   assert.ok(routes.includes("/gps"));
   assert.ok(routes.includes("/wallet"));
   assert.equal(routes.includes("/billing"), false);
@@ -387,7 +395,16 @@ test("e2e: przełączanie ról i firm odswieza menu, pulpit, permissions i walle
   assert.ok(routes.includes("/audit"));
   assert.ok(routes.includes("/system"));
 
-  assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.DRIVER }).ok, true);
+  html = render(engine);
+  const driverOption = roleOptionTag(html, Roles.DRIVER);
+  assert.equal(attribute(driverOption, "data-context-type"), "company");
+  assert.equal(attribute(driverOption, "data-company-id"), "co-carrier-a");
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, {
+    role: Roles.DRIVER,
+    contextType: attribute(driverOption, "data-context-type"),
+    companyId: attribute(driverOption, "data-company-id"),
+    userCompanyRoleId: attribute(driverOption, "data-company-role-id")
+  }).ok, true);
   routes = moduleRoutes(render(engine));
   assert.equal(engine.state.session.userId, "u-role-switch");
   assert.equal(engine.getActor().role, Roles.DRIVER);
@@ -395,6 +412,15 @@ test("e2e: przełączanie ról i firm odswieza menu, pulpit, permissions i walle
   assert.equal(engine.getSnapshot().access.walletView, "UserWallet");
   assert.ok(routes.includes("/gps"));
   assert.equal(routes.includes("/audit"), false);
+
+  assert.equal(selectView(engine, "profile", "/profile").ok, true);
+  const driverProfile = render(engine);
+  assert.ok(driverProfile.includes("data-wallet-scope=\"user\""));
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, { role: Roles.CARRIER_OWNER, contextType: "company", companyId: "co-carrier-a" }).ok, true);
+  assert.equal(selectView(engine, "profile", "/profile").ok, true);
+  const carrierProfile = render(engine);
+  assert.ok(carrierProfile.includes("data-wallet-scope=\"company\""));
+  assert.equal(carrierProfile.includes("data-wallet-scope=\"platform\""), false);
 
   const singleRoleDriver = engineForUserContext("u-driver-1", "co-carrier-a");
   const singleRoleHtml = render(singleRoleDriver);

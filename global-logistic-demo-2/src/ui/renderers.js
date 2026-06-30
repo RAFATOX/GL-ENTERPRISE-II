@@ -324,7 +324,7 @@ function renderAppNavigation(state, activeView) {
 
 function renderTopbar(state, activeView, roleConfig) {
   const contexts = contextOptionsForTopbar(state);
-  const roleOptions = roleOptionsForTopbar(state);
+  const roleOptions = roleSwitchOptionsForTopbar(state);
   const developer = canViewDeveloperPanel(state);
   return `
     <header class="topbar">
@@ -347,8 +347,12 @@ function renderTopbar(state, activeView, roleConfig) {
           <label>
             <span>${ui("topbar.active_role")}</span>
             <select data-role-select aria-label="${ui("topbar.active_role")}">
-              ${roleOptions.map((role) => `
-                <option value="${role}" ${state.session.role === role ? "selected" : ""}>${RoleLabels[role] || valueLabel(role)}</option>
+              ${roleOptions.map((option) => `
+                <option value="${option.role}"
+                  data-context-type="${option.context?.contextType || ""}"
+                  data-company-id="${option.context?.companyId || ""}"
+                  data-company-role-id="${option.context?.userCompanyRoleId || ""}"
+                  ${state.session.role === option.role ? "selected" : ""}>${RoleLabels[option.role] || valueLabel(option.role)}</option>
               `).join("")}
             </select>
           </label>
@@ -4918,13 +4922,39 @@ function roleOptionsForTopbar(state) {
   ].filter(Boolean))];
 }
 
+function roleSwitchOptionsForTopbar(state) {
+  const contexts = state.access?.contextOptions || [];
+  return roleOptionsForTopbar(state).map((role) => ({
+    role,
+    context: preferredContextForRole(state, contexts, role)
+  }));
+}
+
+function preferredContextForRole(state, contexts, role) {
+  return contexts.find((context) => contextSelected(state, context) && (context.compatibleRoles || []).includes(role))
+    || contexts.find((context) => (
+      context.contextType === state.session.contextType
+      && (context.companyId || "") === (state.session.companyId || "")
+      && (context.compatibleRoles || []).includes(role)
+    ))
+    || contexts.find((context) => (
+      context.contextType === "company"
+      && (context.companyId || "") === (state.session.companyId || "")
+      && (context.compatibleRoles || []).includes(role)
+    ))
+    || contexts.find((context) => context.contextType === "company" && (context.compatibleRoles || []).includes(role))
+    || contexts.find((context) => context.contextType === "platform" && (context.compatibleRoles || []).includes(role))
+    || contexts.find((context) => context.contextType === "private" && (context.compatibleRoles || []).includes(role))
+    || null;
+}
+
 function contextOptionsForTopbar(state) {
   const contexts = state.access?.contextOptions || [];
   const companyContexts = contexts.filter((context) => context.contextType === "company");
   const platformContexts = contexts.filter((context) => context.contextType === "platform");
   if (companyContexts.length <= 1 && platformContexts.length === 0) return [];
   if (companyContexts.length === 0 && platformContexts.length <= 1) return [];
-  const visibleContexts = contexts.filter((context) => context.contextType !== "private" || companyContexts.length === 0);
+  const visibleContexts = contexts.filter((context) => context.contextType !== "private" || companyContexts.length > 1 || platformContexts.length > 0);
   return visibleContexts.length > 1 ? visibleContexts : [];
 }
 
