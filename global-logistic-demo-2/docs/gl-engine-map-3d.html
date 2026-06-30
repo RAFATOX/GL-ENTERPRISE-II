@@ -196,6 +196,44 @@
       margin-bottom: 18px;
     }
 
+    .relation-legend {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .relation-row {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .relation-row span {
+      color: var(--text);
+      font-size: .9rem;
+      font-weight: 800;
+    }
+
+    .relation-row small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: .74rem;
+    }
+
+    .relation-swatch {
+      width: 42px;
+      height: 0;
+      border-top: 3px solid currentColor;
+    }
+
+    .relation-swatch.is-dashed { border-top-style: dashed; }
+
     .layer-toggle {
       display: grid;
       grid-template-columns: 18px 1fr auto;
@@ -228,6 +266,22 @@
       display: grid;
       gap: 10px;
       margin-top: 12px;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .detail-list div {
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.035);
+      border-radius: 8px;
+      padding: 9px 10px;
+      color: var(--muted);
+      font-size: .86rem;
+      word-break: break-word;
     }
 
     .dependency-row {
@@ -362,6 +416,12 @@
       <span class="eyebrow">Legenda i opis</span>
       <h2 style="margin-top:0">Warstwy</h2>
       <div id="layerControls" class="layer-controls"></div>
+      <h2>Typy połączeń</h2>
+      <div id="relationLegend" class="relation-legend"></div>
+      <div class="summary-card" style="margin-bottom:20px">
+        <strong>Obszary legendy</strong>
+        <p>Proces główny, dostęp i uprawnienia, finanse, audyt, wiedza i AI oraz moduły przyszłe.</p>
+      </div>
 
       <h3 id="nodeTitle">Wybierz silnik</h3>
       <p id="nodeDescription">Kliknij dowolny węzeł 3D, aby zobaczyć jego rolę w architekturze GL Enterprise.</p>
@@ -374,6 +434,10 @@
           <span>Typ</span>
           <strong id="nodeType">-</strong>
         </div>
+        <div>
+          <span>Status</span>
+          <strong id="nodeStatus">-</strong>
+        </div>
       </div>
       <h2>Odpowiedzialność</h2>
       <p id="nodeResponsibility">-</p>
@@ -385,14 +449,19 @@
       <div id="dependencyList" class="dependency-list"></div>
       <h2>Moduły korzystające z silnika</h2>
       <div id="nodeUsedBy" class="dependency-list"></div>
+      <h2>Pliki powiązane</h2>
+      <div id="nodeFiles" class="detail-list"></div>
+      <h2>Testy powiązane</h2>
+      <div id="nodeTests" class="detail-list"></div>
     </section>
   </div>
 
   <script type="module">
     const architectureModel = await loadArchitectureModel();
     const layers = architectureModel.engineArchitectureLayers;
+    const relationTypes = architectureModel.engineArchitectureRelationTypes || fallbackRelationTypes();
 
-    const positionScale = 2.55;
+    const positionScale = 3.05;
     const rawNodes = architectureModel.engineArchitecture.map((node) => ({
       id: node.id,
       label: node.name,
@@ -403,7 +472,10 @@
       responsibility: node.responsibility || node.workflowRole,
       inputs: node.inputs || node.dependsOn || [],
       outputs: node.outputs || node.providesTo || [],
-      usedBy: node.usedBy || node.providesTo || []
+      usedBy: node.usedBy || node.providesTo || [],
+      status: node.status || "w budowie",
+      files: node.files || [],
+      tests: node.tests || []
     }));
 
     const nodes = rawNodes.map((node) => ({
@@ -412,11 +484,11 @@
     }));
 
     const architectureLinks = architectureModel.engineArchitectureLinks(architectureModel.engineArchitecture)
-      .map((link) => [link.from, link.to, link.relation === "dependsOn" ? "zależy od" : "dostarcza do"]);
+      .map(normalizeLink);
     const flowLinks = architectureModel.engineArchitectureFlowLinks(architectureModel.engineArchitectureFlow, architectureModel.engineArchitecture)
-      .map((link) => [link.from, link.to, link.reason || "przepływ"]);
+      .map((link) => normalizeLink({ ...link, type: "required" }));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
-    const drawableLinks = uniqueLinkTuples([...architectureLinks, ...flowLinks]);
+    const drawableLinks = uniqueLinks([...architectureLinks, ...flowLinks]);
     let currentViewMode = "architecture";
     let links = architectureLinks;
 
@@ -437,6 +509,7 @@
     };
 
     renderLayerControls();
+    renderRelationLegend();
     updateFallbackGrid();
     setupToolbar();
 
@@ -458,10 +531,10 @@
       }
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x071016, 42, 118);
+      scene.fog = new THREE.Fog(0x071016, 56, 168);
 
-      const camera = new THREE.PerspectiveCamera(46, stage.clientWidth / stage.clientHeight, 0.1, 180);
-      camera.position.set(8, 13, 58);
+      const camera = new THREE.PerspectiveCamera(46, stage.clientWidth / stage.clientHeight, 0.1, 240);
+      camera.position.set(10, 18, 82);
 
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -476,9 +549,9 @@
       controls.zoomSpeed = 1.2;
       controls.panSpeed = 0.85;
       controls.screenSpacePanning = true;
-      controls.minDistance = 16;
-      controls.maxDistance = 118;
-      controls.target.set(1.8, -.8, 0);
+      controls.minDistance = 18;
+      controls.maxDistance = 174;
+      controls.target.set(2.2, -1.2, 0);
       controls.mouseButtons = {
         LEFT: THREE.MOUSE.ROTATE,
         MIDDLE: THREE.MOUSE.DOLLY,
@@ -497,19 +570,34 @@
       const nodeGroups = [];
       const lineObjects = [];
 
-      drawableLinks.forEach(([from, to]) => {
-        const fromNode = nodeById.get(from);
-        const toNode = nodeById.get(to);
+      drawableLinks.forEach((link) => {
+        const fromNode = nodeById.get(link.from);
+        const toNode = nodeById.get(link.to);
+        const relation = relationTypes[link.type] || relationTypes.info;
         const geometry = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(...fromNode.position),
           new THREE.Vector3(...toNode.position)
         ]);
+        const materialOptions = {
+          color: new THREE.Color(relation.color),
+          transparent: true,
+          opacity: link.type === "audit" ? .52 : .42
+        };
+        const material = relation.dash?.length
+          ? new THREE.LineDashedMaterial({
+            ...materialOptions,
+            dashSize: relation.dash[0] * .12,
+            gapSize: relation.dash[1] * .12
+          })
+          : new THREE.LineBasicMaterial(materialOptions);
         const line = new THREE.Line(
           geometry,
-          new THREE.LineBasicMaterial({ color: 0xaccbd5, transparent: true, opacity: .42 })
+          material
         );
         line.userData.layers = [fromNode.layer, toNode.layer];
-        line.userData.key = linkKey(from, to);
+        line.userData.key = linkKey(link);
+        line.userData.type = link.type;
+        if (relation.dash?.length) line.computeLineDistances();
         scene.add(line);
         lineObjects.push(line);
       });
@@ -576,12 +664,12 @@
 
       viewControls = {
         reset: () => {
-          camera.position.set(8, 13, 58);
-          controls.target.set(1.8, -.8, 0);
+          camera.position.set(10, 18, 82);
+          controls.target.set(2.2, -1.2, 0);
           controls.update();
         },
-        zoomIn: () => zoomCamera(camera, controls, .74, 16, 118),
-        zoomOut: () => zoomCamera(camera, controls, 1.28, 16, 118)
+        zoomIn: () => zoomCamera(camera, controls, .74, 18, 174),
+        zoomOut: () => zoomCamera(camera, controls, 1.28, 18, 174)
       };
 
       refreshSceneVisibility = () => {
@@ -592,8 +680,9 @@
         lineObjects.forEach((line) => {
           line.visible = visibleLinkKeys.has(line.userData.key)
             && line.userData.layers.every((layer) => activeLayers.has(layer));
-          line.material.opacity = currentViewMode === "flow" ? .68 : .34;
-          line.material.color.set(currentViewMode === "flow" ? 0xf6c44d : 0xaccbd5);
+          const relation = relationTypes[line.userData.type] || relationTypes.info;
+          line.material.opacity = currentViewMode === "flow" ? .78 : line.userData.type === "audit" ? .54 : .38;
+          line.material.color.set(relation.color);
         });
         ensureSelectedVisible();
         updateFallbackGrid();
@@ -638,7 +727,7 @@
       let dpr = 1;
       let rotX = -.28;
       let rotY = .48;
-      let zoom = 760;
+      let zoom = 940;
       let panX = 0;
       let panY = 0;
       let dragging = false;
@@ -669,8 +758,8 @@
         const z1 = x * sy + z * cy;
         const y1 = y * cx - z1 * sx;
         const z2 = y * sx + z1 * cx;
-        const depth = z2 + 54;
-        const scale = zoom / Math.max(16, depth);
+        const depth = z2 + 78;
+        const scale = zoom / Math.max(22, depth);
         return {
           x: width / 2 + panX + x1 * scale,
           y: height / 2 + panY - y1 * scale,
@@ -692,19 +781,24 @@
         projected = visibleNodes.map((node) => ({ node, ...rotatePoint(node.position) }));
         const byId = new Map(projected.map((item) => [item.node.id, item]));
 
-        links.forEach(([from, to]) => {
-          const fromNode = nodeById.get(from);
-          const toNode = nodeById.get(to);
+        links.forEach((link) => {
+          const fromNode = nodeById.get(link.from);
+          const toNode = nodeById.get(link.to);
           if (!activeLayers.has(fromNode.layer) || !activeLayers.has(toNode.layer)) return;
-          const a = byId.get(from);
-          const b = byId.get(to);
+          const a = byId.get(link.from);
+          const b = byId.get(link.to);
           if (!a || !b) return;
+          const relation = relationTypes[link.type] || relationTypes.info;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, b.y);
-          ctx.strokeStyle = currentViewMode === "flow" ? "rgba(246,196,77,.72)" : "rgba(184,213,224,.38)";
+          ctx.setLineDash(relation.dash || []);
+          ctx.strokeStyle = relation.color;
+          ctx.globalAlpha = currentViewMode === "flow" ? .82 : link.type === "audit" ? .58 : .42;
           ctx.lineWidth = Math.max(currentViewMode === "flow" ? 2 : 1.2, (a.scale + b.scale) * .018);
           ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([]);
         });
 
         projected.slice().sort((a, b) => a.z - b.z).forEach((item) => {
@@ -731,12 +825,12 @@
           ctx.stroke();
 
           const label = item.node.label.length > 28 ? `${item.node.label.slice(0, 27)}…` : item.node.label;
-          ctx.font = "800 17px Segoe UI, Arial";
-          const textWidth = Math.min(260, ctx.measureText(label).width + 28);
+          ctx.font = "800 19px Segoe UI, Arial";
+          const textWidth = Math.min(320, ctx.measureText(label).width + 34);
           const labelX = item.x - textWidth / 2;
           const labelY = item.y + radius + 13;
           ctx.fillStyle = "rgba(8,16,22,.88)";
-          rounded(ctx, labelX, labelY, textWidth, 36, 8);
+          rounded(ctx, labelX, labelY, textWidth, 40, 8);
           ctx.fill();
           ctx.strokeStyle = layer.color;
           ctx.lineWidth = 1.2;
@@ -744,7 +838,7 @@
           ctx.fillStyle = "#f5f8fa";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(label, item.x, labelY + 18, textWidth - 16);
+          ctx.fillText(label, item.x, labelY + 20, textWidth - 18);
           item.radius = radius;
         });
       }
@@ -804,19 +898,19 @@
 
       canvas.addEventListener("wheel", (event) => {
         event.preventDefault();
-        zoom = clamp(zoom - event.deltaY * .95, 430, 1500);
+        zoom = clamp(zoom - event.deltaY * .95, 540, 1900);
       }, { passive: false });
 
       viewControls = {
         reset: () => {
           rotX = -.28;
           rotY = .48;
-          zoom = 760;
+          zoom = 940;
           panX = 0;
           panY = 0;
         },
-        zoomIn: () => { zoom = clamp(zoom * 1.22, 430, 1500); },
-        zoomOut: () => { zoom = clamp(zoom / 1.22, 430, 1500); }
+        zoomIn: () => { zoom = clamp(zoom * 1.22, 540, 1900); },
+        zoomOut: () => { zoom = clamp(zoom / 1.22, 540, 1900); }
       };
 
       refreshSceneVisibility = () => {
@@ -846,17 +940,17 @@
       ctx.fillStyle = "#f5f8fa";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      let fontSize = 58;
+      let fontSize = 66;
       const label = text.length > 32 ? `${text.slice(0, 31)}…` : text;
       do {
         ctx.font = `800 ${fontSize}px Segoe UI, Arial`;
         fontSize -= 2;
-      } while (ctx.measureText(label).width > 900 && fontSize > 36);
+      } while (ctx.measureText(label).width > 900 && fontSize > 42);
       ctx.fillText(label, 512, 118);
       const texture = new THREE.CanvasTexture(canvas);
       if (THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));
-      sprite.scale.set(6.8, 1.7, 1);
+      sprite.scale.set(8.9, 2.15, 1);
       return sprite;
     }
 
@@ -866,29 +960,38 @@
       document.getElementById("nodeDescription").textContent = node.description;
       document.getElementById("nodeLayer").textContent = layers[node.layer].label;
       document.getElementById("nodeType").textContent = node.type;
+      document.getElementById("nodeStatus").textContent = node.status || "w budowie";
       document.getElementById("nodeResponsibility").textContent = node.responsibility || "-";
-      document.getElementById("nodeInputs").innerHTML = renderEngineList(node.inputs, "Brak wejść.");
-      document.getElementById("nodeOutputs").innerHTML = renderEngineList(node.outputs, "Brak wyjść.");
-      document.getElementById("nodeUsedBy").innerHTML = renderEngineList(node.usedBy, "Brak modułów korzystających bezpośrednio.");
-      const dependencies = links.filter(([from, to]) => from === node.id || to === node.id);
-      document.getElementById("dependencyList").innerHTML = dependencies.map(([from, to, reason]) => `
+      document.getElementById("nodeInputs").innerHTML = renderItemList(node.inputs, "Brak wejść.");
+      document.getElementById("nodeOutputs").innerHTML = renderItemList(node.outputs, "Brak wyjść.");
+      document.getElementById("nodeUsedBy").innerHTML = renderItemList(node.usedBy, "Brak modułów korzystających bezpośrednio.");
+      document.getElementById("nodeFiles").innerHTML = renderTextList(node.files, "Brak wskazanych plików.");
+      document.getElementById("nodeTests").innerHTML = renderTextList(node.tests, "Brak wskazanych testów.");
+      const dependencies = links.filter((link) => link.from === node.id || link.to === node.id);
+      document.getElementById("dependencyList").innerHTML = dependencies.map((link) => `
         <div class="dependency-row">
-          <b>${nodeById.get(from)?.label || from}</b>
-          <small>${reason}</small>
-          <b>${nodeById.get(to)?.label || to}</b>
+          <b>${nodeById.get(link.from)?.label || link.from}</b>
+          <small>${link.label}<br>${relationTypes[link.type]?.label || "linia informacyjna"}</small>
+          <b>${nodeById.get(link.to)?.label || link.to}</b>
         </div>
       `).join("") || "<p>Brak bezpośrednich zależności.</p>";
       status.textContent = `Wybrano: ${node.label}`;
     }
 
-    function renderEngineList(ids, emptyText) {
-      const visibleIds = (ids || []).filter((id) => nodeById.has(id));
-      if (!visibleIds.length) return `<p>${emptyText}</p>`;
-      return visibleIds.map((id) => `
+    function renderItemList(items, emptyText) {
+      const visibleItems = (items || []).filter(Boolean);
+      if (!visibleItems.length) return `<p>${emptyText}</p>`;
+      return visibleItems.map((item) => `
         <div class="dependency-row">
-          <b>${nodeById.get(id)?.label || id}</b>
+          <b>${nodeById.get(item)?.label || item}</b>
         </div>
       `).join("");
+    }
+
+    function renderTextList(items, emptyText) {
+      const visibleItems = (items || []).filter(Boolean);
+      if (!visibleItems.length) return `<p>${emptyText}</p>`;
+      return visibleItems.map((item) => `<div>${item}</div>`).join("");
     }
 
     function renderLayerControls() {
@@ -912,6 +1015,16 @@
           refreshSceneVisibility();
         });
       });
+    }
+
+    function renderRelationLegend() {
+      const container = document.getElementById("relationLegend");
+      container.innerHTML = Object.entries(relationTypes).map(([key, relation]) => `
+        <div class="relation-row" style="color:${relation.color}">
+          <i class="relation-swatch ${relation.dash?.length ? "is-dashed" : ""}"></i>
+          <span>${relation.legend}<small>${relation.label}</small></span>
+        </div>
+      `).join("");
     }
 
     function setupToolbar() {
@@ -949,21 +1062,47 @@
     }
 
     function activeLinkKeys() {
-      return new Set(links.map(([from, to]) => linkKey(from, to)));
+      return new Set(links.map((link) => linkKey(link)));
     }
 
-    function linkKey(from, to) {
-      return `${from}->${to}`;
+    function linkKey(link) {
+      return `${link.from}->${link.to}:${link.type}`;
     }
 
-    function uniqueLinkTuples(linkTuples) {
+    function uniqueLinks(linkTuples) {
       const seen = new Set();
-      return linkTuples.filter(([from, to]) => {
-        const key = linkKey(from, to);
-        if (seen.has(key) || !nodeById?.has?.(from) || !nodeById?.has?.(to)) return false;
+      return linkTuples.filter((link) => {
+        const key = linkKey(link);
+        if (seen.has(key) || !nodeById?.has?.(link.from) || !nodeById?.has?.(link.to)) return false;
         seen.add(key);
         return true;
       });
+    }
+
+    function normalizeLink(link) {
+      const type = relationTypes[link.type]
+        ? link.type
+        : relationTypes[link.relation]
+          ? link.relation
+          : link.relation === "flow"
+            ? "required"
+            : "info";
+      return {
+        from: link.from,
+        to: link.to,
+        type,
+        relation: link.relation || type,
+        label: link.label || link.reason || relationTypes[type]?.label || "relacja"
+      };
+    }
+
+    function fallbackRelationTypes() {
+      return {
+        required: { label: "linia obowiązkowa", legend: "proces główny", color: "#f6c44d", dash: [] },
+        info: { label: "linia informacyjna", legend: "dostęp i uprawnienia / wiedza i AI", color: "#79a7ff", dash: [7, 6] },
+        audit: { label: "linia audytowa", legend: "audyt", color: "#ff6b6b", dash: [2, 6] },
+        future: { label: "linia przyszłościowa", legend: "moduły przyszłe", color: "#b7e36b", dash: [12, 8] }
+      };
     }
 
     async function loadArchitectureModel() {
@@ -974,63 +1113,96 @@
         // Po zmianie src/core/engine-architecture.js trzeba zaktualizować mapę 3D.
         // Ten minimalny fallback pozwala otworzyć dokument także przez file://, gdy przeglądarka blokuje import modułu.
         const fallbackLayers = {
-          identity: { label: "Tożsamość", color: "#4dd4ff" },
-          access: { label: "Dostęp", color: "#79a7ff" },
+          identity: { label: "Tożsamość i wejście", color: "#4dd4ff" },
+          company: { label: "Firma i role", color: "#8fd36b" },
+          access: { label: "Uprawnienia i dostęp", color: "#79a7ff" },
           workflow: { label: "Workflow transportu", color: "#f6c44d" },
-          finance: { label: "Finanse", color: "#41d28a" },
           transport: { label: "Transport", color: "#58c7ff" },
+          finance: { label: "Finanse i dowody", color: "#41d28a" },
+          trust: { label: "Zaufanie i profile", color: "#f59bd8" },
           knowledge: { label: "Wiedza i AI", color: "#b794ff" },
+          communication: { label: "Komunikacja", color: "#66d9c7" },
           ui: { label: "Prezentacja", color: "#ff8f70" },
+          admin: { label: "Administracja", color: "#d8dde4" },
           future: { label: "Moduły przyszłe", color: "#b7e36b" }
         };
         const fallbackNodes = [
-          fallbackEngine("user", "Użytkownik", "identity", "actor", [-9, 4, 0], [], ["identity"]),
-          fallbackEngine("identity", "Silnik Tożsamości", "identity", "engine", [-6.2, 3, 0], ["user"], ["workflow"]),
-          fallbackEngine("permission", "Silnik Uprawnień", "access", "engine", [-2.4, 2.2, 0], ["identity"], ["workflow", "routing-access"]),
-          fallbackEngine("routing-access", "Routing i Dostęp", "access", "gateway", [2.4, 3.2, 0], ["permission"], ["ui"]),
-          fallbackEngine("ui", "Interfejs Użytkownika", "ui", "presentation", [6.2, 3.5, -1], ["routing-access", "workflow"], ["workflow"]),
-          fallbackEngine("workflow", "Silnik Workflow", "workflow", "engine", [0, 0, 0], ["identity", "permission"], ["wallet", "escrow", "driver", "vehicle", "knowledge", "ui"]),
-          fallbackEngine("driver", "Silnik Kierowcy", "transport", "engine", [-3.4, -3.4, 1.5], ["workflow"], ["workflow"]),
-          fallbackEngine("vehicle", "Silnik Pojazdów", "transport", "engine", [0, -4.2, 2], ["workflow"], ["workflow"]),
-          fallbackEngine("wallet", "Silnik Portfeli", "finance", "engine", [4, -1.3, 1.4], ["workflow"], ["escrow"]),
-          fallbackEngine("escrow", "Silnik Escrow", "finance", "engine", [6.6, -2, .6], ["wallet", "workflow"], ["workflow"]),
-          fallbackEngine("audit-log", "Silnik Audytu", "finance", "engine", [7.6, .9, 0], ["identity"], ["workflow", "wallet", "escrow"]),
-          fallbackEngine("knowledge", "Silnik Wiedzy", "knowledge", "engine", [-3.4, -1.2, -3.2], ["permission"], ["workflow", "ai-control"]),
-          fallbackEngine("ai-control", "Agent AI", "knowledge", "agent", [-6, -.4, -3.8], ["workflow", "knowledge"], ["workflow"]),
-          fallbackEngine("profile", "Silnik Profilu", "ui", "engine", [3.8, -.2, -3.2], ["identity", "permission"], ["ui"]),
-          fallbackEngine("translation", "Silnik Tłumaczeń", "ui", "engine", [4.8, 5.2, -1.6], ["identity"], ["ui"]),
-          fallbackEngine("gl-academy", "Akademia GL", "future", "future_module", [-6.8, -3.2, -2.5], ["knowledge"], ["profile"])
+          fallbackEngine("user", "Użytkownik", "identity", "aktor", [-19, 2, 0], [], ["identity"]),
+          fallbackEngine("identity", "Silnik Tożsamości", "identity", "silnik", [-15, 2, 0], ["user", "audit-log"], ["registration-onboarding", "permission", "audit-log"]),
+          fallbackEngine("registration-onboarding", "Rejestracja i Wdrożenie", "identity", "silnik", [-11.2, 2, 0], ["identity", "translation", "audit-log"], ["company", "audit-log"]),
+          fallbackEngine("company", "Silnik Firm", "company", "silnik", [-7.3, 1.2, 0], ["identity", "registration-onboarding", "audit-log"], ["permission", "user-company-role", "workflow", "audit-log"]),
+          fallbackEngine("user-company-role", "Rola Użytkownika w Firmie", "company", "silnik", [-7.3, -1.6, 1.5], ["identity", "company", "audit-log"], ["permission"]),
+          fallbackEngine("permission", "Silnik Uprawnień", "access", "silnik", [-3.6, 1.1, 0], ["identity", "company", "user-company-role", "audit-log"], ["routing-access", "workflow", "ui", "audit-log"]),
+          fallbackEngine("routing-access", "Routing i Dostęp", "access", "brama", [-3.8, 6.1, 1.6], ["permission"], ["ui", "audit-log"]),
+          fallbackEngine("ui", "Interfejs Użytkownika", "ui", "prezentacja", [5.2, 7.3, 1.8], ["routing-access", "translation", "permission"], ["workflow", "audit-log"]),
+          fallbackEngine("translation", "Silnik Tłumaczeń", "ui", "silnik", [0.6, 8.2, 1.9], ["identity"], ["ui", "registration-onboarding"]),
+          fallbackEngine("workflow", "Silnik Workflow", "workflow", "silnik", [0, 0, 0], ["identity", "company", "permission", "audit-log"], ["transport-load", "driver", "vehicle", "document", "gps", "wallet", "escrow", "audit-log", "notification", "reputation"]),
+          fallbackEngine("transport-load", "Silnik Transportu i Ładunków", "workflow", "silnik", [0.6, -2.8, 0.9], ["workflow", "company", "permission"], ["driver", "vehicle", "document", "gps"]),
+          fallbackEngine("driver", "Silnik Kierowcy", "transport", "silnik", [-4.7, -4.3, 2.2], ["workflow", "company", "document"], ["workflow", "vehicle"]),
+          fallbackEngine("vehicle", "Silnik Pojazdów", "transport", "silnik", [-1.7, -6.4, 2.5], ["company", "permission"], ["workflow", "gps", "gl-fleet-market"]),
+          fallbackEngine("document", "Silnik Dokumentów", "transport", "silnik", [5, -3.7, 1.8], ["identity", "company", "permission", "audit-log"], ["workflow", "audit-log"]),
+          fallbackEngine("gps", "Silnik GPS", "transport", "silnik", [2.4, -5.5, 2.3], ["workflow", "driver", "vehicle", "audit-log"], ["workflow", "notification", "ai-control", "audit-log"]),
+          fallbackEngine("wallet", "Silnik Portfeli", "finance", "silnik", [8.3, -1.7, 2.6], ["identity", "company", "permission", "financial-audit", "audit-log"], ["workflow", "escrow", "audit-log"]),
+          fallbackEngine("financial-audit", "Finansowy Silnik Audytu", "finance", "silnik", [9.4, 1.7, 2.2], ["audit-log"], ["wallet", "escrow", "audit-log"]),
+          fallbackEngine("escrow", "Silnik Escrow", "finance", "silnik", [11.5, -1.4, 1], ["wallet", "workflow", "financial-audit", "audit-log"], ["workflow", "audit-log", "dispute"]),
+          fallbackEngine("audit-log", "Silnik Audytu", "finance", "rejestr dowodowy", [5.8, 2.4, -2.4], ["identity", "registration-onboarding", "company", "permission", "workflow", "wallet", "escrow", "document", "gps", "reputation", "dispute", "ai-control", "knowledge"], ["financial-audit", "admin-views", "knowledge", "ai-control"]),
+          fallbackEngine("knowledge", "Silnik Wiedzy", "knowledge", "silnik", [-7.6, -3.2, -4.3], ["audit-log", "permission"], ["workflow", "ai-control", "gl-academy", "audit-log"]),
+          fallbackEngine("ai-control", "Agent AI", "knowledge", "agent", [-11, -2.1, -4.4], ["workflow", "knowledge", "audit-log", "notification"], ["workflow", "notification", "audit-log"]),
+          fallbackEngine("notification", "Silnik Powiadomień", "communication", "silnik", [5.7, 1.2, 4.6], ["workflow", "audit-log", "permission"], ["ui", "driver", "company"]),
+          fallbackEngine("reputation", "Silnik Reputacji", "trust", "silnik", [5.5, -6.8, -2.3], ["workflow", "audit-log"], ["profile", "audit-log"]),
+          fallbackEngine("profile", "Silnik Profilu", "trust", "silnik", [9.2, -6.4, -2.4], ["identity", "company", "reputation", "permission"], ["ui", "gl-jobs"]),
+          fallbackEngine("dispute", "Silnik Sporów", "finance", "silnik", [13.2, -4, -0.8], ["workflow", "escrow", "audit-log", "permission"], ["admin-views", "reputation", "audit-log"]),
+          fallbackEngine("admin-views", "Widoki Administracyjne", "admin", "widok", [12.4, 6, -2.4], ["permission", "audit-log", "workflow", "wallet", "escrow"], ["ui", "audit-log"]),
+          fallbackEngine("gl-academy", "Akademia GL", "future", "moduł przyszły", [-9.6, -6.4, -4.2], ["knowledge", "profile"], ["profile"]),
+          fallbackEngine("gl-jobs", "Giełda Pracy GL", "future", "moduł przyszły", [-2.8, -8.8, -3.1], ["profile", "company", "permission"], ["profile"]),
+          fallbackEngine("gl-fleet-market", "Giełda Pojazdów GL", "future", "moduł przyszły", [2.4, -8.8, -3.2], ["vehicle", "company", "permission"], ["company"])
         ];
         const fallbackFlow = [
           ["user", "identity", "tożsamość użytkownika"],
-          ["identity", "permission", "zweryfikowany dostęp"],
-          ["permission", "workflow", "dozwolony proces"],
+          ["identity", "registration-onboarding", "weryfikacja tożsamości"],
+          ["registration-onboarding", "company", "kontekst firmy"],
+          ["company", "permission", "zakres uprawnień"],
+          ["permission", "workflow", "dozwolona akcja"],
           ["workflow", "driver", "przypisanie kierowcy"],
-          ["driver", "vehicle", "aktywny pojazd"],
+          ["workflow", "vehicle", "gotowość pojazdu"],
+          ["workflow", "document", "dokumenty i dowody"],
+          ["workflow", "gps", "lokalizacja i czas dojazdu"],
+          ["workflow", "escrow", "zabezpieczenie płatności"],
           ["workflow", "wallet", "status płatności"],
-          ["wallet", "escrow", "zabezpieczone środki"],
-          ["escrow", "audit-log", "dowód audytu"],
-          ["knowledge", "workflow", "kontekst wiedzy"],
-          ["knowledge", "ai-control", "kontekst ryzyka"],
-          ["ai-control", "workflow", "sygnał ryzyka"],
-          ["translation", "ui", "klucze tłumaczeń"],
-          ["profile", "ui", "widok profilu"]
+          ["escrow", "audit-log", "dowód finansowy"],
+          ["wallet", "audit-log", "audyt transakcji"],
+          ["audit-log", "reputation", "zdarzenie reputacji"],
+          ["reputation", "profile", "profil zaufania"],
+          ["profile", "notification", "komunikat profilu"],
+          ["notification", "ui", "interfejs użytkownika"]
+        ];
+        const fallbackRelations = [
+          ...fallbackFlow.map(([from, to, label]) => ({ from, to, label, type: "required" })),
+          { from: "permission", to: "routing-access", label: "ochrona tras", type: "info" },
+          { from: "routing-access", to: "ui", label: "widoczny interfejs", type: "info" },
+          { from: "translation", to: "ui", label: "klucze tłumaczeń", type: "info" },
+          { from: "knowledge", to: "workflow", label: "kontekst wiedzy", type: "info" },
+          { from: "knowledge", to: "ai-control", label: "kontekst ryzyka", type: "info" },
+          { from: "workflow", to: "notification", label: "powiadomienia procesu", type: "required" },
+          { from: "ai-control", to: "notification", label: "alert ryzyka", type: "info" },
+          { from: "driver", to: "vehicle", label: "aktywny pojazd", type: "info" },
+          { from: "financial-audit", to: "audit-log", label: "finansowy wpis dowodowy", type: "audit" },
+          ...["identity", "registration-onboarding", "company", "permission", "workflow", "wallet", "escrow", "document", "gps", "reputation", "dispute", "ai-control", "knowledge"].map((from) => ({ from, to: "audit-log", label: "zapis do rejestru dowodowego", type: "audit" })),
+          { from: "profile", to: "gl-jobs", label: "tożsamość zawodowa", type: "future" },
+          { from: "company", to: "gl-jobs", label: "kontekst firmy", type: "future" },
+          { from: "vehicle", to: "gl-fleet-market", label: "zasób floty", type: "future" },
+          { from: "company", to: "gl-fleet-market", label: "właściciel firmy", type: "future" },
+          { from: "knowledge", to: "gl-academy", label: "treści szkoleniowe", type: "future" }
         ];
         return {
           loadError: "Nie udało się załadować src/core/engine-architecture.js. Pokazano lokalny fallback mapy.",
           engineArchitectureLayers: fallbackLayers,
+          engineArchitectureRelationTypes: fallbackRelationTypes(),
           engineArchitecture: fallbackNodes,
           engineArchitectureFlow: fallbackFlow,
-          engineArchitectureLinks: (engines) => {
-            const links = [];
-            engines.forEach((engine) => {
-              engine.dependsOn.forEach((target) => links.push({ from: target, to: engine.id, relation: "dependsOn" }));
-              engine.providesTo.forEach((target) => links.push({ from: engine.id, to: target, relation: "providesTo" }));
-            });
-            return links;
-          },
+          engineArchitectureLinks: () => fallbackRelations,
           engineArchitectureFlowLinks: (flow = fallbackFlow) => {
-            return flow.map(([from, to, reason]) => ({ from, to, relation: "flow", reason }));
+            return flow.map(([from, to, reason]) => ({ from, to, type: "required", relation: "flow", reason }));
           }
         };
       }
@@ -1045,8 +1217,15 @@
         mapPosition,
         dependsOn,
         providesTo,
+        status: "gotowy",
+        files: ["src/core/engine-architecture.js"],
+        tests: ["tests/engine-architecture.test.js"],
+        inputs: dependsOn,
+        outputs: providesTo,
+        usedBy: providesTo,
         description: "Fallback lokalny. W publicznym demo dane pochodzą z src/core/engine-architecture.js.",
-        workflowRole: "tryb awaryjny"
+        workflowRole: "tryb awaryjny",
+        responsibility: "Zachowuje czytelną dokumentację architektury, gdy import modułu jest zablokowany."
       };
     }
 
