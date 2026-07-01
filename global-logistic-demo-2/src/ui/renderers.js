@@ -42,13 +42,13 @@ export function renderApp(state, engine) {
   return `
     <div class="app-shell role-${state.session.role}">
       <aside class="side">
-        <div class="brand">
+        <button class="brand" data-ui-type="action" data-reset-demo="true" type="button" aria-label="GL Enterprise II - rozpocznij od początku">
           <div class="brand-mark">GL</div>
           <div>
             <strong>GL Enterprise II</strong>
             <span>${roleConfig.workspace}</span>
           </div>
-        </div>
+        </button>
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>${ui("app.active_space")}</span>

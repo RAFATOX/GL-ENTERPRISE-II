@@ -73,6 +73,19 @@ button {
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.brand:hover,
+.brand:focus-visible {
+  outline: 2px solid rgba(245, 239, 224, 0.34);
+  outline-offset: 6px;
 }
 
 .brand-mark {

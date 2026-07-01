@@ -548,6 +548,43 @@ test("public browser demo starts with working multi-role context switchers", () 
   }
 });
 
+test("GL Enterprise header is a reset button that returns demo to the first role choice", () => {
+  const values = new Map();
+  global.window = {
+    localStorage: {
+      getItem: (key) => values.get(key) || null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key)
+    }
+  };
+  try {
+    const engine = new GLCoreEngine({ store: new StateStore("gl-header-reset-test") });
+    let html = renderApp(engine.getSnapshot(), engine);
+
+    assert.match(html, /<button[^>]*class="brand"[^>]*data-reset-demo="true"[^>]*aria-label="GL Enterprise II - rozpocznij od początku"/);
+
+    assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, {
+      role: Roles.CARRIER_OWNER,
+      contextType: "company",
+      companyId: "co-carrier-a"
+    }).ok, true);
+    assert.equal(engine.getActor().role, Roles.CARRIER_OWNER);
+
+    const reset = engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true });
+    html = renderApp(engine.getSnapshot(), engine);
+
+    assert.equal(reset.ok, true);
+    assert.equal(engine.state.session.userId, "u-role-switch");
+    assert.equal(engine.state.session.role, Roles.DRIVER);
+    assert.equal(engine.state.session.view, "dashboard");
+    assert.equal(engine.state.session.onboardingRequired, false);
+    assert.ok(html.includes("data-role-select"));
+    assert.ok(html.includes("Właściciel przewoźnika"));
+  } finally {
+    delete global.window;
+  }
+});
+
 test("parsePayload reports invalid payload instead of returning an empty object", () => {
   const result = parsePayload("%E0%A4%A");
   assert.equal(result.ok, false);
