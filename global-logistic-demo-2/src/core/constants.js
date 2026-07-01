@@ -1,5 +1,5 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 16;
+export const DEMO_DATA_VERSION = 17;
 export const STORAGE_KEY = "global-logistic-gl2-core-engine-v9";
 
 export const Roles = Object.freeze({
@@ -102,6 +102,10 @@ export const CompanyRoleNames = Object.freeze({
   FINANCE: "finance",
   DISPATCHER: "dispatcher",
   DRIVER_MANAGER: "driver_manager",
+  DRIVER: "driver",
+  FLEET_MANAGER: "fleet_manager",
+  CARRIER_ACCOUNTANT: "carrier_accountant",
+  COMPANY_EMPLOYEE: "company_employee",
   WAREHOUSE_MANAGER: "warehouse_manager",
   MECHANIC: "mechanic",
   INSURANCE_MANAGER: "insurance_manager",
@@ -115,6 +119,10 @@ export const CompanyRoleLabels = Object.freeze({
   [CompanyRoleNames.FINANCE]: "finanse",
   [CompanyRoleNames.DISPATCHER]: "dyspozytor",
   [CompanyRoleNames.DRIVER_MANAGER]: "koordynator kierowców",
+  [CompanyRoleNames.DRIVER]: "kierowca",
+  [CompanyRoleNames.FLEET_MANAGER]: "manager floty",
+  [CompanyRoleNames.CARRIER_ACCOUNTANT]: "ksiegowosc",
+  [CompanyRoleNames.COMPANY_EMPLOYEE]: "pracownik administracyjny",
   [CompanyRoleNames.WAREHOUSE_MANAGER]: "magazyn",
   [CompanyRoleNames.MECHANIC]: "serwis",
   [CompanyRoleNames.INSURANCE_MANAGER]: "ubezpieczenia",
@@ -259,6 +267,7 @@ export const ActionTypes = Object.freeze({
   CREATE_COMPANY: "CREATE_COMPANY",
   UPDATE_COMPANY: "UPDATE_COMPANY",
   INVITE_COMPANY_USER: "INVITE_COMPANY_USER",
+  HIRE_COMPANY_EMPLOYEE: "HIRE_COMPANY_EMPLOYEE",
   ACCEPT_COMPANY_INVITATION: "ACCEPT_COMPANY_INVITATION",
   CHANGE_COMPANY_USER_ROLE: "CHANGE_COMPANY_USER_ROLE",
   CHANGE_COMPANY_USER_PERMISSIONS: "CHANGE_COMPANY_USER_PERMISSIONS",
@@ -355,6 +364,7 @@ export const EventTypes = Object.freeze({
   COMPANY_UPDATED: "COMPANY_UPDATED",
   COMPANY_DOCUMENT_UPLOADED: "COMPANY_DOCUMENT_UPLOADED",
   COMPANY_USER_INVITED: "COMPANY_USER_INVITED",
+  COMPANY_EMPLOYEE_HIRED: "COMPANY_EMPLOYEE_HIRED",
   COMPANY_INVITATION_ACCEPTED: "COMPANY_INVITATION_ACCEPTED",
   COMPANY_USER_ROLE_CHANGED: "COMPANY_USER_ROLE_CHANGED",
   COMPANY_USER_PERMISSIONS_CHANGED: "COMPANY_USER_PERMISSIONS_CHANGED",

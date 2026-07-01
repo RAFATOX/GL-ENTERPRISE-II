@@ -26,6 +26,11 @@ export const CompanyPermissions = Object.freeze({
   MANAGE: "company.manage",
   INVITE_USERS: "company.invite_users",
   REMOVE_USERS: "company.remove_users",
+  EMPLOYEES_READ: "company.employees.read",
+  EMPLOYEES_MANAGE: "company.employees.manage",
+  EMPLOYEES_INVITE: "company.employees.invite",
+  EMPLOYEES_REMOVE: "company.employees.remove",
+  EMPLOYEES_ASSIGN_ROLE: "company.employees.assign_role",
   DOCUMENTS_UPLOAD: "company.documents.upload",
   DOCUMENTS_VERIFY_STATUS_READ: "company.documents.verify_status_read"
 });
@@ -96,6 +101,7 @@ export const ModulePermissions = Object.freeze({
   SERVICE_ORDERS: "module.service_orders",
   REPORTS: "module.reports",
   COMPANY: "module.company",
+  EMPLOYEES: "module.employees",
   PROFILE: "module.profile",
   SETTINGS: "module.settings",
   KNOWLEDGE: KnowledgePermissions.READ,
@@ -258,6 +264,11 @@ export const modulesConfig = Object.freeze([
     ...clientRoles, ...carrierRoles, Roles.WAREHOUSE_WORKER, Roles.PAYMENT_OPERATOR,
     Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, ...complianceRoles
   ], "Profil firmy i uczestnicy ekosystemu."),
+  moduleItem("employees", "Pracownicy", "HR", "/employees", "employees", CompanyPermissions.EMPLOYEES_READ, [
+    ...carrierRoles
+  ], "Pracownicy firmy, kandydaci demo i przypisanie do aktywnej firmy.", {
+    allowPermissionOverride: true
+  }),
   moduleItem("profile", "Profil", "PR", "/profile", "profile", ModulePermissions.PROFILE, allRoles, "Profil aktywnego uzytkownika."),
   moduleItem("knowledge", "Biblioteka wiedzy GL", "KN", "/knowledge", "knowledge", ModulePermissions.KNOWLEDGE, [
     Roles.PLATFORM_OWNER, Roles.GL_OPERATOR, Roles.COMPLIANCE, Roles.ACADEMY_TEACHER
@@ -573,9 +584,15 @@ export const CompanyRolePermissionMap = Object.freeze({
     ModulePermissions.INVOICES,
     ModulePermissions.REPORTS,
     ModulePermissions.COMPANY,
+    ModulePermissions.EMPLOYEES,
     CompanyPermissions.MANAGE,
     CompanyPermissions.INVITE_USERS,
     CompanyPermissions.REMOVE_USERS,
+    CompanyPermissions.EMPLOYEES_READ,
+    CompanyPermissions.EMPLOYEES_MANAGE,
+    CompanyPermissions.EMPLOYEES_INVITE,
+    CompanyPermissions.EMPLOYEES_REMOVE,
+    CompanyPermissions.EMPLOYEES_ASSIGN_ROLE,
     CompanyPermissions.DOCUMENTS_UPLOAD,
     CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
     LoadPermissions.CREATE,
@@ -605,8 +622,14 @@ export const CompanyRolePermissionMap = Object.freeze({
     ModulePermissions.INVOICES,
     ModulePermissions.REPORTS,
     ModulePermissions.COMPANY,
+    ModulePermissions.EMPLOYEES,
     CompanyPermissions.MANAGE,
     CompanyPermissions.INVITE_USERS,
+    CompanyPermissions.EMPLOYEES_READ,
+    CompanyPermissions.EMPLOYEES_MANAGE,
+    CompanyPermissions.EMPLOYEES_INVITE,
+    CompanyPermissions.EMPLOYEES_REMOVE,
+    CompanyPermissions.EMPLOYEES_ASSIGN_ROLE,
     CompanyPermissions.DOCUMENTS_UPLOAD,
     CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
     LoadPermissions.CREATE,
@@ -666,6 +689,65 @@ export const CompanyRolePermissionMap = Object.freeze({
     DriverPermissions.ASSIGN,
     DriverPermissions.MANAGE,
     CompanyPermissions.INVITE_USERS,
+    DocumentPermissions.UPLOAD
+  ]),
+  [CompanyRoleNames.DRIVER]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.PHOTOS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.PARKING,
+    ModulePermissions.CHAT,
+    ModulePermissions.JOBS,
+    ModulePermissions.PROFILE,
+    ModulePermissions.WALLET,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_OWN,
+    DocumentPermissions.UPLOAD,
+    FinancePermissions.WALLET_OWN_READ
+  ]),
+  [CompanyRoleNames.FLEET_MANAGER]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.LIVE_MAP,
+    ModulePermissions.GPS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.JOBS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_COMPANY,
+    LoadPermissions.ASSIGN_DRIVER,
+    VehiclePermissions.MANAGE,
+    DriverPermissions.ASSIGN,
+    DriverPermissions.MANAGE,
+    DocumentPermissions.UPLOAD
+  ]),
+  [CompanyRoleNames.CARRIER_ACCOUNTANT]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.BILLING,
+    ModulePermissions.INVOICES,
+    ModulePermissions.REPORTS,
+    ModulePermissions.COMPANY,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    CompanyPermissions.DOCUMENTS_VERIFY_STATUS_READ,
+    FinancePermissions.BILLING_OWN_READ,
+    FinancePermissions.INVOICES_OWN_READ,
+    FinancePermissions.INVOICES_COMPANY_READ,
+    FinancePermissions.SETTLEMENTS_OWN_READ,
+    FinancePermissions.PAYOUTS_OWN_READ
+  ]),
+  [CompanyRoleNames.COMPANY_EMPLOYEE]: unique([
+    ModulePermissions.DASHBOARD,
+    ModulePermissions.TRANSPORTS,
+    ModulePermissions.DOCUMENTS,
+    ModulePermissions.CHAT,
+    ModulePermissions.PROFILE,
+    CompanyPermissions.READ,
+    LoadPermissions.VIEW_COMPANY,
     DocumentPermissions.UPLOAD
   ]),
   [CompanyRoleNames.WAREHOUSE_MANAGER]: unique([

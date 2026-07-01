@@ -181,16 +181,16 @@ export class CompanyEngine {
     const rolePermissions = companyTypeFilteredRolePermissions(CompanyRolePermissionMap[membership.roleName] || [], companyType);
     const typePermissions = CompanyTypePermissionMap[companyType] || [];
     const user = this.state.users.find((item) => item.id === membership.userId);
-    const driverPersonalWalletPermissions = membership.roleName === CompanyRoleNames.EMPLOYEE && user?.roles?.includes(Roles.DRIVER)
+    const driverPersonalWalletPermissions = [CompanyRoleNames.EMPLOYEE, CompanyRoleNames.DRIVER].includes(membership.roleName) && user?.roles?.includes(Roles.DRIVER)
       ? [ModulePermissions.WALLET, FinancePermissions.WALLET_OWN_READ]
       : [];
-    return unique([
+    return expandImplicitPermissions(unique([
       ...rolePermissions,
       ...typePermissions,
       ...driverPersonalWalletPermissions,
       ...(membership.permissions || []),
       ...(membership.deniedPermissions || []).map((permission) => `!${permission}`)
-    ]).filter((permission) => !String(permission).startsWith("!"))
+    ])).filter((permission) => !String(permission).startsWith("!"))
       .filter((permission) => !(membership.deniedPermissions || []).includes(permission));
   }
 
@@ -338,6 +338,99 @@ export class CompanyEngine {
     };
   }
 
+  hireEmployee(actor, payload) {
+    const companyId = payload.companyId || actor.companyId;
+    const company = this.getById(companyId);
+    const candidate = (this.state.companyEmployeeCandidates || []).find((item) => item.id === payload.candidateId);
+    if (!company) throw new Error("company not found");
+    if (!candidate) throw new Error("employee candidate not found");
+
+    const roleName = payload.roleName || candidate.companyRoleName || CompanyRoleNames.COMPANY_EMPLOYEE;
+    const appRole = candidate.appRole || appRoleForCompanyRole(roleName);
+    const user = this.ensureCandidateUser(candidate, companyId, appRole);
+    const previousMembership = this.state.userCompanyRoles.find((item) => (
+      item.userId === user.id
+      && item.companyId === companyId
+      && item.status === "active"
+    ));
+    const membership = previousMembership || companyMembership({
+      userId: user.id,
+      companyId,
+      roleName,
+      status: "active",
+      invitedBy: actor.userId,
+      acceptedAt: nowIso()
+    });
+    membership.roleName = roleName;
+    membership.roleId = roleId(roleName);
+    membership.role_id = roleId(roleName);
+    membership.acceptedAt ||= nowIso();
+    membership.permissions = unique([...(membership.permissions || []), ...(candidate.extraPermissions || [])]);
+    if (!previousMembership) this.state.userCompanyRoles.unshift(membership);
+
+    company.people ||= [];
+    if (!company.people.includes(user.id)) company.people.push(user.id);
+    candidate.hiredCompanyId = companyId;
+    candidate.hiredUserCompanyRoleId = membership.id;
+    candidate.hiredAt = nowIso();
+
+    return {
+      employee: user,
+      membership,
+      events: [{
+        type: EventTypes.COMPANY_EMPLOYEE_HIRED,
+        objectType: "user_company_role",
+        objectId: membership.id,
+        previousState: previousMembership ? previousMembership.roleName : null,
+        newState: {
+          userId: user.id,
+          companyId,
+          roleName
+        },
+        reason: `pracownik ${user.name} przypisany do firmy ${company.name}`
+      }]
+    };
+  }
+
+  ensureCandidateUser(candidate, companyId, appRole) {
+    const userId = candidate.userId || `u-${candidate.id}`;
+    let user = this.state.users.find((item) => item.id === userId);
+    if (!user) {
+      user = {
+        id: userId,
+        user_id: userId,
+        name: candidate.name,
+        firstName: candidate.name?.split(" ")[0] || candidate.name,
+        lastName: candidate.name?.split(" ").slice(1).join(" ") || "",
+        phone: candidate.phone || `+48900${String(this.state.users.length + 1).padStart(6, "0")}`,
+        email: candidate.email || `${safe(candidate.name)}@demo.gl`,
+        roles: [appRole],
+        selectedRole: appRole,
+        companyId,
+        accountStatus: AccountStatuses.VERIFIED,
+        verificationStatus: AccountStatuses.VERIFIED,
+        phoneVerified: true,
+        documentVerified: true,
+        faceVerified: true,
+        documentsValid: candidate.documentsStatus === "zweryfikowane",
+        roleDocuments: appRole === Roles.DRIVER ? { [Roles.DRIVER]: ["driving_license"] } : {},
+        joinedAt: nowIso()
+      };
+      this.state.users.push(user);
+    }
+    user.roles = unique([...(user.roles || []), appRole]);
+    user.selectedRole ||= appRole;
+    user.companyId ||= companyId;
+    user.accountStatus ||= AccountStatuses.VERIFIED;
+    user.verificationStatus ||= user.accountStatus;
+    user.phoneVerified = user.phoneVerified !== false;
+    user.documentVerified = user.documentVerified !== false;
+    user.faceVerified = user.faceVerified !== false;
+    user.documentsValid = user.documentsValid !== false;
+    candidate.userId = user.id;
+    return user;
+  }
+
   acceptInvitation(actor, payload) {
     const membership = this.findMembership(payload.userCompanyRoleId, payload.userId || actor.userId, payload.companyId);
     const previous = membership.status;
@@ -463,6 +556,7 @@ export function ensureCompanyAccessState(state) {
   state.userCompanyRoles ||= [];
   state.companyVerifications ||= buildCompanyVerifications(state);
   state.companyDocuments ||= [];
+  state.companyEmployeeCandidates ||= [];
   state.companies.forEach((company) => normalizeCompany(company));
 }
 
@@ -688,6 +782,12 @@ function companyTypeFilteredRolePermissions(permissions, companyType) {
     DriverPermissions.MANAGE,
     VehiclePermissions.CREATE,
     VehiclePermissions.MANAGE,
+    ModulePermissions.EMPLOYEES,
+    CompanyPermissions.EMPLOYEES_READ,
+    CompanyPermissions.EMPLOYEES_MANAGE,
+    CompanyPermissions.EMPLOYEES_INVITE,
+    CompanyPermissions.EMPLOYEES_REMOVE,
+    CompanyPermissions.EMPLOYEES_ASSIGN_ROLE,
     LoadPermissions.ACCEPT,
     LoadPermissions.ASSIGN_DRIVER,
     ModulePermissions.JOBS,
@@ -703,9 +803,10 @@ function compatibleRolesForCompanyContext(user, membership, company) {
     return [Roles.WAREHOUSE_WORKER];
   }
   if (companyType === CompanyTypes.CARRIER) {
-    if (membership.roleName === CompanyRoleNames.EMPLOYEE && userRoles.includes(Roles.DRIVER)) return [Roles.DRIVER];
+    if ([CompanyRoleNames.EMPLOYEE, CompanyRoleNames.DRIVER].includes(membership.roleName) && userRoles.includes(Roles.DRIVER)) return [Roles.DRIVER];
     if (membership.roleName === CompanyRoleNames.DISPATCHER) return [Roles.CARRIER_DISPATCHER];
-    if ([CompanyRoleNames.OWNER, CompanyRoleNames.ADMIN, CompanyRoleNames.FINANCE, CompanyRoleNames.DRIVER_MANAGER].includes(membership.roleName)) return [Roles.CARRIER_OWNER];
+    if ([CompanyRoleNames.FLEET_MANAGER, CompanyRoleNames.COMPANY_EMPLOYEE].includes(membership.roleName)) return [Roles.CARRIER_DISPATCHER];
+    if ([CompanyRoleNames.OWNER, CompanyRoleNames.ADMIN, CompanyRoleNames.FINANCE, CompanyRoleNames.DRIVER_MANAGER, CompanyRoleNames.CARRIER_ACCOUNTANT].includes(membership.roleName)) return [Roles.CARRIER_OWNER];
     return userRoles.includes(Roles.DRIVER) ? [Roles.DRIVER] : [Roles.CARRIER_DISPATCHER];
   }
   if (companyType === CompanyTypes.CLIENT) {
@@ -771,6 +872,31 @@ function normalizePermissionList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function expandImplicitPermissions(permissions) {
+  const expanded = [...permissions];
+  const hasEmployeeControl = [
+    CompanyPermissions.EMPLOYEES_MANAGE,
+    CompanyPermissions.EMPLOYEES_INVITE,
+    CompanyPermissions.EMPLOYEES_REMOVE,
+    CompanyPermissions.EMPLOYEES_ASSIGN_ROLE
+  ].some((permission) => expanded.includes(permission));
+  if (hasEmployeeControl && !expanded.includes(CompanyPermissions.EMPLOYEES_READ)) {
+    expanded.push(CompanyPermissions.EMPLOYEES_READ);
+  }
+  if (expanded.includes(CompanyPermissions.EMPLOYEES_READ) && !expanded.includes(ModulePermissions.EMPLOYEES)) {
+    expanded.push(ModulePermissions.EMPLOYEES);
+  }
+  return unique(expanded);
+}
+
+function appRoleForCompanyRole(roleName) {
+  if (roleName === CompanyRoleNames.DRIVER) return Roles.DRIVER;
+  if (roleName === CompanyRoleNames.DISPATCHER || roleName === CompanyRoleNames.FLEET_MANAGER || roleName === CompanyRoleNames.COMPANY_EMPLOYEE) {
+    return Roles.CARRIER_DISPATCHER;
+  }
+  return Roles.CARRIER_OWNER;
 }
 
 function roleId(roleName) {

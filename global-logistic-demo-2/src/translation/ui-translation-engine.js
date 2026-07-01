@@ -310,6 +310,7 @@ const dictionaries = Object.freeze({
     "profile.certificates": "Certyfikaty",
     "profile.adr": "ADR",
     "profile.wallet": "Portfel",
+    "employees.tab": "Pracownicy",
     "profile.wallet_type": "Typ portfela",
     "profile.user_wallet": "Portfel osobisty",
     "profile.company_wallet": "Portfel firmowy",

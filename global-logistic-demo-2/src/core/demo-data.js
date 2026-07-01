@@ -570,6 +570,15 @@ export function createDemoState(options = {}) {
       companyDocument("company-doc-ocp-1", "co-carrier-a", "ocp", "OCP przewoznika Baltic Line"),
       companyDocument("company-doc-adr-1", "co-carrier-a", "adr_certificate", "Zaswiadczenie ADR dla floty Baltic Line")
     ],
+    companyEmployeeCandidates: [
+      employeeCandidate("cand-driver-1", "drivers", "Adam Nowak", "Kierowca C+E", Roles.DRIVER, CompanyRoleNames.DRIVER, "PL", ["PL", "DE"], "7 lat w UE", "zweryfikowane", "dostepny od jutra", "6200 PLN netto"),
+      employeeCandidate("cand-driver-2", "drivers", "Luka Horvat", "Kierowca ADR", Roles.DRIVER, CompanyRoleNames.DRIVER, "HR", ["HR", "EN", "DE"], "9 lat, ADR", "zweryfikowane", "dostepny za 3 dni", "3100 EUR"),
+      employeeCandidate("cand-dispatcher-1", "dispatchers", "Nina Zielinska", "Spedytor / dyspozytor", Roles.CARRIER_DISPATCHER, CompanyRoleNames.DISPATCHER, "PL", ["PL", "EN"], "5 lat planowania tras", "zweryfikowane", "dostepna teraz", "7800 PLN"),
+      employeeCandidate("cand-dispatcher-2", "dispatchers", "Marco Rossi", "Dyspozytor intermodalny", Roles.CARRIER_DISPATCHER, CompanyRoleNames.DISPATCHER, "IT", ["IT", "EN"], "6 lat prom i kolej", "zweryfikowane", "dostepny od poniedzialku", "2900 EUR"),
+      employeeCandidate("cand-fleet-1", "fleet_managers", "Katarzyna Fleet", "Manager floty", Roles.CARRIER_DISPATCHER, CompanyRoleNames.FLEET_MANAGER, "PL", ["PL", "EN"], "12 lat utrzymania floty", "zweryfikowane", "dostepna za tydzien", "12000 PLN"),
+      employeeCandidate("cand-accounting-1", "accounting", "Filip Ksiegi", "Księgowość przewoznika", Roles.CARRIER_OWNER, CompanyRoleNames.CARRIER_ACCOUNTANT, "PL", ["PL"], "8 lat faktur i rozliczen", "zweryfikowane", "dostepny teraz", "8500 PLN"),
+      employeeCandidate("cand-admin-1", "administration", "Ola Administracja", "Administracja firmy", Roles.CARRIER_DISPATCHER, CompanyRoleNames.COMPANY_EMPLOYEE, "PL", ["PL", "EN"], "4 lata obslugi dokumentow", "w trakcie", "dostepna od jutra", "6200 PLN")
+    ],
     knowledgeSources: [
       knowledgeSource("ks-ckz-1", "Certyfikat Kompetencji Zawodowych przewoznika", KnowledgeSourceTypes.PROFESSIONAL_COMPETENCE_CERTIFICATE, "Wymaganie kompetencyjne dla podmiotu wykonujacego transport drogowy.", "PL", ["certyfikat", "przewoznik", "firma"], [Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER], ["company", "documents", "transport"]),
       knowledgeSource("ks-cmr-1", "Konwencja CMR", KnowledgeSourceTypes.CMR_CONVENTION, "Podstawowe zasady miedzynarodowego przewozu drogowego towarow.", "EU", ["cmr", "dokumenty", "transport"], [Roles.CLIENT_OWNER, Roles.CARRIER_OWNER, Roles.DRIVER, Roles.AUTHORITY_USER], ["documents", "transport"]),
@@ -645,6 +654,7 @@ export function createDemoState(options = {}) {
     }
   };
 
+  seedEmployeeCandidateUsers(state);
   buildCompanyAccessSeed(state);
   tuneDemoCompanyRoles(state);
   if (options.startInApp) activatePublicRoleSwitchDemo(state);
@@ -788,6 +798,54 @@ function companyDocument(id, companyId, type, label) {
     uploadedBy: "seed",
     uploadedAt: baseTime
   };
+}
+
+function employeeCandidate(id, category, name, roleLabel, appRole, companyRoleName, country, languages, experience, documentsStatus, availability, expectedSalary) {
+  return {
+    id,
+    candidate_id: id,
+    userId: `u-${id}`,
+    category,
+    name,
+    roleLabel,
+    appRole,
+    companyRoleName,
+    country,
+    languages,
+    experience,
+    reputation: 4.8,
+    reviewCount: 24,
+    documentsStatus,
+    availability,
+    expectedSalary,
+    avatar: name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+    status: "candidate"
+  };
+}
+
+function seedEmployeeCandidateUsers(state) {
+  (state.companyEmployeeCandidates || []).forEach((candidate, index) => {
+    if (state.users.some((user) => user.id === candidate.userId)) return;
+    const candidateUser = user(
+      candidate.userId,
+      candidate.name,
+      `+48990${String(index + 1).padStart(6, "0")}`,
+      candidate.appRole,
+      null,
+      AccountStatuses.VERIFIED,
+      {
+        roles: [candidate.appRole],
+        selectedRole: candidate.appRole,
+        documentsValid: candidate.documentsStatus === "zweryfikowane",
+        faceVerified: true
+      }
+    );
+    candidateUser.email = `${candidate.id}@candidates.demo.gl`;
+    candidateUser.country = candidate.country;
+    candidateUser.languages = candidate.languages;
+    candidateUser.candidateStatus = "demo_candidate";
+    state.users.push(candidateUser);
+  });
 }
 
 function knowledgeSource(id, title, type, description, country, tags, relatedRoles, relatedModules) {

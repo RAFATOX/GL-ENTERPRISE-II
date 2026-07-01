@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ActionTypes, EventTypes, Roles } from "../../src/core/constants.js";
-import { ModulePermissions, getVisibleModules } from "../../src/core/modules-config.js";
+import { ActionTypes, CompanyRoleNames, EventTypes, Roles } from "../../src/core/constants.js";
+import { CompanyPermissions, FinancePermissions, ModulePermissions, VehiclePermissions, getVisibleModules } from "../../src/core/modules-config.js";
 import { GLCoreEngine } from "../../src/core/gl-core-engine.js";
 import { StateStore } from "../../src/core/state-store.js";
 import { renderApp } from "../../src/ui/renderers.js";
@@ -216,6 +216,7 @@ function assertButtonsHaveBehavior(html) {
       "data-module-route=",
       "data-profile-target=",
       "data-profile-tab=",
+      "data-employee-category=",
       "data-detail-route=",
       "data-role=",
       "data-language-option",
@@ -672,6 +673,57 @@ test("e2e: UI rozroznia informacje, szczegoly i akcje bez martwych przyciskow", 
   assertButtonsHaveBehavior(carrierHtml);
   assert.ok(carrierHtml.includes('data-detail-route="/transports"'));
   assert.ok(carrierHtml.includes('data-profile-target="co-client-a"'));
+});
+
+test("e2e: modul Pracownicy pozwala wlascicielowi przewoznika zatrudnic pracownika do firmy", () => {
+  const carrier = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  const employeeRoute = selectView(carrier, "employees", "/employees");
+  let html = render(carrier);
+
+  assert.equal(employeeRoute.ok, true);
+  assert.ok(carrier.getActor().permissions.includes(CompanyPermissions.EMPLOYEES_MANAGE));
+  assert.ok(html.includes("Pracownicy firmy"));
+  assert.ok(html.includes("data-employee-category=\"drivers\""));
+  assert.ok(html.includes("Spedytorzy / Dyspozytorzy"));
+  assert.ok(html.includes(`data-action="${ActionTypes.HIRE_COMPANY_EMPLOYEE}"`));
+  assertButtonsHaveBehavior(html);
+
+  const hire = carrier.dispatchAction(ActionTypes.HIRE_COMPANY_EMPLOYEE, {
+    candidateId: "cand-driver-1",
+    companyId: "co-carrier-a"
+  });
+  html = render(carrier);
+  const membership = carrier.state.userCompanyRoles.find((item) => item.userId === "u-cand-driver-1" && item.companyId === "co-carrier-a");
+
+  assert.equal(hire.ok, true);
+  assert.equal(membership.roleName, CompanyRoleNames.DRIVER);
+  assert.ok(html.includes("Pracownik zosta"));
+  assert.ok(html.includes("Adam Nowak"));
+  assert.ok(carrier.state.audit.some((entry) => entry.action === EventTypes.COMPANY_EMPLOYEE_HIRED && entry.objectId === membership.id));
+
+  activateUserRole(carrier, "u-cand-driver-1", Roles.DRIVER, { contextType: "company", companyId: "co-carrier-a" });
+  const driverSnapshot = carrier.getSnapshot();
+  assert.equal(driverSnapshot.access.financialScope, "user");
+  assert.equal(driverSnapshot.wallets.some((wallet) => wallet.modelType === "CompanyWallet"), false);
+
+  activateUserRole(carrier, "u-carrier-owner", Roles.CARRIER_OWNER, { contextType: "company", companyId: "co-carrier-a" });
+  carrier.dispatchAction(ActionTypes.HIRE_COMPANY_EMPLOYEE, {
+    candidateId: "cand-fleet-1",
+    companyId: "co-carrier-a"
+  });
+  activateUserRole(carrier, "u-cand-fleet-1", Roles.CARRIER_DISPATCHER, { contextType: "company", companyId: "co-carrier-a" });
+  const fleetActor = carrier.getActor();
+  const fleetModules = getVisibleModules(fleetActor, fleetActor.role).map((item) => item.id);
+  assert.equal(fleetActor.companyRole, CompanyRoleNames.FLEET_MANAGER);
+  assert.ok(fleetActor.permissions.includes(VehiclePermissions.MANAGE));
+  assert.equal(fleetActor.permissions.includes(FinancePermissions.WALLET_COMPANY_READ), false);
+  assert.ok(fleetModules.includes("company"));
+  assert.equal(fleetModules.includes("wallet"), false);
+
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const denied = selectView(driver, "employees", "/employees");
+  assert.equal(denied.ok, false);
+  assert.equal(getVisibleModules(driver.getActor(), driver.getActor().role).some((module) => module.id === "employees"), false);
 });
 
 test("e2e: przewoznik dodaje zasoby, znajduje ladunek i przypisuje kierowce oraz pojazd", () => {

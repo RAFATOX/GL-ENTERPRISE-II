@@ -168,7 +168,9 @@ const rolePermissions = {
     ActionTypes.REPORT_BREAKDOWN,
     ActionTypes.REQUEST_TECHNICAL_SERVICE,
     ActionTypes.RUN_COMPLIANCE_CHECK,
-    ActionTypes.ADD_VEHICLE
+    ActionTypes.ADD_VEHICLE,
+    ActionTypes.HIRE_COMPANY_EMPLOYEE,
+    ActionTypes.REMOVE_COMPANY_USER
   ],
   [Roles.CARRIER_DISPATCHER]: [
     ActionTypes.SELECT_ROLE,
@@ -350,10 +352,11 @@ const actionPermissionRequirements = {
   [ActionTypes.CREATE_COMPANY]: [[CompanyPermissions.CREATE]],
   [ActionTypes.UPDATE_COMPANY]: [[CompanyPermissions.MANAGE]],
   [ActionTypes.INVITE_COMPANY_USER]: [[CompanyPermissions.INVITE_USERS]],
+  [ActionTypes.HIRE_COMPANY_EMPLOYEE]: [[CompanyPermissions.EMPLOYEES_MANAGE], [CompanyPermissions.EMPLOYEES_INVITE, CompanyPermissions.EMPLOYEES_ASSIGN_ROLE]],
   [ActionTypes.ACCEPT_COMPANY_INVITATION]: [[CompanyPermissions.READ]],
   [ActionTypes.CHANGE_COMPANY_USER_ROLE]: [[CompanyPermissions.MANAGE]],
   [ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS]: [[CompanyPermissions.MANAGE]],
-  [ActionTypes.REMOVE_COMPANY_USER]: [[CompanyPermissions.REMOVE_USERS]],
+  [ActionTypes.REMOVE_COMPANY_USER]: [[CompanyPermissions.REMOVE_USERS], [CompanyPermissions.EMPLOYEES_REMOVE]],
   [ActionTypes.UPLOAD_COMPANY_DOCUMENT]: [[CompanyPermissions.DOCUMENTS_UPLOAD]],
   [ActionTypes.VERIFY_COMPANY]: [[CompliancePermissions.REVIEW]],
   [ActionTypes.REJECT_COMPANY_VERIFICATION]: [[CompliancePermissions.REVIEW]],
@@ -680,6 +683,10 @@ export class PermissionsEngine {
       ));
     }
 
+    if (!hasPermission(actor, CompanyPermissions.EMPLOYEES_READ)) {
+      snapshot.companyEmployeeCandidates = [];
+    }
+
     const scope = financialScope(actor);
     const owner = financeOwnerForActor(actor, scope);
     snapshot.access = {
@@ -783,6 +790,7 @@ function transportForContext(context) {
     ActionTypes.CREATE_COMPANY,
     ActionTypes.UPDATE_COMPANY,
     ActionTypes.INVITE_COMPANY_USER,
+    ActionTypes.HIRE_COMPANY_EMPLOYEE,
     ActionTypes.ACCEPT_COMPANY_INVITATION,
     ActionTypes.CHANGE_COMPANY_USER_ROLE,
     ActionTypes.CHANGE_COMPANY_USER_PERMISSIONS,

@@ -125,6 +125,10 @@ export class WorkflowEngine {
         if (!payload.companyId && !actor.companyId) reasons.push(v("company_id_required"));
         if (!payload.roleName) reasons.push(v("role_required"));
         break;
+      case ActionTypes.HIRE_COMPANY_EMPLOYEE:
+        if (!payload.candidateId) reasons.push(v("user_id_required"));
+        if (!payload.companyId && !actor.companyId) reasons.push(v("company_id_required"));
+        break;
       case ActionTypes.ACCEPT_COMPANY_INVITATION:
         if (!payload.userCompanyRoleId && !payload.companyId) reasons.push(v("company_id_required"));
         break;
@@ -409,6 +413,8 @@ export class WorkflowEngine {
         return modules.companies.updateCompany(actor, payload);
       case ActionTypes.INVITE_COMPANY_USER:
         return modules.companies.inviteUser(actor, payload);
+      case ActionTypes.HIRE_COMPANY_EMPLOYEE:
+        return modules.companies.hireEmployee(actor, payload);
       case ActionTypes.ACCEPT_COMPANY_INVITATION:
         return modules.companies.acceptInvitation(actor, payload);
       case ActionTypes.CHANGE_COMPANY_USER_ROLE:

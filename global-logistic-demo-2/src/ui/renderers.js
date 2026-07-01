@@ -3,6 +3,7 @@ import {
   ActionTypes,
   AllRoles,
   DEMO_MODE,
+  EventTypes,
   RoleLabels,
   Roles,
   StatusProgress,
@@ -466,7 +467,16 @@ function renderLastResult(state) {
   const result = state.session.lastResult;
   const developer = canViewDeveloperPanel(state);
   if (!developer) {
-    if (!result || result.ok) return "";
+    if (!result) return "";
+    if (result.ok && result.events?.includes(EventTypes.COMPANY_EMPLOYEE_HIRED)) {
+      return `
+        <section class="business-alert ok">
+          <strong>${ui("result.success")}</strong>
+          <span>Pracownik został dodany do firmy</span>
+        </section>
+      `;
+    }
+    if (result.ok) return "";
     return `
       <section class="business-alert blocked">
         <strong>${ui("result.blocked")}</strong>
@@ -485,12 +495,15 @@ function renderLastResult(state) {
   const statusLabel = result.result === "error"
     ? ui("result.error")
     : result.ok ? ui("result.success") : ui("result.blocked");
+  const userMessage = result.ok && result.events?.includes(EventTypes.COMPANY_EMPLOYEE_HIRED)
+    ? "Pracownik został dodany do firmy"
+    : result.ok ? ui("result.success_user_message") : ui("result.blocked_user_message");
   return `
     <section class="result ${result.ok ? "ok" : "blocked"}">
       <strong>${statusLabel}</strong>
       <span>${developer
         ? (result.ok ? result.events.map(valueLabel).join(", ") : result.reasons.map(valueLabel).join("; "))
-        : (result.ok ? ui("result.success_user_message") : ui("result.blocked_user_message"))}</span>
+        : userMessage}</span>
     </section>
   `;
 }
@@ -502,6 +515,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "profile") return renderProfile(state);
   if (view === "knowledge") return renderKnowledgeLibrary(state, engine, selected);
   if (view === "companies") return renderCompanies(state, engine);
+  if (view === "employees") return renderCompanyEmployees(state, engine);
   if (view === "users") return renderUsers(state);
   if (view === "statistics") return renderStatistics(state);
   if (view === "system") return renderSystem(state, engine);
@@ -681,6 +695,7 @@ function renderCarrierOperationsPanel(state) {
     { label: "Moje ladunki", value: availableLoads, route: "/loads", note: "Szukaj i przyjmuj ladunki" },
     { label: "Moi kierowcy", value: drivers, route: "/company", note: "Zaproszenia, dokumenty, status" },
     { label: "Moje pojazdy", value: vehicles, route: "/company", note: "Flota i zgodnosc pojazdow" },
+    { label: "Pracownicy", value: companyEmployees(state).length, route: "/employees", note: "Kandydaci i pracownicy firmy" },
     { label: "Moje transporty", value: transports, route: "/transports", note: "Oczekujace, w trasie i zakonczone" },
     { label: "Rozliczenia", value: state.settlements.filter((item) => item.ownerCompanyId === companyId || item.carrierCompanyId === companyId).length, route: "/wallet", note: "Naleznosci, wyplaty, prowizje GL" },
     { label: "Dokumenty firmy", value: state.companyDocuments?.filter((item) => item.companyId === companyId).length || 0, route: "/company", note: "Licencje, OCP, dokumenty firmowe" },
@@ -3464,7 +3479,7 @@ function renderProfile(state) {
       </article>
 
       <nav class="profile-tabs" aria-label="${ui("profile.tabs_label")}">
-        ${profileTabs().map((tab, index) => `
+        ${profileTabs(state, subject).map((tab, index) => `
           <button type="button" data-ui-type="details" data-profile-tab="${tab.id}" aria-selected="${index === 0 ? "true" : "false"}">
             ${ui(tab.labelKey)}
           </button>
@@ -3581,6 +3596,29 @@ function renderProfile(state) {
         </article>
       </section>
 
+      ${canViewCompanyEmployeesTab(state, subject) ? `
+        <section class="profile-tab-panel" data-profile-panel="employees" id="profile-employees" hidden>
+          <article class="panel business-panel">
+            <div class="panel-head">
+              <div>
+                <span class="eyebrow">Pracownicy</span>
+                <h2>Pracownicy firmy</h2>
+              </div>
+              <button type="button" class="mini-action" data-ui-type="details" data-module-route="/employees">Otwórz moduł</button>
+            </div>
+            <div class="business-list">
+              ${companyEmployees(state).map(({ user, membership }) => `
+                <div class="business-row" data-ui-type="info">
+                  <strong>${user.name}</strong>
+                  <span>${companyRoleLabel(membership.roleName)}</span>
+                  <small>${employeePermissionSummary(state, membership)}</small>
+                </div>
+              `).join("") || `<p class="muted">Brak pracowników w aktywnej firmie.</p>`}
+            </div>
+          </article>
+        </section>
+      ` : ""}
+
       <section class="profile-tab-panel" data-profile-panel="activity" id="profile-activity" hidden>
         <article class="panel business-panel">
           <span class="eyebrow">${ui("profile.activity")}</span>
@@ -3600,8 +3638,8 @@ function renderProfile(state) {
   `;
 }
 
-function profileTabs() {
-  return [
+function profileTabs(state = null, subject = null) {
+  const tabs = [
     { id: "info", labelKey: "profile.info" },
     { id: "reputation", labelKey: "profile.reputation" },
     { id: "reviews", labelKey: "profile.reviews" },
@@ -3610,6 +3648,16 @@ function profileTabs() {
     { id: "wallet", labelKey: "profile.wallet" },
     { id: "activity", labelKey: "profile.activity" }
   ];
+  if (canViewCompanyEmployeesTab(state, subject)) {
+    tabs.splice(6, 0, { id: "employees", labelKey: "employees.tab" });
+  }
+  return tabs;
+}
+
+function canViewCompanyEmployeesTab(state, subject) {
+  if (!state || !subject || subject.kind !== "company") return false;
+  if (subject.id !== activeCompanyId(state)) return false;
+  return (state.access?.permissions || []).includes("company.employees.read");
 }
 
 function profileReputationMetrics(state, subject, rating, transports) {
@@ -3742,6 +3790,10 @@ function companyRoleLabel(roleName) {
     finance: "Finanse",
     dispatcher: "Dyspozytor",
     driver_manager: "Opiekun kierowców",
+    driver: "Kierowca",
+    fleet_manager: "Manager floty",
+    carrier_accountant: "Księgowość",
+    company_employee: "Pracownik administracyjny",
     warehouse_manager: "Kierownik magazynu",
     mechanic: "Mechanik",
     insurance_manager: "Opiekun polis",
@@ -4211,6 +4263,187 @@ function renderCarrierCompanyWorkspace(state, engine) {
       </div>
     </section>
   `;
+}
+
+function renderCompanyEmployees(state, engine) {
+  const companyId = activeCompanyId(state);
+  const company = state.companies.find((item) => item.id === companyId);
+  const categories = employeeCategories();
+  const employees = companyEmployees(state);
+  const canManage = canManageCompanyEmployees(state);
+  const canRemove = canRemoveCompanyEmployees(state);
+  return `
+    <section class="company-employees-shell">
+      <section class="panel business-panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Pracownicy</span>
+            <h2>${company?.name || state.access?.activeContextLabel || "Aktywna firma"}</h2>
+          </div>
+          <mark class="${canManage ? "good" : "info"}">${canManage ? "zarządzanie" : "podgląd"}</mark>
+        </div>
+        <p class="muted">Wewnętrzny moduł pracowników firmy. GL Jobs pozostaje osobnym modułem przyszłym.</p>
+        <div class="employee-category-nav">
+          ${categories.map((category, index) => `
+            <button type="button" data-ui-type="details" data-employee-category="${category.id}" aria-selected="${index === 0 ? "true" : "false"}">
+              <strong>${category.label}</strong>
+              <span>${category.description}</span>
+            </button>
+          `).join("")}
+        </div>
+      </section>
+
+      ${categories.map((category, index) => `
+        <section class="panel business-panel employee-category-panel ${index === 0 ? "is-active" : ""}" data-employee-category-panel="${category.id}" ${index === 0 ? "" : "hidden"}>
+          <div class="panel-head">
+            <div>
+              <span class="eyebrow">${category.label}</span>
+              <h2>Propozycje kandydatów</h2>
+            </div>
+          </div>
+          <div class="employee-candidate-grid">
+            ${employeeCandidatesForCategory(state, category.id).map((candidate) => renderEmployeeCandidateCard(engine, candidate, companyId, canManage)).join("")
+              || `<p class="muted">Brak kandydatów demo w tej kategorii.</p>`}
+          </div>
+        </section>
+      `).join("")}
+
+      <section class="panel business-panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">Pracownicy firmy</span>
+            <h2>Aktualne przypisania do firmy</h2>
+          </div>
+          <mark class="info">${employees.length}</mark>
+        </div>
+        <div class="transport-table compact-table employee-table">
+          <div class="table-row table-head">
+            <span>Pracownik</span>
+            <span>Rola w firmie</span>
+            <span>Status</span>
+            <span>Data dodania</span>
+            <span>Uprawnienia</span>
+            <span>Akcje</span>
+          </div>
+          ${employees.map(({ user, membership }) => `
+            <div class="table-row" data-ui-type="info">
+              <span>${profileLink(state, user.id, "user")}</span>
+              <span>${companyRoleLabel(membership.roleName)}</span>
+              <span>${valueLabel(membership.status)}</span>
+              <span>${membership.acceptedAt ? formatTime(membership.acceptedAt) : formatTime(membership.invitedAt)}</span>
+              <span>${employeePermissionSummary(state, membership)}</span>
+              <span class="employee-actions">
+                <button type="button" class="mini-action" data-ui-type="details" data-profile-target="${user.id}" data-profile-type="user">Zarządzaj</button>
+                ${canRemove ? actionButton(engine, ActionTypes.REMOVE_COMPANY_USER, "Usuń z firmy", {
+                  userCompanyRoleId: membership.id,
+                  userId: user.id,
+                  companyId
+                }) : ""}
+              </span>
+            </div>
+          `).join("") || `<p class="muted">Firma nie ma jeszcze przypisanych pracowników w tym widoku.</p>`}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderEmployeeCandidateCard(engine, candidate, companyId, canManage) {
+  return `
+    <article class="employee-card" data-ui-type="info">
+      <div class="employee-card-head">
+        <div class="profile-avatar">${candidate.avatar || profileInitials(candidate.name)}</div>
+        <div>
+          <h3>${candidate.name}</h3>
+          <span>${candidate.roleLabel}</span>
+        </div>
+      </div>
+      <div class="detail-grid compact-details">
+        <div><span>Kraj</span><strong>${candidate.country}</strong></div>
+        <div><span>Języki</span><strong>${(candidate.languages || []).join(", ")}</strong></div>
+        <div><span>Doświadczenie</span><strong>${candidate.experience}</strong></div>
+        <div><span>Reputacja</span><strong>${renderStars(candidate.reputation || 0)}</strong></div>
+        <div><span>Dokumenty</span><strong>${candidate.documentsStatus}</strong></div>
+        <div><span>Dostępność</span><strong>${candidate.availability}</strong></div>
+        <div><span>Oczekiwania</span><strong>${candidate.expectedSalary || "do ustalenia"}</strong></div>
+      </div>
+      <div class="actions employee-card-actions">
+        <button type="button" class="action secondary" data-ui-type="details" data-profile-target="${candidate.userId || `u-${candidate.id}`}" data-profile-type="user">
+          <strong>Zobacz profil</strong>
+          <span>Profil kandydata</span>
+        </button>
+        ${canManage ? renderHireEmployeeButton(engine, candidate, companyId) : disabledAction("Zatrudnij", "Brak uprawnienia do zatrudniania")}
+      </div>
+    </article>
+  `;
+}
+
+function renderHireEmployeeButton(engine, candidate, companyId) {
+  const payload = { candidateId: candidate.id, companyId };
+  const result = engine.explainAction(ActionTypes.HIRE_COMPANY_EMPLOYEE, payload);
+  if (!result.ok) return disabledAction("Zatrudnij", valueLabel(result.reasons[0]));
+  if (candidate.hiredCompanyId === companyId) return disabledAction("Zatrudniony", "Pracownik jest już w tej firmie");
+  return `
+    <button class="action ready" data-ui-type="action" data-action="${ActionTypes.HIRE_COMPANY_EMPLOYEE}" data-payload="${encodePayload(payload)}" data-confirm-message="Czy chcesz przypisać tego pracownika do firmy?">
+      <strong>Zatrudnij</strong>
+      <span>Przypisz do firmy</span>
+    </button>
+  `;
+}
+
+function employeeCategories() {
+  return [
+    { id: "drivers", label: "Kierowcy", description: "Kierowcy z dokumentami i kategoriami prawa jazdy" },
+    { id: "dispatchers", label: "Spedytorzy / Dyspozytorzy", description: "Planowanie tras i kontakt operacyjny" },
+    { id: "fleet_managers", label: "Managerowie floty", description: "Pojazdy, serwis i zgodność floty" },
+    { id: "accounting", label: "Księgowość", description: "Faktury, rozliczenia i płatności firmy" },
+    { id: "administration", label: "Pracownicy administracyjni", description: "Dokumenty i obsługa biura" }
+  ];
+}
+
+function employeeCandidatesForCategory(state, categoryId) {
+  return (state.companyEmployeeCandidates || []).filter((candidate) => candidate.category === categoryId);
+}
+
+function companyEmployees(state) {
+  const companyId = activeCompanyId(state);
+  const memberships = (state.userCompanyRoles || [])
+    .filter((membership) => membership.companyId === companyId && membership.status === "active")
+    .map((membership) => ({
+      membership,
+      user: (state.users || []).find((item) => item.id === membership.userId)
+    }))
+    .filter((item) => item.user);
+  return memberships;
+}
+
+function canManageCompanyEmployees(state) {
+  const permissions = state.access?.permissions || [];
+  return permissions.includes("company.employees.manage") || permissions.includes("company.employees.invite");
+}
+
+function canRemoveCompanyEmployees(state) {
+  const permissions = state.access?.permissions || [];
+  return permissions.includes("company.employees.remove") || permissions.includes("company.remove_users");
+}
+
+function employeePermissionSummary(state, membership) {
+  const actorPermissions = state.access?.permissions || [];
+  const permissions = membership.userId === activeUserId(state)
+    ? actorPermissions
+    : [...(membership.permissions || [])];
+  const defaults = {
+    owner: "pełne zarządzanie firmą",
+    admin: "administracja firmy",
+    dispatcher: "transporty i przypisania",
+    driver: "własne transporty kierowcy",
+    fleet_manager: "pojazdy i kierowcy",
+    carrier_accountant: "faktury i rozliczenia",
+    company_employee: "dokumenty i komunikacja",
+    finance: "finanse firmy",
+    employee: "operacje firmy"
+  };
+  return permissions.length ? `${permissions.length} uprawnień` : defaults[membership.roleName] || "podstawowe";
 }
 
 function renderVehicleDetailCard(vehicle) {

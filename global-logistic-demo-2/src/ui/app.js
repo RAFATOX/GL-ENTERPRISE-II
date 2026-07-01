@@ -98,6 +98,12 @@ root.addEventListener("click", (event) => {
     return;
   }
 
+  const employeeCategory = target.closest("[data-employee-category]");
+  if (employeeCategory) {
+    activateEmployeeCategory(employeeCategory);
+    return;
+  }
+
   const detailTarget = target.closest("[data-detail-route]");
   if (detailTarget) {
     if (detailTarget.dataset.transport) {
@@ -133,6 +139,7 @@ root.addEventListener("click", (event) => {
   const actionButton = target.closest("[data-action]");
   if (actionButton) {
     if (actionButton.dataset.action === ActionTypes.RESET_DEMO && !confirmDemoReset()) return;
+    if (actionButton.dataset.confirmMessage && !window.confirm(actionButton.dataset.confirmMessage)) return;
     const parsed = parsePayload(actionButton.dataset.payload);
     if (!parsed.ok) {
       engine.dispatchAction(actionButton.dataset.action, {}, { payloadError: parsed.error });
@@ -279,6 +286,20 @@ function activateProfileTab(button) {
   });
   shell.querySelectorAll("[data-profile-panel]").forEach((panel) => {
     const active = panel.dataset.profilePanel === tabId;
+    panel.hidden = !active;
+    panel.classList.toggle("is-active", active);
+  });
+}
+
+function activateEmployeeCategory(button) {
+  const shell = button.closest(".company-employees-shell");
+  if (!shell) return;
+  const categoryId = button.dataset.employeeCategory;
+  shell.querySelectorAll("[data-employee-category]").forEach((item) => {
+    item.setAttribute("aria-selected", item === button ? "true" : "false");
+  });
+  shell.querySelectorAll("[data-employee-category-panel]").forEach((panel) => {
+    const active = panel.dataset.employeeCategoryPanel === categoryId;
     panel.hidden = !active;
     panel.classList.toggle("is-active", active);
   });

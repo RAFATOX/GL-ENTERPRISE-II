@@ -16,6 +16,7 @@ import {
 } from "../src/core/constants.js";
 import { GLCoreEngine } from "../src/core/gl-core-engine.js";
 import {
+  CompanyPermissions,
   DriverPermissions,
   FinancePermissions,
   KnowledgePermissions,
@@ -98,6 +99,7 @@ function assertAllButtonsHaveBehavior(html, label = "ui") {
       "data-module-route=",
       "data-profile-target=",
       "data-profile-tab=",
+      "data-employee-category=",
       "data-detail-route=",
       "data-role=",
       "data-language-option",
@@ -1302,6 +1304,99 @@ test("carrier owner sees company and transports through permissions", () => {
   assert.ok(modules.includes("loads"));
   assert.ok(actor.permissions.includes(LoadPermissions.MANAGE_COMPANY));
   assert.ok(actor.permissions.includes(DriverPermissions.MANAGE));
+});
+
+test("carrier owner sees Employees module and driver without permission is blocked", () => {
+  const owner = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  const ownerActor = owner.getActor();
+  const ownerModules = getVisibleModules(ownerActor, ownerActor.role).map((item) => item.id);
+  const employeesRoute = owner.dispatchAction(ActionTypes.SELECT_VIEW, { view: "employees", route: "/employees" });
+  const employeesHtml = renderApp(owner.getSnapshot(), owner);
+
+  assert.ok(ownerActor.permissions.includes(CompanyPermissions.EMPLOYEES_MANAGE));
+  assert.ok(ownerModules.includes("employees"));
+  assert.equal(employeesRoute.ok, true);
+  assert.ok(employeesHtml.includes("Pracownicy firmy"));
+  assert.ok(employeesHtml.includes("data-employee-category=\"drivers\""));
+  assert.ok(employeesHtml.includes("Spedytorzy / Dyspozytorzy"));
+  assert.ok(employeesHtml.includes("Managerowie floty"));
+
+  owner.dispatchAction(ActionTypes.SELECT_VIEW, {
+    view: "profile",
+    route: "/profile",
+    profileTargetId: "co-carrier-a",
+    profileTargetType: "company"
+  });
+  const profileHtml = renderApp(owner.getSnapshot(), owner);
+  assert.ok(profileHtml.includes("data-profile-tab=\"employees\""));
+
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const driverActor = driver.getActor();
+  const driverModules = getVisibleModules(driverActor, driverActor.role).map((item) => item.id);
+  const denied = driver.dispatchAction(ActionTypes.SELECT_VIEW, { view: "employees", route: "/employees" });
+  const deniedHtml = renderApp(driver.getSnapshot(), driver);
+
+  assert.equal(driverActor.permissions.includes(CompanyPermissions.EMPLOYEES_READ), false);
+  assert.equal(driverModules.includes("employees"), false);
+  assert.equal(denied.ok, false);
+  assert.ok(deniedHtml.includes("Brak dost"));
+});
+
+test("hiring demo employees creates UserCompanyRole, company list entry and audit log", () => {
+  const engine = engineForUserContext("u-carrier-owner", "co-carrier-a");
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "employees", route: "/employees" });
+  const driverHire = engine.dispatchAction(ActionTypes.HIRE_COMPANY_EMPLOYEE, {
+    candidateId: "cand-driver-1",
+    companyId: "co-carrier-a"
+  });
+  const dispatcherHire = engine.dispatchAction(ActionTypes.HIRE_COMPANY_EMPLOYEE, {
+    candidateId: "cand-dispatcher-1",
+    companyId: "co-carrier-a"
+  });
+  const fleetHire = engine.dispatchAction(ActionTypes.HIRE_COMPANY_EMPLOYEE, {
+    candidateId: "cand-fleet-1",
+    companyId: "co-carrier-a"
+  });
+  const driverMembership = engine.state.userCompanyRoles.find((item) => item.userId === "u-cand-driver-1" && item.companyId === "co-carrier-a");
+  const dispatcherMembership = engine.state.userCompanyRoles.find((item) => item.userId === "u-cand-dispatcher-1" && item.companyId === "co-carrier-a");
+  const fleetMembership = engine.state.userCompanyRoles.find((item) => item.userId === "u-cand-fleet-1" && item.companyId === "co-carrier-a");
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(driverHire.ok, true);
+  assert.equal(dispatcherHire.ok, true);
+  assert.equal(fleetHire.ok, true);
+  assert.equal(driverMembership.roleName, CompanyRoleNames.DRIVER);
+  assert.equal(dispatcherMembership.roleName, CompanyRoleNames.DISPATCHER);
+  assert.equal(fleetMembership.roleName, CompanyRoleNames.FLEET_MANAGER);
+  assert.ok(engine.state.companies.find((item) => item.id === "co-carrier-a").people.includes("u-cand-driver-1"));
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.COMPANY_EMPLOYEE_HIRED && entry.objectId === driverMembership.id));
+  assert.ok(html.includes("Pracownik zosta"));
+  assert.ok(html.includes("Adam Nowak"));
+
+  activateUserRole(engine, "u-cand-driver-1", Roles.DRIVER, { contextType: "company", companyId: "co-carrier-a" });
+  const hiredDriver = engine.getActor();
+  const hiredDriverSnapshot = engine.getSnapshot();
+  assert.equal(hiredDriver.companyRole, CompanyRoleNames.DRIVER);
+  assert.equal(hiredDriver.permissions.includes(FinancePermissions.WALLET_COMPANY_READ), false);
+  assert.equal(hiredDriverSnapshot.access.financialScope, "user");
+  assert.equal(hiredDriverSnapshot.wallets.some((wallet) => wallet.modelType === "CompanyWallet"), false);
+
+  activateUserRole(engine, "u-cand-dispatcher-1", Roles.CARRIER_DISPATCHER, { contextType: "company", companyId: "co-carrier-a" });
+  const hiredDispatcher = engine.getActor();
+  const dispatcherModules = getVisibleModules(hiredDispatcher, hiredDispatcher.role).map((item) => item.id);
+  assert.equal(hiredDispatcher.companyRole, CompanyRoleNames.DISPATCHER);
+  assert.ok(hiredDispatcher.permissions.includes(LoadPermissions.MANAGE_COMPANY));
+  assert.ok(dispatcherModules.includes("transports"));
+  assert.equal(dispatcherModules.includes("wallet"), false);
+  assert.equal(hiredDispatcher.permissions.includes(FinancePermissions.WALLET_COMPANY_READ), false);
+
+  activateUserRole(engine, "u-cand-fleet-1", Roles.CARRIER_DISPATCHER, { contextType: "company", companyId: "co-carrier-a" });
+  const hiredFleetManager = engine.getActor();
+  const fleetModules = getVisibleModules(hiredFleetManager, hiredFleetManager.role).map((item) => item.id);
+  assert.equal(hiredFleetManager.companyRole, CompanyRoleNames.FLEET_MANAGER);
+  assert.ok(hiredFleetManager.permissions.includes(DriverPermissions.MANAGE));
+  assert.ok(fleetModules.includes("company"));
+  assert.equal(fleetModules.includes("wallet"), false);
 });
 
 test("carrier can add driver, add vehicle, search load and assign both to accepted load", () => {
