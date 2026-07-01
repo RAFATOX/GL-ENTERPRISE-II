@@ -48,6 +48,9 @@ export class GlIdentityEngine {
     user.phoneOtpChallengeId = phoneChallenge.id;
     this.state.session.userId = user.id;
     this.state.session.role = Roles.READONLY_AUDITOR;
+    this.state.session.language = payload.language;
+    this.state.session.country = payload.country;
+    this.state.session.languageSelected = true;
     this.state.session.onboardingUserId = user.id;
     this.state.session.onboardingRequired = true;
     this.state.session.view = "onboarding";

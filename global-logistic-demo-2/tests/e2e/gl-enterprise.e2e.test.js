@@ -127,6 +127,7 @@ function decodeHtml(value = "") {
 
 function completeClientCompanyOnboarding() {
   const engine = createEngine();
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "pl", country: "PL" }).ok, true);
   const start = submitRenderedForm(engine, ActionTypes.ONBOARDING_START, {
     language: "pl",
     country: "PL",
@@ -217,6 +218,11 @@ function assertButtonsHaveBehavior(html) {
       "data-profile-tab=",
       "data-detail-route=",
       "data-role=",
+      "data-language-option",
+      "data-brand-menu-toggle",
+      "data-brand-menu-action",
+      "data-brand-menu-cancel",
+      "data-brand-confirm-reset",
       "data-reset-demo=",
       "type=\"submit\""
     ].some((marker) => attrs.includes(marker));
@@ -226,7 +232,11 @@ function assertButtonsHaveBehavior(html) {
 
 test("e2e: onboarding przechodzi od wyboru jezyka i telefonu do ekranu OTP", () => {
   const engine = createEngine();
+  const languageHtml = render(engine);
+  assert.ok(languageHtml.includes("data-language-selection"));
+  const selectedLanguage = engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "pl", country: "PL" });
   const startHtml = render(engine);
+  assert.equal(selectedLanguage.ok, true);
   assert.ok(startHtml.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`));
 
   const result = submitRenderedForm(engine, ActionTypes.ONBOARDING_START, {
@@ -241,6 +251,46 @@ test("e2e: onboarding przechodzi od wyboru jezyka i telefonu do ekranu OTP", () 
   assert.ok(otpHtml.includes("Weryfikacja telefonu"));
   assert.ok(otpHtml.includes(`data-form-action="${ActionTypes.ONBOARDING_VERIFY_PHONE}"`));
   assert.equal(otpHtml.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`), false);
+});
+
+test("e2e: menu logo GL pozwala zmienic jezyk, wrocic do startu i resetowac bez technicznych komunikatow", () => {
+  const engine = engineForUserContext("u-role-switch", "co-carrier-a");
+  const before = {
+    users: engine.state.users.length,
+    companies: engine.state.companies.length,
+    transports: engine.state.transports.length,
+    wallets: engine.state.wallets.length
+  };
+  let html = render(engine);
+
+  assert.ok(html.includes("data-brand-menu-toggle"));
+  assert.ok(html.includes("Zmień język"));
+  assert.ok(html.includes("Czy na pewno chcesz zresetować demo?"));
+  assert.equal(html.includes("DEMO_RESET"), false);
+  assert.equal(html.includes("UI_VIEW_CHANGED"), false);
+
+  assert.equal(engine.dispatchAction(ActionTypes.OPEN_LANGUAGE_SELECTION, {}).ok, true);
+  html = render(engine);
+  assert.ok(html.includes("data-language-selection"));
+  assert.equal(engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "fr", country: "FR" }).ok, true);
+  assert.equal(engine.state.session.language, "fr");
+  assert.equal(engine.state.users.length, before.users);
+  assert.equal(engine.state.companies.length, before.companies);
+  assert.equal(engine.state.transports.length, before.transports);
+  assert.equal(engine.state.wallets.length, before.wallets);
+
+  assert.equal(engine.dispatchAction(ActionTypes.RETURN_TO_START, {}).ok, true);
+  html = render(engine);
+  assert.ok(html.includes("data-language-selection"));
+  assert.equal(engine.state.transports.length, before.transports);
+
+  engine.state.session.activeRole = Roles.CARRIER_OWNER;
+  engine.state.session.activeContext = { contextType: "company", companyId: "co-carrier-a" };
+  assert.equal(engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true }).ok, true);
+  html = render(engine);
+  assert.ok(html.includes("data-language-selection"));
+  assert.equal(engine.state.session.activeRole, undefined);
+  assert.equal(engine.state.session.activeContext, undefined);
 });
 
 test("e2e: onboarding tworzy firme, UserCompanyRole i pozwala wybrac kontekst firmy", () => {

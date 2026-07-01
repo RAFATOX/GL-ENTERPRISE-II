@@ -23,7 +23,15 @@ const authActions = new Set([
   ActionTypes.AUTH_PASSWORD_RESET_START,
   ActionTypes.AUTH_PASSWORD_RESET_CONFIRM
 ]);
-const sessionActions = new Set([ActionTypes.SELECT_CONTEXT, ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT]);
+const sessionActions = new Set([
+  ActionTypes.SELECT_LANGUAGE,
+  ActionTypes.OPEN_LANGUAGE_SELECTION,
+  ActionTypes.RETURN_TO_START,
+  ActionTypes.SELECT_CONTEXT,
+  ActionTypes.SELECT_ROLE,
+  ActionTypes.SELECT_VIEW,
+  ActionTypes.SELECT_TRANSPORT
+]);
 
 const rolePermissions = {
   [Roles.PLATFORM_OWNER]: platformActions,
@@ -438,6 +446,10 @@ export class PermissionsEngine {
       return { ok: true, reason: "demo reset allowed" };
     }
 
+    if ([ActionTypes.SELECT_LANGUAGE, ActionTypes.OPEN_LANGUAGE_SELECTION, ActionTypes.RETURN_TO_START].includes(actionType)) {
+      return { ok: true, reason: "start and language selection allowed before app access" };
+    }
+
     if (onboardingActions.has(actionType)) {
       return { ok: true, reason: "onboarding action allowed before app access" };
     }
@@ -759,6 +771,9 @@ export class PermissionsEngine {
 
 function transportForContext(context) {
   const nonTransportActions = [
+    ActionTypes.SELECT_LANGUAGE,
+    ActionTypes.OPEN_LANGUAGE_SELECTION,
+    ActionTypes.RETURN_TO_START,
     ActionTypes.SELECT_ROLE,
     ActionTypes.SELECT_CONTEXT,
     ActionTypes.SELECT_VIEW,

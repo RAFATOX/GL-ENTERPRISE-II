@@ -1,6 +1,7 @@
 import { ActionTypes } from "../core/constants.js";
 import { GLCoreEngine } from "../core/gl-core-engine.js";
 import { moduleForRoute, normalizeRoute } from "../core/modules-config.js";
+import { t } from "../translation/ui-translation-engine.js";
 import { renderApp } from "./renderers.js";
 import { parsePayload, payloadFromForm } from "./action-handler.js";
 import { firstRouteForRole, routeForRoleView } from "./role-config.js";
@@ -28,9 +29,47 @@ root.addEventListener("click", (event) => {
   const target = eventTargetElement(event);
   if (!target) return;
 
+  const brandToggle = target.closest("[data-brand-menu-toggle]");
+  if (brandToggle) {
+    toggleBrandMenu(brandToggle);
+    return;
+  }
+
+  const brandCancel = target.closest("[data-brand-menu-cancel]");
+  if (brandCancel) {
+    closeBrandMenu(brandCancel.closest("[data-brand-menu]"));
+    return;
+  }
+
+  const brandConfirmReset = target.closest("[data-brand-confirm-reset]");
+  if (brandConfirmReset) {
+    closeBrandMenu(brandConfirmReset.closest("[data-brand-menu]"));
+    engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true });
+    setRouteHash("/onboarding");
+    return;
+  }
+
+  const brandMenuAction = target.closest("[data-brand-menu-action]");
+  if (brandMenuAction) {
+    handleBrandMenuAction(brandMenuAction);
+    return;
+  }
+
   const resetButton = target.closest("[data-reset-demo]");
   if (resetButton) {
+    if (!confirmDemoReset()) return;
     engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true });
+    setRouteHash("/onboarding");
+    return;
+  }
+
+  const languageOption = target.closest("[data-language-option]");
+  if (languageOption) {
+    engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, {
+      language: languageOption.dataset.language,
+      country: languageOption.dataset.country,
+      detectedLanguage: languageOption.dataset.detectedLanguage || null
+    });
     return;
   }
 
@@ -93,6 +132,7 @@ root.addEventListener("click", (event) => {
 
   const actionButton = target.closest("[data-action]");
   if (actionButton) {
+    if (actionButton.dataset.action === ActionTypes.RESET_DEMO && !confirmDemoReset()) return;
     const parsed = parsePayload(actionButton.dataset.payload);
     if (!parsed.ok) {
       engine.dispatchAction(actionButton.dataset.action, {}, { payloadError: parsed.error });
@@ -131,6 +171,12 @@ root.addEventListener("change", (event) => {
   }
 });
 
+root.addEventListener("input", (event) => {
+  const search = event.target.closest("[data-language-search]");
+  if (!search) return;
+  filterLanguageTiles(search);
+});
+
 root.addEventListener("submit", (event) => {
   const target = eventTargetElement(event);
   const form = target?.closest("[data-form-action]");
@@ -153,6 +199,27 @@ function submitDemoForm(form) {
   const result = engine.dispatchAction(parsed.action, parsed.payload, { source: "demo-form" });
   if (result.ok && parsed.action === ActionTypes.ONBOARDING_APPROVE) {
     setRouteHash("#/dashboard");
+  }
+}
+
+function handleBrandMenuAction(button) {
+  const action = button.dataset.brandMenuAction;
+  const menu = button.closest("[data-brand-menu]");
+  if (action === "reset") {
+    const actions = menu?.querySelector("[data-brand-menu-actions]");
+    const confirm = menu?.querySelector("[data-brand-reset-confirm]");
+    if (actions) actions.hidden = true;
+    if (confirm) confirm.hidden = false;
+    return;
+  }
+  closeBrandMenu(menu);
+  if (action === "language") {
+    engine.dispatchAction(ActionTypes.OPEN_LANGUAGE_SELECTION, {});
+    return;
+  }
+  if (action === "start") {
+    engine.dispatchAction(ActionTypes.RETURN_TO_START, {});
+    setRouteHash("/onboarding");
   }
 }
 
@@ -215,6 +282,53 @@ function activateProfileTab(button) {
     panel.hidden = !active;
     panel.classList.toggle("is-active", active);
   });
+}
+
+function toggleBrandMenu(button) {
+  const control = button.closest(".brand-control");
+  const menu = control?.querySelector("[data-brand-menu]");
+  if (!menu) return;
+  const nextOpen = menu.hidden;
+  root.querySelectorAll("[data-brand-menu]").forEach((item) => {
+    if (item !== menu) closeBrandMenu(item);
+  });
+  menu.hidden = !nextOpen;
+  button.setAttribute("aria-expanded", String(nextOpen));
+  resetBrandMenuConfirm(menu);
+}
+
+function closeBrandMenu(menu) {
+  if (!menu) return;
+  menu.hidden = true;
+  resetBrandMenuConfirm(menu);
+  const toggle = menu.closest(".brand-control")?.querySelector("[data-brand-menu-toggle]");
+  if (toggle) toggle.setAttribute("aria-expanded", "false");
+}
+
+function resetBrandMenuConfirm(menu) {
+  const actions = menu?.querySelector("[data-brand-menu-actions]");
+  const confirm = menu?.querySelector("[data-brand-reset-confirm]");
+  if (actions) actions.hidden = false;
+  if (confirm) confirm.hidden = true;
+}
+
+function confirmDemoReset() {
+  const language = engine.getSnapshot().session.language || "pl";
+  return window.confirm(t("brand.confirm_reset", {}, language));
+}
+
+function filterLanguageTiles(search) {
+  const shell = search.closest("[data-language-selection]");
+  if (!shell) return;
+  const query = search.value.trim().toLowerCase();
+  let visible = 0;
+  shell.querySelectorAll("[data-language-option]").forEach((tile) => {
+    const matches = !query || String(tile.dataset.search || "").includes(query);
+    tile.hidden = !matches;
+    if (matches) visible += 1;
+  });
+  const empty = shell.querySelector("[data-language-empty]");
+  if (empty) empty.hidden = visible > 0;
 }
 
 function syncRouteFromHash() {

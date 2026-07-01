@@ -41,6 +41,6 @@ export class StateStore {
   }
 
   browserDemoState() {
-    return createDemoState({ startInApp: true });
+    return createDemoState();
   }
 }

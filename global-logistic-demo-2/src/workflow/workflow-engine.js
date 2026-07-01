@@ -68,6 +68,13 @@ export class WorkflowEngine {
     }
 
     switch (actionType) {
+      case ActionTypes.OPEN_LANGUAGE_SELECTION:
+      case ActionTypes.RETURN_TO_START:
+        break;
+      case ActionTypes.SELECT_LANGUAGE:
+        if (!payload.language) reasons.push(v("language_required"));
+        if (!payload.country) reasons.push(v("country_required"));
+        break;
       case ActionTypes.SELECT_CONTEXT:
         if (!payload.contextType) reasons.push(v("context_type_required"));
         if (payload.contextType === "company" && !payload.companyId) reasons.push(v("company_id_required"));
@@ -316,6 +323,46 @@ export class WorkflowEngine {
     const transport = modules.transports.getById(payload.transportId || state.session.selectedTransportId);
 
     switch (actionType) {
+      case ActionTypes.OPEN_LANGUAGE_SELECTION:
+        state.session.languageSelectionOpen = true;
+        state.session.languageSelectionReturnView = state.session.view || "dashboard";
+        return {
+          events: [sessionEvent(EventTypes.UI_VIEW_CHANGED, "language_selection", "language selection opened")]
+        };
+      case ActionTypes.SELECT_LANGUAGE: {
+        const previous = state.session.language || null;
+        state.session.language = payload.language;
+        state.session.country = payload.country;
+        state.session.languageSelected = true;
+        state.session.languageSelectionOpen = false;
+        state.session.languageSelectionReturnView = null;
+        if (payload.detectedLanguage) state.session.detectedLanguage = payload.detectedLanguage;
+        const user = state.users.find((item) => item.id === state.session.onboardingUserId);
+        if (user) {
+          user.language = payload.language;
+          user.country = payload.country;
+          user.countryOfResidence = payload.country;
+        }
+        return {
+          events: [{
+            ...sessionEvent(EventTypes.ONBOARDING_LANGUAGE_SELECTED, payload.language, "language selected"),
+            previousState: previous,
+            newState: payload.language
+          }]
+        };
+      }
+      case ActionTypes.RETURN_TO_START:
+        state.session.languageSelectionOpen = false;
+        state.session.languageSelectionReturnView = null;
+        state.session.languageSelected = false;
+        state.session.onboardingRequired = true;
+        state.session.onboardingUserId = null;
+        state.session.view = "onboarding";
+        state.session.deniedView = null;
+        state.session.deniedRoute = null;
+        return {
+          events: [sessionEvent(EventTypes.UI_VIEW_CHANGED, "start", "returned to application start")]
+        };
       case ActionTypes.SELECT_CONTEXT:
         return this.selectContext(state, modules, payload, actor);
       case ActionTypes.SELECT_ROLE:
@@ -894,7 +941,15 @@ function transportVisibleForRole(state, transport, role, companyId, userId) {
 }
 
 function sessionOnly(actionType) {
-  return [ActionTypes.SELECT_CONTEXT, ActionTypes.SELECT_ROLE, ActionTypes.SELECT_VIEW, ActionTypes.SELECT_TRANSPORT].includes(actionType);
+  return [
+    ActionTypes.SELECT_LANGUAGE,
+    ActionTypes.OPEN_LANGUAGE_SELECTION,
+    ActionTypes.RETURN_TO_START,
+    ActionTypes.SELECT_CONTEXT,
+    ActionTypes.SELECT_ROLE,
+    ActionTypes.SELECT_VIEW,
+    ActionTypes.SELECT_TRANSPORT
+  ].includes(actionType);
 }
 
 function requiresVerifiedRole(actionType) {

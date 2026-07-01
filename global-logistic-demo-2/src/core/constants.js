@@ -1,5 +1,5 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 15;
+export const DEMO_DATA_VERSION = 16;
 export const STORAGE_KEY = "global-logistic-gl2-core-engine-v9";
 
 export const Roles = Object.freeze({
@@ -249,6 +249,9 @@ export const PaymentStatuses = Object.freeze({
 });
 
 export const ActionTypes = Object.freeze({
+  SELECT_LANGUAGE: "SELECT_LANGUAGE",
+  OPEN_LANGUAGE_SELECTION: "OPEN_LANGUAGE_SELECTION",
+  RETURN_TO_START: "RETURN_TO_START",
   SELECT_CONTEXT: "SELECT_CONTEXT",
   SELECT_ROLE: "SELECT_ROLE",
   SELECT_VIEW: "SELECT_VIEW",

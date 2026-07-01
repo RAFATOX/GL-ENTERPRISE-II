@@ -14,6 +14,7 @@ import {
   viewAllowedForRole
 } from "./role-config.js";
 import { t, translateValue } from "../translation/ui-translation-engine.js";
+import { languageOptionFor, languageOptions, searchIndexForLanguage } from "../translation/language-options.js";
 
 let uiLanguage = "pl";
 
@@ -28,6 +29,9 @@ function valueLabel(value) {
 export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
   uiLanguage = state.session.language || "pl";
+  if (state.session.languageSelectionOpen) {
+    return renderLanguageSelectionApp(state);
+  }
   if (shouldRenderOnboarding(state)) {
     return renderOnboardingApp(state, engine);
   }
@@ -42,13 +46,7 @@ export function renderApp(state, engine) {
   return `
     <div class="app-shell role-${state.session.role}">
       <aside class="side">
-        <button class="brand" data-ui-type="action" data-reset-demo="true" type="button" aria-label="GL Enterprise II - rozpocznij od początku">
-          <div class="brand-mark">GL</div>
-          <div>
-            <strong>GL Enterprise II</strong>
-            <span>${roleConfig.workspace}</span>
-          </div>
-        </button>
+        ${renderBrandMenu(roleConfig.workspace)}
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>${ui("app.active_space")}</span>
@@ -65,11 +63,54 @@ export function renderApp(state, engine) {
   `;
 }
 
+function renderLanguageSelectionApp(state) {
+  return `
+    <div class="app-shell onboarding-app">
+      <main class="main onboarding-main">
+        ${renderBrandMenu(ui("language_selection.eyebrow"), "onboarding-brand")}
+        <section class="panel">
+          ${renderLanguageSelection(state)}
+        </section>
+      </main>
+    </div>
+  `;
+}
+
 function shouldRenderOnboarding(state) {
   const user = onboardingUser(state);
   if (state.session.onboardingRequired) return true;
   if (!user) return true;
   return ![AccountStatuses.APPROVED, AccountStatuses.VERIFIED].includes(user.accountStatus);
+}
+
+function renderBrandMenu(workspaceLabel, brandClass = "") {
+  return `
+    <div class="brand-control">
+      <button class="brand ${brandClass}" data-ui-type="action" data-brand-menu-toggle type="button" aria-label="${ui("brand.menu_label")}" aria-expanded="false">
+        <div class="brand-mark">GL</div>
+        <div>
+          <strong>GL Enterprise II</strong>
+          <span>${workspaceLabel}</span>
+        </div>
+      </button>
+      <div class="brand-menu" data-brand-menu hidden>
+        <div class="brand-menu-actions" data-brand-menu-actions>
+          <button type="button" data-ui-type="action" data-brand-menu-action="language">${ui("brand.change_language")}</button>
+          <button type="button" data-ui-type="action" data-brand-menu-action="start">${ui("brand.return_to_start")}</button>
+          <button type="button" data-ui-type="action" data-brand-menu-action="reset">${ui("brand.reset_demo")}</button>
+          <button type="button" data-ui-type="action" data-brand-menu-cancel>${ui("brand.cancel")}</button>
+        </div>
+        <div class="brand-reset-confirm" data-brand-reset-confirm hidden>
+          <strong>${ui("brand.confirm_reset")}</strong>
+          <span>${ui("brand.confirm_reset_hint")}</span>
+          <div class="brand-confirm-actions">
+            <button type="button" data-ui-type="action" data-brand-confirm-reset>${ui("brand.confirm_reset_button")}</button>
+            <button type="button" data-ui-type="action" data-brand-menu-cancel>${ui("brand.cancel")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderOnboardingApp(state, engine) {
@@ -78,11 +119,12 @@ function renderOnboardingApp(state, engine) {
     ui("onboarding.language"),
     ui("onboarding.country"),
     ui("onboarding.field.phone"),
-    "zgody"
+    ui("onboarding.consents")
   ];
   return `
     <div class="app-shell onboarding-app">
       <main class="main onboarding-main">
+        ${renderBrandMenu(ui("language_selection.eyebrow"), "onboarding-brand")}
         <section class="panel onboarding-hero">
           <span class="eyebrow">${ui("onboarding.engine")}</span>
           <h1>${ui("onboarding.title")}</h1>
@@ -125,7 +167,10 @@ function renderOnboardingApp(state, engine) {
 }
 
 function renderOnboardingStep(state, engine, user) {
-  if (!user || !state.session.onboardingUserId) return renderOnboardingStartForm();
+  if (!user || !state.session.onboardingUserId) {
+    if (!state.session.languageSelected) return renderLanguageSelection(state);
+    return renderOnboardingStartForm(state);
+  }
   if (!user.phoneVerified) return renderOtpForm(user);
   if (!user.firstName || !user.lastName || !user.email) return renderAccountForm(user);
   if (!user.selectedRole) return renderRoleSelectionForm(engine, user);
@@ -136,22 +181,69 @@ function renderOnboardingStep(state, engine, user) {
   return renderOnboardingApprovalForm(user);
 }
 
-function renderOnboardingStartForm() {
+function renderLanguageSelection(state) {
+  const detected = languageOptionFor(detectedLanguageId(state));
+  const selected = languageOptionFor(state.session.language || detected.id);
+  return `
+    <section class="language-selection" data-language-selection>
+      <span class="eyebrow">${ui("language_selection.eyebrow")}</span>
+      <div class="language-head">
+        <div>
+          <h2>${ui("language_selection.title")}</h2>
+          <p class="muted">${ui("language_selection.description")}</p>
+        </div>
+        <div class="language-detected">
+          <span>${ui("language_selection.detected", { language: detected.languageName })}</span>
+        </div>
+      </div>
+      <label class="language-search">
+        ${ui("language_selection.search_label")}
+        <input type="search" data-language-search placeholder="${escapeHtml(ui("language_selection.search_placeholder"))}" />
+      </label>
+      <div class="language-grid">
+        ${languageOptions.map((option) => {
+          const recommended = option.id === detected.id;
+          const isSelected = option.id === selected.id;
+          return `
+            <button
+              class="language-tile ${recommended ? "recommended" : ""} ${isSelected ? "selected" : ""}"
+              type="button"
+              data-ui-type="action"
+              data-language-option
+              data-language="${option.id}"
+              data-country="${option.country}"
+              data-detected-language="${detected.id}"
+              data-search="${escapeHtml(searchIndexForLanguage(option))}"
+              aria-label="${escapeHtml(`${ui("language_selection.choose")} ${option.countryName} ${option.languageName}`)}">
+              <span class="language-flag" aria-hidden="true">${option.flag}</span>
+              <span class="language-country">${option.countryName}</span>
+              <small>${option.languageName}</small>
+              ${recommended ? `<mark>${ui("language_selection.recommended")}</mark>` : ""}
+            </button>
+          `;
+        }).join("")}
+      </div>
+      <p class="muted language-empty" data-language-empty hidden>${ui("language_selection.no_results")}</p>
+    </section>
+  `;
+}
+
+function detectedLanguageId(state) {
+  if (state.session.detectedLanguage) return state.session.detectedLanguage;
+  if (typeof navigator !== "undefined" && navigator.language) return navigator.language;
+  return state.session.language || "pl";
+}
+
+function renderOnboardingStartForm(state) {
+  const language = languageOptionFor(state.session.language || "pl");
   return `
     <span class="eyebrow">${ui("onboarding.step1.eyebrow")}</span>
     <h2>${ui("onboarding.step1.title")}</h2>
     <form class="demo-form" data-form-action="${ActionTypes.ONBOARDING_START}">
-      <label>${ui("onboarding.language")}<select name="language">
-        <option value="pl">Polski</option>
-        <option value="en">English</option>
-        <option value="de">Deutsch</option>
-      </select></label>
-      <label>${ui("onboarding.country")}<select name="country">
-        <option value="PL">Polska</option>
-        <option value="DE">Niemcy</option>
-        <option value="NL">Holandia</option>
-        <option value="CZ">Czechy</option>
-      </select></label>
+      <input type="hidden" name="language" value="${language.id}" />
+      <input type="hidden" name="country" value="${language.country}" />
+      <div class="form-summary"><span>${ui("onboarding.language")}</span><strong>${language.languageName}</strong></div>
+      <div class="form-summary"><span>${ui("onboarding.country")}</span><strong>${language.countryName}</strong></div>
       <label>${ui("onboarding.phone_number")}<input name="phone" value="+48500111222" /></label>
       <label><input type="checkbox" name="termsConsent" value="true" checked /> ${ui("onboarding.terms")}</label>
       <label><input type="checkbox" name="identityConsent" value="true" checked /> ${ui("onboarding.identity_consent")}</label>

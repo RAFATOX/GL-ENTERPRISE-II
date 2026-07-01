@@ -32,6 +32,7 @@ import { menuForRole, viewAllowedForRole } from "../src/ui/role-config.js";
 import { renderApp, selectedTransport } from "../src/ui/renderers.js";
 import { EscrowEngine } from "../src/escrow/escrow-engine.js";
 import { WalletEngine } from "../src/wallets/wallet-engine.js";
+import { languageOptions } from "../src/translation/language-options.js";
 
 function memoryStore() {
   let state = null;
@@ -99,6 +100,11 @@ function assertAllButtonsHaveBehavior(html, label = "ui") {
       "data-profile-tab=",
       "data-detail-route=",
       "data-role=",
+      "data-language-option",
+      "data-brand-menu-toggle",
+      "data-brand-menu-action",
+      "data-brand-menu-cancel",
+      "data-brand-confirm-reset",
       "data-reset-demo=",
       "type=\"submit\""
     ].some((marker) => attrs.includes(marker));
@@ -259,8 +265,109 @@ test("identity document and selfie are required before role approval", () => {
   assert.ok(missingIdentity.reasons.join(" ").includes("dokument tożsamości"));
 });
 
+test("language selection renders searchable country tiles before phone onboarding", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.state.session.detectedLanguage = "de-DE";
+  const html = renderApp(engine.getSnapshot(), engine);
+  const tileCount = [...html.matchAll(/data-language-option/g)].length;
+
+  assert.ok(html.includes("data-language-selection"));
+  assert.ok(html.includes("data-language-search"));
+  assert.ok(html.includes("Deutschland"));
+  assert.ok(html.includes("Deutsch"));
+  assert.ok(html.includes("Rekomendowane"));
+  assert.ok(tileCount >= 50);
+  assert.equal(languageOptions.length >= 50, true);
+  assert.equal(html.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`), false);
+});
+
+test("language selection action persists language and unlocks phone onboarding form", () => {
+  const engine = new GLCoreEngine({ store: memoryStore() });
+  const result = engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, {
+    language: "en",
+    country: "GB",
+    detectedLanguage: "en"
+  });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, true);
+  assert.equal(engine.state.session.language, "en");
+  assert.equal(engine.state.session.country, "GB");
+  assert.equal(engine.state.session.languageSelected, true);
+  assert.ok(result.events.some((event) => event.type === EventTypes.ONBOARDING_LANGUAGE_SELECTED));
+  assert.ok(html.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`));
+  assert.ok(html.includes('name="language" value="en"'));
+  assert.ok(html.includes('name="country" value="GB"'));
+  assert.ok(html.includes("Start registration"));
+});
+
+test("GL logo menu exposes safe start, language and reset options without technical labels", () => {
+  const engine = engineForUserContext("u-role-switch", "co-carrier-a");
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.ok(html.includes("data-brand-menu-toggle"));
+  assert.ok(html.includes("data-brand-menu"));
+  assert.ok(html.includes("Zmień język"));
+  assert.ok(html.includes("Wróć do startu"));
+  assert.ok(html.includes("Reset demo"));
+  assert.ok(html.includes("Czy na pewno chcesz zresetować demo?"));
+  assert.ok(html.includes("data-brand-confirm-reset"));
+  assert.equal(html.includes("DEMO_RESET"), false);
+  assert.equal(html.includes("SELECT_LANGUAGE"), false);
+  assert.equal(html.includes("UI_VIEW_CHANGED"), false);
+});
+
+test("change language from GL logo keeps demo data and returns to current app context", () => {
+  const engine = engineForUserContext("u-role-switch", "co-carrier-a");
+  const before = {
+    userId: engine.state.session.userId,
+    companyId: engine.state.session.companyId,
+    transports: engine.state.transports.length,
+    wallets: engine.state.wallets.length
+  };
+
+  const opened = engine.dispatchAction(ActionTypes.OPEN_LANGUAGE_SELECTION, {});
+  let html = renderApp(engine.getSnapshot(), engine);
+  assert.equal(opened.ok, true);
+  assert.ok(html.includes("data-language-selection"));
+
+  const selected = engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "de", country: "DE" });
+  html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(selected.ok, true);
+  assert.equal(engine.state.session.language, "de");
+  assert.equal(engine.state.session.onboardingRequired, false);
+  assert.equal(engine.state.session.userId, before.userId);
+  assert.equal(engine.state.session.companyId, before.companyId);
+  assert.equal(engine.state.transports.length, before.transports);
+  assert.equal(engine.state.wallets.length, before.wallets);
+  assert.equal(html.includes("data-language-selection"), false);
+});
+
+test("return to start opens first onboarding screen without deleting demo data", () => {
+  const engine = engineForUserContext("u-role-switch", "co-carrier-a");
+  const before = {
+    users: engine.state.users.length,
+    companies: engine.state.companies.length,
+    transports: engine.state.transports.length,
+    wallets: engine.state.wallets.length
+  };
+  const result = engine.dispatchAction(ActionTypes.RETURN_TO_START, {});
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.equal(result.ok, true);
+  assert.equal(engine.state.session.onboardingRequired, true);
+  assert.equal(engine.state.session.languageSelected, false);
+  assert.ok(html.includes("data-language-selection"));
+  assert.equal(engine.state.users.length, before.users);
+  assert.equal(engine.state.companies.length, before.companies);
+  assert.equal(engine.state.transports.length, before.transports);
+  assert.equal(engine.state.wallets.length, before.wallets);
+});
+
 test("browser onboarding form flow moves from language and phone to OTP and account step", () => {
   const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "pl", country: "PL" });
   let html = renderApp(engine.getSnapshot(), engine);
 
   const start = engine.dispatchAction(
@@ -292,6 +399,7 @@ test("browser onboarding form flow moves from language and phone to OTP and acco
 
 test("minimal onboarding submit renders OTP screen in clickable onboarding layout", () => {
   const engine = new GLCoreEngine({ store: memoryStore() });
+  engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "pl", country: "PL" });
   const startHtml = renderApp(engine.getSnapshot(), engine);
   const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
@@ -516,7 +624,7 @@ test("StateStore resets stale localStorage demo data", () => {
   delete global.window;
 });
 
-test("public browser demo starts with working multi-role context switchers", () => {
+test("public browser demo starts with language selection before onboarding", () => {
   const values = new Map();
   global.window = {
     localStorage: {
@@ -527,28 +635,24 @@ test("public browser demo starts with working multi-role context switchers", () 
   };
   try {
     const engine = new GLCoreEngine({ store: new StateStore("gl-public-demo-test") });
-    const html = renderApp(engine.getSnapshot(), engine);
+    let html = renderApp(engine.getSnapshot(), engine);
 
-    assert.equal(engine.state.session.userId, "u-role-switch");
-    assert.equal(engine.state.session.onboardingRequired, false);
-    assert.ok(html.includes("data-role-select"));
-    assert.ok(html.includes("data-context-select"));
-    assert.ok(html.includes("Kierowca"));
-    assert.ok(html.includes("Właściciel przewoźnika"));
-    assert.ok(html.includes("Właściciel platformy"));
-    assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, {
-      role: Roles.CARRIER_OWNER,
-      contextType: "company",
-      companyId: "co-carrier-a"
-    }).ok, true);
-    assert.equal(engine.getActor().role, Roles.CARRIER_OWNER);
-    assert.equal(engine.getActor().companyId, "co-carrier-a");
+    assert.equal(engine.state.session.userId, "u-platform");
+    assert.equal(engine.state.session.onboardingRequired, true);
+    assert.ok(html.includes("data-language-selection"));
+    assert.ok(html.includes("data-language-search"));
+    assert.equal(html.includes("data-role-select"), false);
+    assert.equal(html.includes("data-context-select"), false);
+    const selected = engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, { language: "pl", country: "PL" });
+    html = renderApp(engine.getSnapshot(), engine);
+    assert.equal(selected.ok, true);
+    assert.ok(html.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`));
   } finally {
     delete global.window;
   }
 });
 
-test("GL Enterprise header is a reset button that returns demo to the first role choice", () => {
+test("GL Enterprise header menu reset returns demo to clean language selection", () => {
   const values = new Map();
   global.window = {
     localStorage: {
@@ -561,25 +665,30 @@ test("GL Enterprise header is a reset button that returns demo to the first role
     const engine = new GLCoreEngine({ store: new StateStore("gl-header-reset-test") });
     let html = renderApp(engine.getSnapshot(), engine);
 
-    assert.match(html, /<button[^>]*class="brand"[^>]*data-reset-demo="true"[^>]*aria-label="GL Enterprise II - rozpocznij od początku"/);
+    assert.match(html, /<button[^>]*class="brand onboarding-brand"[^>]*data-brand-menu-toggle/);
+    assert.ok(html.includes("data-brand-menu-action=\"reset\""));
+    assert.ok(html.includes("data-brand-confirm-reset"));
 
-    assert.equal(engine.dispatchAction(ActionTypes.SELECT_ROLE, {
-      role: Roles.CARRIER_OWNER,
-      contextType: "company",
-      companyId: "co-carrier-a"
+    assert.equal(engine.dispatchAction(ActionTypes.SELECT_LANGUAGE, {
+      language: "en",
+      country: "GB"
     }).ok, true);
-    assert.equal(engine.getActor().role, Roles.CARRIER_OWNER);
+    engine.state.session.activeRole = Roles.CARRIER_OWNER;
+    engine.state.session.activeContext = { contextType: "company", companyId: "co-carrier-a" };
+    html = renderApp(engine.getSnapshot(), engine);
+    assert.ok(html.includes(`data-form-action="${ActionTypes.ONBOARDING_START}"`));
 
     const reset = engine.dispatchAction(ActionTypes.RESET_DEMO, {}, { demoOnly: true });
     html = renderApp(engine.getSnapshot(), engine);
 
     assert.equal(reset.ok, true);
-    assert.equal(engine.state.session.userId, "u-role-switch");
-    assert.equal(engine.state.session.role, Roles.DRIVER);
-    assert.equal(engine.state.session.view, "dashboard");
-    assert.equal(engine.state.session.onboardingRequired, false);
-    assert.ok(html.includes("data-role-select"));
-    assert.ok(html.includes("Właściciel przewoźnika"));
+    assert.equal(engine.state.session.role, Roles.PLATFORM_OWNER);
+    assert.equal(engine.state.session.view, "onboarding");
+    assert.equal(engine.state.session.onboardingRequired, true);
+    assert.equal(engine.state.session.activeRole, undefined);
+    assert.equal(engine.state.session.activeContext, undefined);
+    assert.ok(html.includes("data-language-selection"));
+    assert.equal(html.includes("data-role-select"), false);
   } finally {
     delete global.window;
   }
