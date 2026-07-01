@@ -88,6 +88,57 @@ test("mapa zachowuje polskie nazwy silników i nie wraca do widocznych angielski
   requiredEngines.forEach((name, id) => assert.equal(byId.get(id)?.name, name));
 });
 
+test("każdy silnik jest samodokumentującym się modułem architektury", () => {
+  const requiredSpecFields = [
+    "purpose",
+    "responsibility",
+    "inputs",
+    "outputs",
+    "dependsOn",
+    "providesTo",
+    "workflowOrder",
+    "businessRules",
+    "triggers",
+    "auditLog",
+    "permissions",
+    "relatedRoles",
+    "relatedModules",
+    "status",
+    "files",
+    "tests",
+    "flowSteps"
+  ];
+
+  engineArchitecture.forEach((engine) => {
+    requiredSpecFields.forEach((field) => {
+      assert.notEqual(engine[field], undefined, `${engine.id} nie ma pola ${field}`);
+    });
+
+    [
+      "inputs",
+      "outputs",
+      "workflowOrder",
+      "businessRules",
+      "triggers",
+      "auditLog",
+      "permissions",
+      "relatedRoles",
+      "relatedModules",
+      "files",
+      "tests",
+      "flowSteps"
+    ].forEach((field) => {
+      assert.ok(Array.isArray(engine[field]), `${engine.id}.${field} musi być listą`);
+      assert.ok(engine[field].length > 0, `${engine.id}.${field} nie może być puste`);
+    });
+
+    assert.ok(["gotowy", "w budowie", "planowany"].includes(engine.status), `${engine.id} ma nieprawidłowy status`);
+    assert.ok(engine.purpose.length > 20, `${engine.id} ma za krótki cel działania`);
+    assert.ok(engine.responsibility.length > 20, `${engine.id} ma za krótką odpowiedzialność`);
+    assert.ok(engine.flowSteps.length >= 3, `${engine.id} musi mieć co najmniej trzy kroki przebiegu`);
+  });
+});
+
 test("warstwy są logicznie rozmieszczone i czytelnie rozdzielone", () => {
   const byId = engineArchitectureById(engineArchitecture);
   const identity = byId.get("identity");
@@ -184,8 +235,24 @@ test("mapa HTML pokazuje szczegóły techniczne po kliknięciu i polską legend�
 
   [
     "Odpowiedzialność",
-    "Wejścia",
-    "Wyjścia",
+    "Cel działania",
+    "Dane wejściowe",
+    "Dane wyjściowe",
+    "Z jakich silników korzysta",
+    "Jakie silniki korzystają z niego",
+    "Kolejność wykonywania w Workflow",
+    "Najważniejsze reguły biznesowe",
+    "Typowe zdarzenia wywołujące silnik",
+    "Dane zapisywane do Audit Log",
+    "Wymagane uprawnienia",
+    "Powiązane role użytkowników",
+    "Powiązane moduły GL",
+    "Przebieg pracy silnika",
+    "Pokaż przebieg",
+    "Poprzedni krok",
+    "Następny krok",
+    "Odtwórz",
+    "Pauza",
     "Moduły korzystające z silnika",
     "Status",
     "Pliki powiązane",

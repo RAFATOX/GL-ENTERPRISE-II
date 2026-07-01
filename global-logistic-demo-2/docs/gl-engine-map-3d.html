@@ -284,6 +284,60 @@
       word-break: break-word;
     }
 
+    .flow-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .flow-runner {
+      display: none;
+      margin-top: 14px;
+      border: 1px solid rgba(246,196,77,.28);
+      background: rgba(246,196,77,.055);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .flow-runner.is-visible { display: block; }
+
+    .flow-progress {
+      color: #fff4c8;
+      font-weight: 800;
+      margin-bottom: 10px;
+      font-size: .86rem;
+    }
+
+    .flow-step {
+      position: relative;
+      border-left: 3px solid rgba(255,255,255,.14);
+      padding: 8px 10px 8px 14px;
+      color: var(--muted);
+      font-size: .88rem;
+      line-height: 1.45;
+    }
+
+    .flow-step::before {
+      content: "";
+      position: absolute;
+      left: -7px;
+      top: 14px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.18);
+    }
+
+    .flow-step.is-active {
+      border-left-color: #f6c44d;
+      color: var(--text);
+      background: rgba(246,196,77,.1);
+      border-radius: 0 8px 8px 0;
+    }
+
+    .flow-step.is-active::before { background: #f6c44d; }
+
     .dependency-row {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -439,12 +493,44 @@
           <strong id="nodeStatus">-</strong>
         </div>
       </div>
+      <h2>Cel działania</h2>
+      <p id="nodePurpose">-</p>
       <h2>Odpowiedzialność</h2>
       <p id="nodeResponsibility">-</p>
-      <h2>Wejścia</h2>
+      <h2>Dane wejściowe</h2>
       <div id="nodeInputs" class="dependency-list"></div>
-      <h2>Wyjścia</h2>
+      <h2>Dane wyjściowe</h2>
       <div id="nodeOutputs" class="dependency-list"></div>
+      <h2>Z jakich silników korzysta</h2>
+      <div id="nodeDependsOn" class="dependency-list"></div>
+      <h2>Jakie silniki korzystają z niego</h2>
+      <div id="nodeProvidesTo" class="dependency-list"></div>
+      <h2>Kolejność wykonywania w Workflow</h2>
+      <div id="nodeWorkflowOrder" class="detail-list"></div>
+      <h2>Najważniejsze reguły biznesowe</h2>
+      <div id="nodeBusinessRules" class="detail-list"></div>
+      <h2>Typowe zdarzenia wywołujące silnik</h2>
+      <div id="nodeTriggers" class="detail-list"></div>
+      <h2>Dane zapisywane do Audit Log</h2>
+      <div id="nodeAuditLog" class="detail-list"></div>
+      <h2>Wymagane uprawnienia</h2>
+      <div id="nodePermissions" class="detail-list"></div>
+      <h2>Powiązane role użytkowników</h2>
+      <div id="nodeRelatedRoles" class="detail-list"></div>
+      <h2>Powiązane moduły GL</h2>
+      <div id="nodeRelatedModules" class="detail-list"></div>
+      <h2>Przebieg pracy silnika</h2>
+      <div class="flow-controls">
+        <button id="showEngineFlow" type="button">Pokaż przebieg</button>
+        <button id="prevEngineStep" type="button">Poprzedni krok</button>
+        <button id="nextEngineStep" type="button">Następny krok</button>
+        <button id="playEngineFlow" type="button">Odtwórz</button>
+        <button id="pauseEngineFlow" type="button">Pauza</button>
+      </div>
+      <div id="engineFlowRunner" class="flow-runner">
+        <div id="engineFlowProgress" class="flow-progress">-</div>
+        <div id="engineFlowSteps"></div>
+      </div>
       <h2>Zależności</h2>
       <div id="dependencyList" class="dependency-list"></div>
       <h2>Moduły korzystające z silnika</h2>
@@ -469,13 +555,24 @@
       type: node.type,
       position: node.mapPosition,
       description: node.description,
+      purpose: node.purpose || node.description,
       responsibility: node.responsibility || node.workflowRole,
       inputs: node.inputs || node.dependsOn || [],
       outputs: node.outputs || node.providesTo || [],
+      dependsOn: node.dependsOn || [],
+      providesTo: node.providesTo || [],
       usedBy: node.usedBy || node.providesTo || [],
       status: node.status || "w budowie",
       files: node.files || [],
-      tests: node.tests || []
+      tests: node.tests || [],
+      workflowOrder: node.workflowOrder || [],
+      businessRules: node.businessRules || [],
+      triggers: node.triggers || [],
+      auditLog: node.auditLog || [],
+      permissions: node.permissions || [],
+      relatedRoles: node.relatedRoles || [],
+      relatedModules: node.relatedModules || [],
+      flowSteps: node.flowSteps || []
     }));
 
     const nodes = rawNodes.map((node) => ({
@@ -501,6 +598,12 @@
     if (architectureModel.loadError) status.textContent = architectureModel.loadError;
 
     let selectedNode = nodeById.get("workflow");
+    let flowState = {
+      visible: false,
+      index: 0,
+      timer: null,
+      nodeId: selectedNode?.id || null
+    };
     let refreshSceneVisibility = () => {};
     let viewControls = {
       reset: () => {},
@@ -956,17 +1059,32 @@
 
     function selectNode(node) {
       selectedNode = node;
+      if (flowState.nodeId !== node.id) {
+        stopFlowPlayback();
+        flowState = { visible: false, index: 0, timer: null, nodeId: node.id };
+      }
       document.getElementById("nodeTitle").textContent = node.label;
       document.getElementById("nodeDescription").textContent = node.description;
       document.getElementById("nodeLayer").textContent = layers[node.layer].label;
       document.getElementById("nodeType").textContent = node.type;
       document.getElementById("nodeStatus").textContent = node.status || "w budowie";
+      document.getElementById("nodePurpose").textContent = node.purpose || node.description || "-";
       document.getElementById("nodeResponsibility").textContent = node.responsibility || "-";
-      document.getElementById("nodeInputs").innerHTML = renderItemList(node.inputs, "Brak wejść.");
-      document.getElementById("nodeOutputs").innerHTML = renderItemList(node.outputs, "Brak wyjść.");
+      document.getElementById("nodeInputs").innerHTML = renderItemList(node.inputs, "Brak danych wejściowych.");
+      document.getElementById("nodeOutputs").innerHTML = renderItemList(node.outputs, "Brak danych wyjściowych.");
+      document.getElementById("nodeDependsOn").innerHTML = renderItemList(node.dependsOn, "Brak silników wejściowych.");
+      document.getElementById("nodeProvidesTo").innerHTML = renderItemList(node.providesTo, "Brak silników korzystających.");
+      document.getElementById("nodeWorkflowOrder").innerHTML = renderTextList(node.workflowOrder, "Brak kolejności workflow.");
+      document.getElementById("nodeBusinessRules").innerHTML = renderTextList(node.businessRules, "Brak reguł biznesowych.");
+      document.getElementById("nodeTriggers").innerHTML = renderTextList(node.triggers, "Brak zdarzeń wywołujących.");
+      document.getElementById("nodeAuditLog").innerHTML = renderTextList(node.auditLog, "Brak danych audytu.");
+      document.getElementById("nodePermissions").innerHTML = renderTextList(node.permissions, "Brak wymaganych uprawnień.");
+      document.getElementById("nodeRelatedRoles").innerHTML = renderTextList(node.relatedRoles, "Brak powiązanych ról.");
+      document.getElementById("nodeRelatedModules").innerHTML = renderTextList(node.relatedModules, "Brak powiązanych modułów.");
       document.getElementById("nodeUsedBy").innerHTML = renderItemList(node.usedBy, "Brak modułów korzystających bezpośrednio.");
       document.getElementById("nodeFiles").innerHTML = renderTextList(node.files, "Brak wskazanych plików.");
       document.getElementById("nodeTests").innerHTML = renderTextList(node.tests, "Brak wskazanych testów.");
+      renderEngineFlow();
       const dependencies = links.filter((link) => link.from === node.id || link.to === node.id);
       document.getElementById("dependencyList").innerHTML = dependencies.map((link) => `
         <div class="dependency-row">
@@ -976,6 +1094,53 @@
         </div>
       `).join("") || "<p>Brak bezpośrednich zależności.</p>";
       status.textContent = `Wybrano: ${node.label}`;
+    }
+
+    function renderEngineFlow() {
+      const runner = document.getElementById("engineFlowRunner");
+      const steps = selectedNode?.flowSteps || [];
+      const boundedIndex = steps.length ? clamp(flowState.index, 0, steps.length - 1) : 0;
+      flowState.index = boundedIndex;
+      runner.classList.toggle("is-visible", flowState.visible);
+      document.getElementById("engineFlowProgress").textContent = steps.length
+        ? `Krok ${boundedIndex + 1} z ${steps.length}: ${steps[boundedIndex]}`
+        : "Brak zdefiniowanego przebiegu.";
+      document.getElementById("engineFlowSteps").innerHTML = steps.map((step, index) => `
+        <div class="flow-step ${index === boundedIndex ? "is-active" : ""}">
+          <strong>${index + 1}.</strong> ${step}
+        </div>
+      `).join("");
+      document.getElementById("showEngineFlow").textContent = flowState.visible ? "Ukryj przebieg" : "Pokaż przebieg";
+    }
+
+    function showEngineFlow() {
+      flowState.visible = !flowState.visible;
+      renderEngineFlow();
+    }
+
+    function moveFlowStep(direction) {
+      const steps = selectedNode?.flowSteps || [];
+      if (!steps.length) return;
+      flowState.visible = true;
+      flowState.index = (flowState.index + direction + steps.length) % steps.length;
+      renderEngineFlow();
+    }
+
+    function playFlow() {
+      const steps = selectedNode?.flowSteps || [];
+      if (!steps.length) return;
+      flowState.visible = true;
+      stopFlowPlayback();
+      renderEngineFlow();
+      flowState.timer = window.setInterval(() => {
+        flowState.index = (flowState.index + 1) % steps.length;
+        renderEngineFlow();
+      }, 1300);
+    }
+
+    function stopFlowPlayback() {
+      if (flowState.timer) window.clearInterval(flowState.timer);
+      flowState.timer = null;
     }
 
     function renderItemList(items, emptyText) {
@@ -1034,6 +1199,11 @@
       document.getElementById("resetView").addEventListener("click", () => viewControls.reset());
       document.getElementById("zoomIn").addEventListener("click", () => viewControls.zoomIn());
       document.getElementById("zoomOut").addEventListener("click", () => viewControls.zoomOut());
+      document.getElementById("showEngineFlow").addEventListener("click", () => showEngineFlow());
+      document.getElementById("prevEngineStep").addEventListener("click", () => moveFlowStep(-1));
+      document.getElementById("nextEngineStep").addEventListener("click", () => moveFlowStep(1));
+      document.getElementById("playEngineFlow").addEventListener("click", () => playFlow());
+      document.getElementById("pauseEngineFlow").addEventListener("click", () => stopFlowPlayback());
       document.getElementById("fullscreen").addEventListener("click", async () => {
         try {
           if (!document.fullscreenElement && document.fullscreenEnabled) await stage.requestFullscreen();
@@ -1220,9 +1390,18 @@
         status: "gotowy",
         files: ["src/core/engine-architecture.js"],
         tests: ["tests/engine-architecture.test.js"],
+        purpose: `Pokazuje dokumentację techniczną silnika: ${name}.`,
         inputs: dependsOn,
         outputs: providesTo,
         usedBy: providesTo,
+        workflowOrder: ["1. Odczyt aktywnego kontekstu", "2. Sprawdzenie zależności", "3. Zapis wyniku do dokumentacji mapy"],
+        businessRules: ["Fallback nie zmienia logiki aplikacji.", "Publiczne demo powinno czytać model z src/core/engine-architecture.js.", "Po zmianie źródła prawdy trzeba zaktualizować mapę 3D."],
+        triggers: ["otwarcie dokumentu bez importu modułu", "blokada importu przez file://", "brak CDN lub WebGL"],
+        auditLog: ["fallback dokumentacyjny nie zapisuje danych produkcyjnych"],
+        permissions: ["docs.read"],
+        relatedRoles: ["CTO", "Programista", "Partner techniczny", "Właściciel platformy"],
+        relatedModules: ["Mapa 3D", "Dokumentacja architektury"],
+        flowSteps: [name, "Sprawdzenie zależności", "Opis odpowiedzialności", "Powiązane moduły", "Prezentacja w panelu dokumentacji"],
         description: "Fallback lokalny. W publicznym demo dane pochodzą z src/core/engine-architecture.js.",
         workflowRole: "tryb awaryjny",
         responsibility: "Zachowuje czytelną dokumentację architektury, gdy import modułu jest zablokowany."

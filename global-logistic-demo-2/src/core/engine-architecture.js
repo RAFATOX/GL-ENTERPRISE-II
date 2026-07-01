@@ -60,6 +60,328 @@ const engineDocumentation = Object.freeze({
   "gl-fleet-market": docs(EngineStatuses.PLANNED, ["src/core/engine-architecture.js"], ["tests/engine-architecture.test.js"])
 });
 
+const engineSpecificationDetails = Object.freeze({
+  user: spec({
+    purpose: "Reprezentuje osobę fizyczną przed wyborem roli, firmy i zakresu uprawnień.",
+    workflowOrder: ["1. Użytkownik wybiera język, kraj i metodę kontaktu.", "2. Silnik Tożsamości tworzy lub odnajduje trwałe user_id.", "3. Dalsze silniki pracują wyłącznie na user_id, a nie na telefonie lub e-mailu."],
+    businessRules: ["Telefon i e-mail są metodami kontaktu, nie główną tożsamością.", "Jedna osoba może mieć wiele ról i kilka kontekstów firmowych.", "Brak potwierdzonej tożsamości ogranicza dostęp do funkcji operacyjnych."],
+    triggers: ["pierwsze wejście do aplikacji", "logowanie", "zmiana aktywnej roli", "zmiana aktywnej przestrzeni"],
+    auditLog: ["utworzenie użytkownika", "wybór języka", "zmiana danych kontaktowych", "próba wejścia bez weryfikacji"],
+    permissions: ["identity.self.read", "profile.own.read"],
+    relatedRoles: ["Kierowca", "Właściciel przewoźnika", "Klient", "Magazyn", "Warsztat", "Ubezpieczyciel", "Właściciel platformy"],
+    relatedModules: ["Profil", "Rejestracja", "Aktywna rola", "Aktywna przestrzeń"],
+    flowSteps: ["Użytkownik otwiera GL", "System tworzy kontekst osoby", "Silnik Tożsamości potwierdza user_id", "Rejestracja sprawdza brakujące dane", "Interfejs pokazuje dostępne role i przestrzenie"]
+  }),
+  identity: spec({
+    purpose: "Potwierdza tożsamość użytkownika i utrzymuje sesję bez duplikowania kont.",
+    workflowOrder: ["1. Odbiera numer telefonu, hasło lub wyzwanie OTP.", "2. Weryfikuje kod, limit prób i ważność sesji.", "3. Przekazuje potwierdzone user_id do onboardingu, firm i uprawnień."],
+    businessRules: ["Dowolny kod OTP nie jest akceptowany.", "Nieudane próby są limitowane i audytowane.", "Wylogowanie unieważnia aktywną sesję."],
+    triggers: ["logowanie", "wylogowanie", "reset hasła", "weryfikacja OTP", "odświeżenie sesji"],
+    auditLog: ["udane logowanie", "nieudane logowanie", "blokada OTP", "reset hasła", "wylogowanie"],
+    permissions: ["identity.login", "identity.session.manage", "identity.password.reset"],
+    relatedRoles: ["Każdy użytkownik GL"],
+    relatedModules: ["Rejestracja", "Profil", "Routing i Dostęp", "Silnik Uprawnień"],
+    flowSteps: ["Użytkownik podaje dane logowania", "Silnik Tożsamości sprawdza sesję i OTP", "Audit Log zapisuje próbę", "Permission Engine otrzymuje user_id", "UI przechodzi do aktywnego kontekstu"]
+  }),
+  "registration-onboarding": spec({
+    purpose: "Prowadzi użytkownika od pierwszego wejścia do zweryfikowanego konta i kontekstu firmy.",
+    workflowOrder: ["1. Wymaga języka, kraju, telefonu i zgód.", "2. Przechodzi przez OTP, konto i dokument tożsamości.", "3. Dla ról firmowych tworzy lub uzupełnia Company Engine."],
+    businessRules: ["Bez telefonu i zgód nie wolno przejść do OTP.", "Bez dokumentu tożsamości konto pozostaje ograniczone.", "Każda rola może wymagać osobnych dokumentów."],
+    triggers: ["pierwsza rejestracja", "wybór roli", "dodanie dokumentu", "weryfikacja firmy", "uzupełnienie braków"],
+    auditLog: ["wybór języka", "potwierdzenie telefonu", "dodanie dokumentu", "zmiana statusu weryfikacji", "odrzucenie dokumentu"],
+    permissions: ["onboarding.start", "identity.documents.upload", "company.create"],
+    relatedRoles: ["Kierowca", "Właściciel przewoźnika", "Właściciel klienta", "Właściciel magazynu", "Właściciel warsztatu", "Partner ubezpieczeniowy"],
+    relatedModules: ["Rejestracja", "Dokumenty", "Firma", "Profil"],
+    flowSteps: ["Użytkownik wybiera język i kraj", "Podaje telefon i akceptuje zgody", "OTP potwierdza numer", "Użytkownik dodaje dane konta i dokumenty", "Company Engine tworzy firmę lub przypisanie"]
+  }),
+  company: spec({
+    purpose: "Tworzy i utrzymuje firmę jako główny kontekst pracy organizacyjnej.",
+    workflowOrder: ["1. Odbiera dane firmy z onboardingu.", "2. Tworzy company_id i status weryfikacji.", "3. Przekazuje członkostwo do UserCompanyRole i Permission Engine."],
+    businessRules: ["Dane firmy są odseparowane przez company_id.", "Użytkownik może należeć do wielu firm.", "Niezatwierdzona firma ma ograniczone akcje biznesowe."],
+    triggers: ["utworzenie firmy", "zaproszenie pracownika", "zmiana firmy aktywnej", "dodanie dokumentu firmowego"],
+    auditLog: ["utworzenie firmy", "zmiana danych firmy", "zaproszenie użytkownika", "zmiana statusu weryfikacji", "zawieszenie firmy"],
+    permissions: ["company.read", "company.manage", "company.invite_users", "company.documents.upload"],
+    relatedRoles: ["Właściciel przewoźnika", "Właściciel klienta", "Właściciel magazynu", "Właściciel warsztatu", "Partner ubezpieczeniowy", "Właściciel platformy"],
+    relatedModules: ["Moja firma", "Kierowcy", "Pojazdy", "Dokumenty firmy", "Rozliczenia"],
+    flowSteps: ["Onboarding przekazuje dane firmy", "Silnik Firm tworzy company_id", "UserCompanyRole przypisuje właściciela", "Permission Engine wylicza dostęp", "Menu pokazuje moduły firmy"]
+  }),
+  "user-company-role": spec({
+    purpose: "Łączy użytkownika z firmą, rolą firmową i zakresem uprawnień.",
+    workflowOrder: ["1. Pobiera user_id i company_id.", "2. Przypisuje rolę w firmie.", "3. Permission Engine oblicza skuteczne prawa dla aktywnej przestrzeni."],
+    businessRules: ["Rola działa tylko w danej firmie.", "Zmiana firmy wymaga przeliczenia permissions.", "Lista ról w UI nie może być globalną listą demonstracyjną."],
+    triggers: ["przyjęcie zaproszenia", "zmiana aktywnej firmy", "zmiana roli firmowej", "odebranie uprawnień"],
+    auditLog: ["nadanie roli", "zmiana roli", "usunięcie z firmy", "próba dostępu poza członkostwem"],
+    permissions: ["company.roles.read", "company.roles.manage", "company.invite_users"],
+    relatedRoles: ["Owner", "Admin", "Finance", "Dispatcher", "Driver Manager", "Mechanic", "Viewer"],
+    relatedModules: ["Aktywna przestrzeń", "Moja firma", "Ustawienia", "Silnik Uprawnień"],
+    flowSteps: ["Firma zaprasza użytkownika", "Użytkownik przyjmuje zaproszenie", "Silnik zapisuje UserCompanyRole", "Permission Engine liczy prawa", "Routing odświeża dostępne moduły"]
+  }),
+  permission: spec({
+    purpose: "Jest jedynym źródłem decyzji, czy użytkownik może zobaczyć lub wykonać akcję.",
+    workflowOrder: ["1. Pobiera user_id, activeRole i activeCompanyId.", "2. Łączy role z permission w aktywnym kontekście.", "3. Przekazuje wynik do menu, routingu, workflow i finansów."],
+    businessRules: ["Nie wolno decydować o dostępie tylko po nazwie roli.", "Każda zmiana roli lub firmy czyści stary zakres dostępu.", "Brak permission oznacza ukrycie akcji lub Brak dostępu."],
+    triggers: ["zmiana roli", "zmiana firmy", "wejście na trasę", "kliknięcie akcji", "zmiana uprawnień"],
+    auditLog: ["próba wejścia bez dostępu", "zmiana permission", "zmiana roli", "odmowa akcji"],
+    permissions: ["permissions.evaluate", "admin.permissions.manage", "admin.audit.read"],
+    relatedRoles: ["Każda rola użytkownika", "Administrator GL", "Compliance GL", "Właściciel platformy"],
+    relatedModules: ["Menu modułów", "Routing", "Workflow", "Portfele", "Panel administracyjny"],
+    flowSteps: ["Aktywny kontekst wysyła user_id i company_id", "Permission Engine pobiera role firmowe", "Silnik wylicza permissions", "Routing blokuje lub przepuszcza widok", "UI renderuje tylko dozwolone moduły"]
+  }),
+  "routing-access": spec({
+    purpose: "Chroni wejścia do widoków i synchronizuje trasę z aktywną rolą oraz firmą.",
+    workflowOrder: ["1. Odbiera próbę wejścia w route.", "2. Pyta Permission Engine o wymagane uprawnienia.", "3. Renderuje widok albo Brak dostępu."],
+    businessRules: ["Ręczne wpisanie URL nie omija Permission Engine.", "Zmiana roli przebudowuje route context bez wylogowania.", "Stare panele rolowe nie mogą pozostać osobną aplikacją."],
+    triggers: ["kliknięcie modułu", "ręczny URL", "zmiana aktywnej roli", "zmiana aktywnej firmy"],
+    auditLog: ["wejście na chronioną trasę", "odmowa dostępu", "zmiana widoku", "zmiana aktywnego kontekstu"],
+    permissions: ["routing.access", "modules.read"],
+    relatedRoles: ["Każda rola użytkownika"],
+    relatedModules: ["Dashboard", "Menu modułów", "AccessDenied", "Profil"],
+    flowSteps: ["Użytkownik wybiera moduł", "Routing sprawdza wymagane permission", "Brak permission pokazuje Brak dostępu", "Dostęp renderuje właściwy moduł", "Audit Log zapisuje odmowę lub wejście"]
+  }),
+  ui: spec({
+    purpose: "Renderuje jeden spójny interfejs GL na podstawie aktywnej roli, firmy i tłumaczeń.",
+    workflowOrder: ["1. Pobiera snapshot aktywnego kontekstu.", "2. Renderuje dashboard, menu, profil i moduły.", "3. Przekazuje akcje użytkownika do silników, zamiast zmieniać dane lokalnie."],
+    businessRules: ["UI nie decyduje samodzielnie o uprawnieniach.", "Zwykły użytkownik nie widzi elementów developerskich.", "Teksty muszą przechodzić przez Translation Engine."],
+    triggers: ["zmiana roli", "zmiana firmy", "kliknięcie modułu", "zmiana języka", "nowe powiadomienie"],
+    auditLog: ["zmiana widoku", "próba niedozwolonej akcji", "aktywacja kontekstu"],
+    permissions: ["modules.read", "profile.own.read"],
+    relatedRoles: ["Każda rola użytkownika"],
+    relatedModules: ["Dashboard", "Profil", "Menu modułów", "Dokumenty", "Rozliczenia"],
+    flowSteps: ["Permission Engine zwraca dozwolone moduły", "Translation Engine dostarcza teksty", "UI buduje menu i panel", "Akcja użytkownika trafia do właściwego silnika", "Widok aktualizuje się po zdarzeniu"]
+  }),
+  translation: spec({
+    purpose: "Zapewnia spójny język interfejsu i komunikatów bez mieszania języków.",
+    workflowOrder: ["1. Odczytuje język użytkownika.", "2. Zwraca teksty po translation_key.", "3. Obsługuje komunikaty walidacji, formularzy i statusów."],
+    businessRules: ["Polski UI nie pokazuje technicznych angielskich nazw.", "Brak klucza musi być wykrywalny w testach.", "Kod i modele mogą zostać techniczne, ale widok nie."],
+    triggers: ["wybór języka", "render widoku", "walidacja formularza", "zmiana aktywnej roli"],
+    auditLog: ["wybór języka", "zmiana języka", "brakujący klucz tłumaczenia"],
+    permissions: ["translation.read"],
+    relatedRoles: ["Każda rola użytkownika"],
+    relatedModules: ["Dashboard", "Onboarding", "Profil", "Wallet", "Dokumenty"],
+    flowSteps: ["UI prosi o translation_key", "Silnik wybiera słownik języka", "Parametry są podstawiane do komunikatu", "Widok renderuje tekst użytkownika", "Testy blokują powrót technicznych etykiet"]
+  }),
+  workflow: spec({
+    purpose: "Koordynuje cały cykl transportu od ładunku do dostawy, audytu, reputacji i rozliczenia.",
+    workflowOrder: ["1. Odbiera zdarzenie biznesowe transportu.", "2. Sprawdza permissions, firmę, kierowcę, pojazd, dokumenty, GPS i płatność.", "3. Zmienia status procesu i publikuje zdarzenia do kolejnych silników."],
+    businessRules: ["Nie wolno pomijać etapów transportu.", "Transport wymagający escrow nie startuje bez zabezpieczonej płatności.", "Każda ważna zmiana statusu trafia do Audit Log."],
+    triggers: ["utworzenie ładunku", "przyjęcie ładunku", "przypisanie kierowcy", "załadunek", "rozładunek", "zakończenie transportu"],
+    auditLog: ["zmiana statusu transportu", "przypisanie zasobów", "blokada etapu", "zakończenie procesu", "spór"],
+    permissions: ["loads.create", "loads.accept", "loads.assign_driver", "transports.manage_company", "documents.upload"],
+    relatedRoles: ["Właściciel przewoźnika", "Dyspozytor", "Kierowca", "Właściciel klienta", "Pracownik magazynu", "Administrator GL"],
+    relatedModules: ["Transporty", "Ładunki", "GPS", "Dokumenty", "Escrow", "Powiadomienia"],
+    flowSteps: ["Klient dodaje ładunek", "Workflow odbiera zdarzenie", "Sprawdzenie uprawnień", "Silnik Firm potwierdza kontekst", "Silnik Kierowcy i Pojazdów sprawdza zasoby", "Silnik Dokumentów i GPS potwierdza warunki", "Escrow i Portfele zabezpieczają płatność", "Audit Log zapisuje dowód", "Reputacja i Profil aktualizują zaufanie", "Powiadomienia i UI pokazują wynik"]
+  }),
+  "transport-load": spec({
+    purpose: "Utrzymuje dane ładunku, transportu i ich statusy operacyjne.",
+    workflowOrder: ["1. Klient publikuje ładunek.", "2. Przewoźnik akceptuje i przypisuje zasoby.", "3. Transport przechodzi przez statusy workflow."],
+    businessRules: ["Ładunek aktywny musi mieć wymagania, daty i status płatności.", "Przyjęcie ładunku wymaga zgodnego pojazdu i kierowcy.", "Status transportu wynika z Workflow Engine."],
+    triggers: ["utworzenie ładunku", "wyszukiwanie ładunków", "akceptacja ładunku", "przypisanie transportu"],
+    auditLog: ["utworzenie ładunku", "akceptacja", "przypisanie pojazdu", "przypisanie kierowcy", "zmiana statusu"],
+    permissions: ["loads.create", "loads.view_company", "loads.accept", "loads.assign_driver"],
+    relatedRoles: ["Właściciel klienta", "Pracownik klienta", "Właściciel przewoźnika", "Dyspozytor"],
+    relatedModules: ["Ładunki", "Szukaj ładunków", "Moje transporty", "Rozliczenia"],
+    flowSteps: ["Klient tworzy ładunek", "Silnik zapisuje wymagania", "Przewoźnik widzi ofertę", "Workflow sprawdza zgodność zasobów", "Transport przechodzi do realizacji"]
+  }),
+  driver: spec({
+    purpose: "Utrzymuje dane kierowcy, jego weryfikację, dostępność i przypisania transportowe.",
+    workflowOrder: ["1. Sprawdza, czy kierowca należy do aktywnej firmy lub działa jako osoba.", "2. Weryfikuje dokumenty i status.", "3. Udostępnia kierowcę Workflow tylko, gdy spełnia wymagania."],
+    businessRules: ["Kierowca bez wymaganych dokumentów nie może rozpocząć transportu.", "Kierowca nie widzi finansów firmy przewoźnika.", "Do transportu trafiają tylko aktywni i zweryfikowani kierowcy."],
+    triggers: ["dodanie kierowcy", "zaproszenie kierowcy", "przypisanie do transportu", "potwierdzenie etapu przez kierowcę"],
+    auditLog: ["dodanie kierowcy", "zmiana statusu kierowcy", "przypisanie do transportu", "odmowa z powodu dokumentów"],
+    permissions: ["drivers.assign", "drivers.view_company", "documents.upload", "transports.driver.confirm"],
+    relatedRoles: ["Kierowca", "Właściciel przewoźnika", "Dyspozytor", "Kierownik floty"],
+    relatedModules: ["Moi kierowcy", "Czas pracy", "GPS", "Transporty", "Dokumenty"],
+    flowSteps: ["Przewoźnik zaprasza kierowcę", "Silnik sprawdza UserCompanyRole", "Dokumenty potwierdzają uprawnienia", "Workflow przypisuje transport", "Kierowca potwierdza etapy w aplikacji"]
+  }),
+  vehicle: spec({
+    purpose: "Utrzymuje pojazdy firmy, ich parametry, dokumenty i zgodność z ładunkami.",
+    workflowOrder: ["1. Firma dodaje pojazd.", "2. Silnik sprawdza status i parametry techniczne.", "3. Workflow dopuszcza tylko pojazdy zgodne z wymaganiami ładunku."],
+    businessRules: ["Pojazd w serwisie nie może zostać przypisany do transportu.", "ADR, chłodnia i ładowność muszą odpowiadać wymaganiom ładunku.", "Zmiany statusu pojazdu są audytowane."],
+    triggers: ["dodanie pojazdu", "edycja parametrów", "zmiana statusu", "przypisanie do kierowcy", "akceptacja ładunku"],
+    auditLog: ["utworzenie pojazdu", "zmiana dokumentów", "zmiana statusu", "przypisanie do transportu"],
+    permissions: ["vehicles.create", "vehicles.manage", "drivers.assign", "documents.upload"],
+    relatedRoles: ["Właściciel przewoźnika", "Kierownik floty", "Dyspozytor", "Kierowca"],
+    relatedModules: ["Moje pojazdy", "Flota", "Dokumenty pojazdu", "Szukaj ładunków"],
+    flowSteps: ["Firma dodaje pojazd", "Silnik zapisuje parametry", "Dokumenty potwierdzają przegląd i ubezpieczenie", "Workflow porównuje wymagania ładunku", "Pojazd trafia do transportu"]
+  }),
+  document: spec({
+    purpose: "Zarządza dokumentami użytkownika, firmy, transportu, CMR i dowodami zdjęciowymi.",
+    workflowOrder: ["1. Odbiera dokument lub zdjęcie.", "2. Przypisuje go do user_id, company_id, transport_id albo document_id.", "3. Przekazuje status do Workflow, Profilu i Audytu."],
+    businessRules: ["Dokument transportowy nie jest dokumentem osobistym.", "Dostęp do dokumentu zależy od permission i kontekstu.", "Akceptacja dokumentów może odblokować rozliczenie."],
+    triggers: ["upload dokumentu", "zdjęcie załadunku", "potwierdzenie CMR", "odrzucenie dokumentu", "żądanie kontroli"],
+    auditLog: ["dodanie dokumentu", "zmiana statusu dokumentu", "odrzucenie", "potwierdzenie CMR", "dostęp kontrolny"],
+    permissions: ["documents.upload", "documents.approve", "documents.view_company", "company.documents.upload"],
+    relatedRoles: ["Kierowca", "Pracownik magazynu", "Właściciel przewoźnika", "Właściciel klienta", "Administrator GL"],
+    relatedModules: ["Dokumenty", "CMR", "Zdjęcia GL", "Załadunek", "Rozładunek"],
+    flowSteps: ["Użytkownik dodaje dokument", "Silnik przypisuje document_id", "Permission Engine sprawdza widoczność", "Workflow aktualizuje status transportu", "Audit Log zapisuje dowód"]
+  }),
+  gps: spec({
+    purpose: "Dostarcza lokalizację, historię trasy, ETA i potwierdzenia miejsca zdarzenia.",
+    workflowOrder: ["1. Odbiera pozycję pojazdu lub kierowcy.", "2. Przelicza ETA i zgodność miejsca z etapem.", "3. Wysyła sygnały do Workflow, Powiadomień i AI."],
+    businessRules: ["GPS nie zastępuje uprawnień dostępu do danych.", "Zdarzenia załadunku i rozładunku mogą wymagać zgodności lokalizacji.", "Zmiana ETA powinna powiadomić zainteresowane strony."],
+    triggers: ["aktualizacja pozycji", "dojazd do magazynu", "opuszczenie trasy", "opóźnienie", "potwierdzenie lokalizacji zdjęcia"],
+    auditLog: ["pozycja etapowa", "zmiana ETA", "potwierdzenie geolokalizacji", "wykrycie odchylenia trasy"],
+    permissions: ["gps.read_own", "gps.view_transport", "transports.monitor"],
+    relatedRoles: ["Kierowca", "Dyspozytor", "Właściciel przewoźnika", "Magazyn", "Klient"],
+    relatedModules: ["Live Map", "GL GPS", "Nawigacja", "Moje transporty"],
+    flowSteps: ["Kierowca wysyła lokalizację", "GPS aktualizuje transport", "Workflow porównuje etap i miejsce", "AI analizuje opóźnienie", "Powiadomienia wysyłają nową ETA"]
+  }),
+  wallet: spec({
+    purpose: "Obsługuje rozliczenia użytkowników, firm i platformy zgodnie z zakresem finansowym.",
+    workflowOrder: ["1. Odbiera żądanie operacji finansowej.", "2. Sprawdza permission i financial scope.", "3. Tworzy wpis audytu przez Financial Audit i zapisuje transakcję."],
+    businessRules: ["PlatformWallet widzą tylko role finansowe platformy.", "Driver widzi tylko UserWallet, jeśli ma rozliczenia osobiste.", "Nie wolno zapisać transakcji bez audit_log_id."],
+    triggers: ["blokada środków", "wypłata", "prowizja GL", "rozliczenie transportu", "korekta"],
+    auditLog: ["wallet transaction", "payout", "fee", "adjustment", "payment status change"],
+    permissions: ["wallet.own.read", "wallet.company.read", "wallet.platform.read", "wallet.platform.manage", "payouts.company.manage"],
+    relatedRoles: ["Właściciel przewoźnika", "Księgowość przewoźnika", "Właściciel klienta", "Finanse GL", "Właściciel platformy"],
+    relatedModules: ["Rozliczenia", "Faktury", "GL Wallet", "Status wypłaty", "Escrow transportu"],
+    flowSteps: ["Workflow zgłasza operację finansową", "Permission Engine sprawdza zakres", "Financial Audit tworzy rekord audytu", "Wallet zapisuje transakcję", "Notification informuje właściwe role"]
+  }),
+  "financial-audit": spec({
+    purpose: "Wymusza powiązany rekord audytu dla każdej operacji finansowej.",
+    workflowOrder: ["1. Odbiera zamiar operacji z Wallet lub Escrow.", "2. Tworzy realny audit_log_id.", "3. Zwraca identyfikator wymagany do zapisu finansowego."],
+    businessRules: ["Brak Audit Service blokuje operację finansową.", "audit_log_id nie może być sztucznym stringiem.", "Operacja finansowa i audyt są jedną operacją logiczną."],
+    triggers: ["transakcja portfela", "blokada escrow", "zwolnienie escrow", "wypłata", "decyzja sporu"],
+    auditLog: ["utworzenie wpisu finansowego", "powiązanie audit_log_id", "blokada operacji bez audytu"],
+    permissions: ["finance.audit.write", "finance.audit.read"],
+    relatedRoles: ["Finanse GL", "Właściciel platformy", "Administrator GL"],
+    relatedModules: ["GL Wallet", "Escrow", "Rozliczenia", "Audit Log"],
+    flowSteps: ["Wallet lub Escrow prosi o audyt", "Financial Audit waliduje payload", "Audit Log tworzy rekord", "audit_log_id wraca do operacji", "Dopiero wtedy zapis finansowy jest dozwolony"]
+  }),
+  escrow: spec({
+    purpose: "Zabezpiecza środki dla transportu do czasu spełnienia warunków dostawy i dokumentów.",
+    workflowOrder: ["1. Klient blokuje środki dla ładunku.", "2. Escrow utrzymuje status podczas transportu.", "3. Po dostawie zwalnia, zwraca lub dzieli środki zgodnie z decyzją."],
+    businessRules: ["Transport z wymaganym escrow nie startuje bez blokady środków.", "Spór zamraża escrow.", "Driver i role bez finansów nie widzą historii operacji escrow."],
+    triggers: ["utworzenie transportu", "blokada środków", "zakończenie dostawy", "akceptacja dokumentów", "spór"],
+    auditLog: ["reserve", "hold", "release", "refund", "split", "dispute lock"],
+    permissions: ["escrow.own.read", "escrow.company.read", "escrow.manage", "wallet.company.manage"],
+    relatedRoles: ["Właściciel klienta", "Właściciel przewoźnika", "Księgowość przewoźnika", "Finanse GL", "Moderator sporów"],
+    relatedModules: ["Escrow transportu", "Rozliczenia", "Spory", "GL Wallet"],
+    flowSteps: ["Klient tworzy ładunek z płatnością", "Wallet blokuje środki", "Escrow zapisuje operację z audit_log_id", "Workflow obserwuje warunki dostawy", "Escrow zwalnia lub zamraża środki"]
+  }),
+  "audit-log": spec({
+    purpose: "Jest niezmiennym rejestrem dowodowym wszystkich kluczowych działań GL.",
+    workflowOrder: ["1. Odbiera zdarzenie od silnika domenowego.", "2. Zapisuje aktora, akcję, stare i nowe wartości oraz entity_id.", "3. Udostępnia dowód dla finansów, AI, zgodności i administracji."],
+    businessRules: ["Wpisów audytu nie wolno usuwać ani edytować.", "Operacje finansowe nie istnieją bez audit_log_id.", "Próby obejścia dostępu też są audytowane."],
+    triggers: ["rejestracja", "zmiana statusu", "operacja finansowa", "odmowa dostępu", "decyzja sporu"],
+    auditLog: ["własny rekord zdarzenia", "powiązania entity_id", "actor_id", "timestamp", "old_value", "new_value"],
+    permissions: ["admin.audit.read", "finance.audit.read", "compliance.review"],
+    relatedRoles: ["Właściciel platformy", "Administrator GL", "Compliance GL", "Finanse GL", "Moderator sporów"],
+    relatedModules: ["Audit Log", "Developer/Admin", "Compliance", "GL Wallet", "Spory"],
+    flowSteps: ["Silnik domenowy tworzy zdarzenie", "Audit Log zapisuje rekord", "Identyfikator trafia do operacji", "Admin lub Compliance może odczytać ścieżkę", "AI korzysta z historii do kontroli"]
+  }),
+  knowledge: spec({
+    purpose: "Gromadzi wiedzę operacyjną, regulacyjną i procesową dla Workflow oraz AI.",
+    workflowOrder: ["1. Rejestruje źródło wiedzy.", "2. Filtruje je po kraju, roli i typie procesu.", "3. Przekazuje kontekst do Workflow, AI i Akademii GL."],
+    businessRules: ["Źródła wiedzy mają zakres i wersję.", "Dostęp do wiedzy zależy od permission.", "Wiedza nie zastępuje decyzji prawnej, ale wspiera kontrolę procesu."],
+    triggers: ["dodanie źródła", "zapytanie workflow", "analiza AI", "lekcja Akademii GL"],
+    auditLog: ["dodanie źródła wiedzy", "aktualizacja źródła", "użycie wiedzy w procesie"],
+    permissions: ["knowledge.read", "knowledge.manage", "compliance.review"],
+    relatedRoles: ["Administrator GL", "Compliance GL", "Nauczyciel Akademii GL", "Właściciel platformy"],
+    relatedModules: ["Baza wiedzy", "AI", "Akademia GL", "Workflow"],
+    flowSteps: ["Źródło wiedzy zostaje zarejestrowane", "Permission Engine sprawdza dostęp", "Workflow pyta o regułę", "AI otrzymuje kontekst ryzyka", "Akademia GL wykorzystuje materiał szkoleniowy"]
+  }),
+  "ai-control": spec({
+    purpose: "Analizuje ryzyka, opóźnienia, braki dokumentów, anomalie finansowe i próby obejścia reguł.",
+    workflowOrder: ["1. Odbiera zdarzenie z Workflow, GPS, Wallet, Escrow lub Knowledge.", "2. Sprawdza reguły ryzyka.", "3. Tworzy alert i rekomendację dla procesu lub admina."],
+    businessRules: ["AI nie wykonuje decyzji finansowej bez silnika domenowego.", "Alert ma poziom ryzyka.", "Wynik AI musi być audytowalny."],
+    triggers: ["brak dokumentów", "opóźnienie ETA", "nietypowa płatność", "spór", "podejrzane konto"],
+    auditLog: ["alert AI", "poziom ryzyka", "rekomendacja", "powiązany transport lub user_id"],
+    permissions: ["ai.alerts.read", "compliance.review", "admin.audit.read"],
+    relatedRoles: ["Compliance GL", "Administrator GL", "Właściciel platformy", "Moderator sporów"],
+    relatedModules: ["AI", "Alerty", "Compliance", "Workflow", "Powiadomienia"],
+    flowSteps: ["Workflow wysyła zdarzenie", "Knowledge dostarcza reguły", "AI ocenia ryzyko", "Audit Log zapisuje wynik", "Notification wysyła alert do uprawnionej roli"]
+  }),
+  notification: spec({
+    purpose: "Dostarcza użytkownikom komunikaty wynikające z procesu, ryzyka i zmian statusu.",
+    workflowOrder: ["1. Odbiera zdarzenie domenowe.", "2. Wybiera odbiorców według roli, firmy i permission.", "3. Przekazuje komunikat do UI."],
+    businessRules: ["Użytkownik dostaje tylko komunikaty z własnego zakresu.", "Powiadomienie nie może ujawniać cudzych finansów.", "Zmiana ETA i status transportu powinna być komunikowana właściwym stronom."],
+    triggers: ["zmiana statusu transportu", "alert AI", "zmiana ETA", "spór", "akceptacja dokumentu"],
+    auditLog: ["wysłanie powiadomienia", "odbiorcy", "typ komunikatu", "powiązany transport"],
+    permissions: ["notifications.read", "notifications.manage"],
+    relatedRoles: ["Kierowca", "Dyspozytor", "Klient", "Magazyn", "Compliance GL", "Finanse GL"],
+    relatedModules: ["Komunikaty", "Dashboard", "Transporty", "AI"],
+    flowSteps: ["Silnik domenowy publikuje zdarzenie", "Notification wybiera odbiorców", "Translation przygotowuje tekst", "UI pokazuje komunikat", "Audit Log zapisuje wysyłkę"]
+  }),
+  reputation: spec({
+    purpose: "Przelicza zaufanie użytkowników i firm na podstawie realnych zdarzeń procesowych.",
+    workflowOrder: ["1. Odbiera zdarzenie zakończenia, opóźnienia, sporu lub opinii.", "2. Aktualizuje miary reputacji.", "3. Przekazuje wynik do Profilu i Workflow."],
+    businessRules: ["Reputacja wynika ze zdarzeń, nie z ręcznej deklaracji.", "Spory i fałszywe zgłoszenia obniżają zaufanie.", "Profil pokazuje reputację zgodnie z permission."],
+    triggers: ["zakończenie transportu", "otrzymana opinia", "spór", "opóźnienie", "poprawne dokumenty"],
+    auditLog: ["zmiana wskaźnika reputacji", "źródło zdarzenia", "liczba opinii", "spór wpływający na wynik"],
+    permissions: ["trust.read", "reviews.create", "profile.public.read"],
+    relatedRoles: ["Kierowca", "Przewoźnik", "Klient", "Magazyn", "Warsztat", "Ubezpieczyciel"],
+    relatedModules: ["Profil", "Opinie", "Transporty", "Akademia GL"],
+    flowSteps: ["Workflow kończy zdarzenie", "Audit Log dostarcza dowód", "Reputation liczy wynik", "Profile Engine aktualizuje kartę zaufania", "UI pokazuje ocenę i opinie"]
+  }),
+  profile: spec({
+    purpose: "Buduje użytkownikowi i firmie czytelny profil z danymi, dokumentami, reputacją i portfelem właściwym dla roli.",
+    workflowOrder: ["1. Pobiera identity, company, reputation i permissions.", "2. Filtruje sekcje profilu według aktywnej roli.", "3. Udostępnia UI bez danych technicznych i bez cudzych finansów."],
+    businessRules: ["Profil nie pokazuje activeRole ani debugowych eventów.", "Portfel w profilu zależy od aktywnej roli.", "Dokumenty są widoczne tylko zgodnie z permission."],
+    triggers: ["wejście w Profil", "zmiana aktywnej roli", "nowa opinia", "dodanie dokumentu", "zmiana firmy"],
+    auditLog: ["zmiana danych profilu", "dodanie dokumentu", "otrzymana opinia", "wejście w profil publiczny"],
+    permissions: ["profile.own.read", "profile.company.read", "documents.view_own", "wallet.own.read"],
+    relatedRoles: ["Każda rola użytkownika"],
+    relatedModules: ["Profil", "Reputacja", "Opinie", "Dokumenty", "Portfel"],
+    flowSteps: ["UI otwiera profil", "Permission Engine wyznacza zakres", "Profile pobiera dane tożsamości i firmy", "Reputation dostarcza ocenę", "UI pokazuje zakładki właściwe dla roli"]
+  }),
+  dispute: spec({
+    purpose: "Obsługuje spory, dowody, decyzje administracyjne i wpływ na escrow oraz reputację.",
+    workflowOrder: ["1. Odbiera zgłoszenie sporu.", "2. Zbiera dowody z dokumentów, GPS, workflow i escrow.", "3. Decyzja wpływa na płatność i reputację."],
+    businessRules: ["Spór zamraża escrow.", "Decyzja sporu musi mieć audit_log_id.", "Dostęp do sporu jest ograniczony do stron i moderatora."],
+    triggers: ["zgłoszenie szkody", "spór o dostawę", "brak dokumentów", "decyzja moderatora"],
+    auditLog: ["utworzenie sporu", "dodanie dowodu", "decyzja sporu", "release/refund/split"],
+    permissions: ["disputes.create", "disputes.review", "escrow.manage", "admin.audit.read"],
+    relatedRoles: ["Moderator sporów", "Właściciel klienta", "Właściciel przewoźnika", "Finanse GL", "Compliance GL"],
+    relatedModules: ["Spory", "Escrow", "Dokumenty", "Audit Log", "Reputacja"],
+    flowSteps: ["Strona zgłasza spór", "Escrow zamraża środki", "Silnik zbiera dowody", "Moderator podejmuje decyzję", "Wallet i Reputation aktualizują wynik"]
+  }),
+  "admin-views": spec({
+    purpose: "Udostępnia techniczne i administracyjne widoki wyłącznie uprawnionym rolom platformy.",
+    workflowOrder: ["1. Permission Engine potwierdza dostęp admina.", "2. Widok pobiera dane audytu, finansów, sporów i AI.", "3. UI pokazuje narzędzia bez ujawniania ich zwykłym użytkownikom."],
+    businessRules: ["Zwykły użytkownik nie widzi EventBus, debug, audit log ani statusów developerskich.", "Panel admina wymaga osobnych uprawnień.", "Działania administracyjne są audytowane."],
+    triggers: ["wejście admina", "przegląd audytu", "analiza sporu", "kontrola finansowa", "monitoring AI"],
+    auditLog: ["wejście do panelu admina", "odczyt audytu", "zmiana decyzji", "akcja compliance"],
+    permissions: ["admin.audit.read", "admin.system.manage", "compliance.review", "wallet.platform.read"],
+    relatedRoles: ["Właściciel platformy", "Administrator GL", "Operator GL", "Finanse GL", "Compliance GL", "Support GL"],
+    relatedModules: ["System", "Audit Log", "AI", "GL Wallet", "Spory"],
+    flowSteps: ["Admin otwiera moduł systemowy", "Permission Engine potwierdza poziom dostępu", "Widok pobiera dane techniczne", "Admin wykonuje akcję", "Audit Log zapisuje czynność"]
+  }),
+  "gl-academy": spec({
+    purpose: "Łączy wiedzę GL, profil i reputację z materiałami szkoleniowymi oraz certyfikacją.",
+    workflowOrder: ["1. Knowledge Engine dostarcza materiał.", "2. Użytkownik wykonuje lekcję lub test.", "3. Profil i reputacja mogą otrzymać wynik szkolenia."],
+    businessRules: ["Akademia nie zastępuje weryfikacji dokumentów.", "Status kursanta zależy od profilu.", "Materiały mogą mieć zakres roli i kraju."],
+    triggers: ["rozpoczęcie kursu", "ukończenie lekcji", "zdany test", "aktualizacja materiału"],
+    auditLog: ["rozpoczęcie kursu", "wynik testu", "nadanie certyfikatu", "zmiana materiału"],
+    permissions: ["academy.read", "academy.learn", "academy.teach", "knowledge.read"],
+    relatedRoles: ["Student Akademii GL", "Nauczyciel Akademii GL", "Kierowca", "Przewoźnik"],
+    relatedModules: ["Akademia GL", "Profil", "Silnik Wiedzy", "Reputacja"],
+    flowSteps: ["Użytkownik otwiera Akademię", "Knowledge dostarcza treść", "Permission Engine sprawdza rolę", "Profil zapisuje postęp", "Reputation może uwzględnić certyfikat"]
+  }),
+  "gl-jobs": spec({
+    purpose: "Planowany moduł rynku pracy powiązany z profilem, firmą i zaufaniem.",
+    workflowOrder: ["1. Firma publikuje ofertę pracy lub zlecenie.", "2. Profil kandydata i reputacja określają dopasowanie.", "3. Workflow może tworzyć przyszłe zdarzenia operacyjne."],
+    businessRules: ["Moduł przyszły nie wpływa na obecny workflow produkcyjny.", "Oferty muszą być powiązane z firmą i profilem.", "Widoczność zależy od permissions."],
+    triggers: ["publikacja oferty", "zgłoszenie kandydata", "aktualizacja profilu zawodowego"],
+    auditLog: ["utworzenie oferty", "zgłoszenie", "zmiana statusu rekrutacji"],
+    permissions: ["jobs.read", "jobs.manage", "profile.public.read"],
+    relatedRoles: ["Właściciel przewoźnika", "Kierowca", "Student Akademii GL", "Support GL"],
+    relatedModules: ["Giełda Pracy GL", "Profil", "Firma", "Reputacja"],
+    flowSteps: ["Firma publikuje ofertę", "Profile dostarcza dane kandydata", "Permission Engine filtruje widoczność", "Reputation wspiera ocenę", "Workflow może utworzyć przyszłe zadanie"]
+  }),
+  "gl-fleet-market": spec({
+    purpose: "Planowany moduł rynku pojazdów powiązany z firmami, flotą i dokumentami pojazdów.",
+    workflowOrder: ["1. Firma wystawia pojazd lub szuka zasobu.", "2. Vehicle Engine dostarcza parametry i dokumenty.", "3. Company Engine potwierdza właściciela i zakres dostępu."],
+    businessRules: ["Moduł przyszły nie zmienia aktualnej floty bez zgody firmy.", "Dane pojazdu muszą pochodzić z Vehicle Engine.", "Transakcje przyszłe będą wymagały audytu i permission."],
+    triggers: ["wystawienie pojazdu", "zapytanie o pojazd", "aktualizacja statusu floty"],
+    auditLog: ["utworzenie oferty pojazdu", "zmiana statusu oferty", "kontakt z właścicielem"],
+    permissions: ["fleet_market.read", "fleet_market.manage", "vehicles.manage"],
+    relatedRoles: ["Właściciel przewoźnika", "Kierownik floty", "Partner leasingowy", "Właściciel platformy"],
+    relatedModules: ["Giełda Pojazdów GL", "Flota", "Moje pojazdy", "Firma"],
+    flowSteps: ["Firma wybiera pojazd", "Vehicle Engine dostarcza dane techniczne", "Company Engine potwierdza właściciela", "Permission Engine sprawdza dostęp", "Oferta trafia do modułu przyszłego"]
+  })
+});
+
 export const engineArchitecture = Object.freeze([
   engine({
     id: "user",
@@ -553,9 +875,36 @@ export function validateEngineArchitecture(engines = engineArchitecture) {
   if (!workflow) errors.push("Brakuje centralnego Silnika Workflow");
 
   engines.forEach((item) => {
-    ["id", "name", "layer", "type", "description", "dependsOn", "providesTo", "workflowRole", "status", "files", "tests"].forEach((field) => {
+    [
+      "id",
+      "name",
+      "layer",
+      "type",
+      "description",
+      "dependsOn",
+      "providesTo",
+      "workflowRole",
+      "status",
+      "files",
+      "tests",
+      "purpose",
+      "workflowOrder",
+      "businessRules",
+      "triggers",
+      "auditLog",
+      "permissions",
+      "relatedRoles",
+      "relatedModules",
+      "flowSteps"
+    ].forEach((field) => {
       if (item[field] === undefined || item[field] === null || item[field] === "") {
         errors.push(`${item.id || "unknown"} nie ma pola ${field}`);
+      }
+    });
+
+    ["workflowOrder", "businessRules", "triggers", "auditLog", "permissions", "relatedRoles", "relatedModules", "flowSteps"].forEach((field) => {
+      if (!Array.isArray(item[field]) || item[field].length === 0) {
+        errors.push(`${item.id || "unknown"} nie ma kompletnej listy ${field}`);
       }
     });
 
@@ -659,14 +1008,40 @@ function docs(status, files, tests) {
   });
 }
 
+function spec(input) {
+  return Object.freeze({
+    purpose: input.purpose,
+    workflowOrder: Object.freeze(input.workflowOrder || []),
+    businessRules: Object.freeze(input.businessRules || []),
+    triggers: Object.freeze(input.triggers || []),
+    auditLog: Object.freeze(input.auditLog || []),
+    permissions: Object.freeze(input.permissions || []),
+    relatedRoles: Object.freeze(input.relatedRoles || []),
+    relatedModules: Object.freeze(input.relatedModules || []),
+    flowSteps: Object.freeze(input.flowSteps || [])
+  });
+}
+
 function rel(from, to, label, type = "info") {
   return Object.freeze({ from, to, label, type });
 }
 
 function engine(input) {
   const documentation = engineDocumentation[input.id] || docs(EngineStatuses.IN_PROGRESS, [], []);
+  const specification = engineSpecificationDetails[input.id] || spec({
+    purpose: input.description || input.workflowRole || input.name,
+    workflowOrder: [input.workflowRole || input.name],
+    businessRules: ["Silnik działa wyłącznie w aktywnym kontekście GL."],
+    triggers: ["zdarzenie systemowe GL"],
+    auditLog: ["zdarzenie silnika"],
+    permissions: ["modules.read"],
+    relatedRoles: ["Uprawnione role GL"],
+    relatedModules: [input.name],
+    flowSteps: [input.name, "Permission Engine", "Audit Log"]
+  });
   return Object.freeze({
     ...input,
+    purpose: input.purpose || specification.purpose || input.description || "",
     status: input.status || documentation.status,
     files: Object.freeze(input.files || documentation.files || []),
     tests: Object.freeze(input.tests || documentation.tests || []),
@@ -674,6 +1049,14 @@ function engine(input) {
     inputs: Object.freeze(input.inputs || input.dependsOn || []),
     outputs: Object.freeze(input.outputs || input.providesTo || []),
     usedBy: Object.freeze(input.usedBy || input.providesTo || []),
+    workflowOrder: Object.freeze(input.workflowOrder || specification.workflowOrder || []),
+    businessRules: Object.freeze(input.businessRules || specification.businessRules || []),
+    triggers: Object.freeze(input.triggers || specification.triggers || []),
+    auditLog: Object.freeze(input.auditLog || specification.auditLog || []),
+    permissions: Object.freeze(input.permissions || specification.permissions || []),
+    relatedRoles: Object.freeze(input.relatedRoles || specification.relatedRoles || []),
+    relatedModules: Object.freeze(input.relatedModules || specification.relatedModules || []),
+    flowSteps: Object.freeze(input.flowSteps || specification.flowSteps || []),
     dependsOn: Object.freeze(input.dependsOn || []),
     providesTo: Object.freeze(input.providesTo || []),
     mapPosition: Object.freeze(input.mapPosition || [0, 0, 0])
