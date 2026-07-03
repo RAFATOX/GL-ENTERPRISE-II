@@ -217,6 +217,7 @@ function assertButtonsHaveBehavior(html) {
       "data-profile-target=",
       "data-profile-tab=",
       "data-employee-category=",
+      "data-driver-time-tab=",
       "data-detail-route=",
       "data-role=",
       "data-language-option",
@@ -673,6 +674,51 @@ test("e2e: UI rozroznia informacje, szczegoly i akcje bez martwych przyciskow", 
   assertButtonsHaveBehavior(carrierHtml);
   assert.ok(carrierHtml.includes('data-detail-route="/transports"'));
   assert.ok(carrierHtml.includes('data-profile-target="co-client-a"'));
+});
+
+test("e2e: GL Driver Time pokazuje tachograf, AI, parking i import DDD", () => {
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  let html = render(driver);
+
+  assert.ok(html.includes("data-dashboard-driver-time-widget"));
+  assert.ok(html.includes("Pozostały czas jazdy"));
+  assert.ok(html.includes("Następna przerwa"));
+  assert.ok(html.includes("data-module-route=\"/driver-time\""));
+  assert.ok(html.includes("Otwórz Czas pracy"));
+  assert.equal(html.includes("data-driver-time-module"), false);
+  assert.equal(html.includes("data-driver-time-tab=\"driving\""), false);
+  assert.equal(html.includes("czas legalny"), false);
+
+  const clientDashboard = engineForUserContext("u-client-owner", "co-client-a");
+  assert.equal(render(clientDashboard).includes("data-dashboard-driver-time-widget"), false);
+
+  const route = selectView(driver, "driver_time", "/driver-time");
+  html = render(driver);
+
+  assert.equal(route.ok, true);
+  assert.ok(html.includes("Czas pracy kierowcy GL"));
+  assert.ok(html.includes("data-driver-time-tab=\"driving\""));
+  assert.ok(html.includes("data-driver-time-tab=\"work\""));
+  assert.ok(html.includes("data-driver-time-tab=\"rest\""));
+  assert.ok(html.includes("data-driver-time-tab=\"availability\""));
+  assert.ok(html.includes("Asystent AI kierowcy"));
+  assert.ok(html.includes("GL Live Parking"));
+  assert.ok(html.includes("data-countdown-seconds"));
+  assert.ok(html.includes(`data-action="${ActionTypes.IMPORT_DDD}"`));
+  assertButtonsHaveBehavior(html);
+
+  const before = driver.state.tachographImports.length;
+  const importResult = driver.dispatchAction(ActionTypes.IMPORT_DDD, { driverId: "u-driver-1" });
+  html = render(driver);
+
+  assert.equal(importResult.ok, true);
+  assert.equal(driver.state.tachographImports.length, before + 1);
+  assert.ok(driver.state.audit.some((entry) => entry.action === EventTypes.TACHOGRAPH_IMPORTED && entry.objectId === "u-driver-1"));
+  assert.ok(html.includes("Synchronizacja karty"));
+
+  const client = engineForUserContext("u-client-owner", "co-client-a");
+  const denied = selectView(client, "driver_time", "/driver-time");
+  assert.equal(denied.ok, false);
 });
 
 test("e2e: modul Pracownicy pozwala wlascicielowi przewoznika zatrudnic pracownika do firmy", () => {

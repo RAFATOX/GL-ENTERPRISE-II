@@ -382,6 +382,7 @@ const actionPermissionRequirements = {
   [ActionTypes.UPLOAD_DOCUMENT]: [[DocumentPermissions.UPLOAD]],
   [ActionTypes.START_TRANSIT]: [[LoadPermissions.VIEW_OWN]],
   [ActionTypes.SELECT_PARKING]: [[ModulePermissions.PARKING]],
+  [ActionTypes.IMPORT_DDD]: [[ModulePermissions.DRIVER_TIME]],
   [ActionTypes.START_BREAK]: [[ModulePermissions.PARKING]],
   [ActionTypes.FINISH_BREAK]: [[ModulePermissions.PARKING]],
   [ActionTypes.ARRIVE_DELIVERY]: [[LoadPermissions.VIEW_OWN]],
@@ -629,8 +630,31 @@ export class PermissionsEngine {
     const visibleDriverIds = new Set(snapshot.transports
       .flatMap((transport) => [transport.driverId, ...(snapshot.crewPlans.find((plan) => plan.transportId === transport.id)?.driverIds || [])])
       .filter(Boolean));
+    const companyDriverIds = new Set((snapshot.users || [])
+      .filter((user) => user.companyId === actor.companyId && (user.roles || []).includes(Roles.DRIVER))
+      .map((user) => user.id));
+    const canViewDriverTime = privileged(actor) || hasPermission(actor, ModulePermissions.DRIVER_TIME);
+    snapshot.driverTime = (snapshot.driverTime || []).filter((row) => (
+      privileged(actor)
+      || (
+        canViewDriverTime
+        && (
+          row.driverId === actor.userId
+          || visibleDriverIds.has(row.driverId)
+          || companyDriverIds.has(row.driverId)
+        )
+      )
+    ));
     snapshot.tachographImports = snapshot.tachographImports.filter((row) => (
-      privileged(actor) || visibleDriverIds.has(row.driverId) || row.driverId === actor.userId
+      privileged(actor)
+      || (
+        canViewDriverTime
+        && (
+          visibleDriverIds.has(row.driverId)
+          || row.driverId === actor.userId
+          || companyDriverIds.has(row.driverId)
+        )
+      )
     ));
     snapshot.plateLookups = snapshot.plateLookups.filter((lookup) => (
       lookup.scannerUserId === actor.userId

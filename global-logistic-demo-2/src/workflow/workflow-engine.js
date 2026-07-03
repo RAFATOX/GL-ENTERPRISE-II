@@ -521,6 +521,8 @@ export class WorkflowEngine {
         transport.currentParkingId = payload.parkingId;
         return { events: [statusEvent(modules, transport, actor, TransportStatuses.PARKING_BREAK, EventTypes.PARKING_SELECTED, "parking selected for legal break")] };
       }
+      case ActionTypes.IMPORT_DDD:
+        return modules.driverTime.importDdd(actor, payload);
       case ActionTypes.START_BREAK:
         modules.driverTime.startBreak(transport.driverId);
         return { events: [statusEvent(modules, transport, actor, TransportStatuses.PARKING_BREAK, EventTypes.BREAK_STARTED, "driver break started")] };

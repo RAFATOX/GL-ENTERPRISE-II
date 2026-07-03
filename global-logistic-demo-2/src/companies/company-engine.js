@@ -790,6 +790,7 @@ function companyTypeFilteredRolePermissions(permissions, companyType) {
     CompanyPermissions.EMPLOYEES_ASSIGN_ROLE,
     LoadPermissions.ACCEPT,
     LoadPermissions.ASSIGN_DRIVER,
+    ModulePermissions.DRIVER_TIME,
     ModulePermissions.JOBS,
     ModulePermissions.PARKING
   ];

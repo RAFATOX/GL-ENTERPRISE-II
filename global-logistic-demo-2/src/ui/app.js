@@ -9,6 +9,7 @@ import { firstRouteForRole, routeForRoleView } from "./role-config.js";
 const engine = new GLCoreEngine();
 const root = document.querySelector("#app");
 let internalRouteChange = false;
+let driverTimeTicker = null;
 
 window.__glSubmitForm = (button) => {
   const form = button?.closest?.("[data-form-action]");
@@ -19,6 +20,7 @@ window.__glSubmitForm = (button) => {
 function render(snapshot = engine.getSnapshot()) {
   root.innerHTML = renderApp(snapshot, engine);
   bindRenderedForms();
+  bindDriverTimeTicker();
 }
 
 engine.subscribe(render);
@@ -101,6 +103,12 @@ root.addEventListener("click", (event) => {
   const employeeCategory = target.closest("[data-employee-category]");
   if (employeeCategory) {
     activateEmployeeCategory(employeeCategory);
+    return;
+  }
+
+  const driverTimeTab = target.closest("[data-driver-time-tab]");
+  if (driverTimeTab) {
+    activateDriverTimeTab(driverTimeTab);
     return;
   }
 
@@ -303,6 +311,66 @@ function activateEmployeeCategory(button) {
     panel.hidden = !active;
     panel.classList.toggle("is-active", active);
   });
+}
+
+function activateDriverTimeTab(button) {
+  const shell = button.closest("[data-driver-time-module]");
+  if (!shell) return;
+  const tabId = button.dataset.driverTimeTab;
+  shell.querySelectorAll("[data-driver-time-tab]").forEach((item) => {
+    item.setAttribute("aria-selected", item === button ? "true" : "false");
+  });
+  shell.querySelectorAll("[data-driver-time-panel]").forEach((panel) => {
+    const active = panel.dataset.driverTimePanel === tabId;
+    panel.hidden = !active;
+    panel.classList.toggle("is-active", active);
+  });
+}
+
+function bindDriverTimeTicker() {
+  if (!root.querySelector("[data-driver-time-module]")) {
+    if (driverTimeTicker) {
+      clearInterval(driverTimeTicker);
+      driverTimeTicker = null;
+    }
+    return;
+  }
+  updateDriverTimeLiveValues();
+  if (!driverTimeTicker) {
+    driverTimeTicker = setInterval(updateDriverTimeLiveValues, 1000);
+  }
+}
+
+function updateDriverTimeLiveValues() {
+  const now = new Date();
+  root.querySelectorAll('[data-driver-time-clock="local"]').forEach((item) => {
+    item.textContent = now.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  });
+  root.querySelectorAll('[data-driver-time-clock="utc"]').forEach((item) => {
+    item.textContent = now.toISOString().slice(11, 19);
+  });
+  root.querySelectorAll("[data-countdown-seconds]").forEach((item) => {
+    if (!item.dataset.liveSeconds) item.dataset.liveSeconds = item.dataset.countdownSeconds || "0";
+    const seconds = Math.max(0, Number(item.dataset.liveSeconds || 0));
+    item.textContent = formatCountdown(seconds);
+    item.dataset.liveSeconds = String(Math.max(0, seconds - 1));
+  });
+  root.querySelectorAll("[data-ring-total-seconds]").forEach((ring) => {
+    const total = Math.max(1, Number(ring.dataset.ringTotalSeconds || 1));
+    const countdown = ring.querySelector("[data-countdown-seconds]");
+    const remaining = Number(countdown?.dataset.liveSeconds || ring.dataset.ringRemainingSeconds || 0);
+    const progress = Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)));
+    ring.style.setProperty("--driver-time-progress", `${progress}%`);
+  });
+}
+
+function formatCountdown(seconds) {
+  const safe = Math.max(0, Math.round(Number(seconds) || 0));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  if (!h) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
 function toggleBrandMenu(button) {

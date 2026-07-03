@@ -100,6 +100,7 @@ function assertAllButtonsHaveBehavior(html, label = "ui") {
       "data-profile-target=",
       "data-profile-tab=",
       "data-employee-category=",
+      "data-driver-time-tab=",
       "data-detail-route=",
       "data-role=",
       "data-language-option",
@@ -760,6 +761,61 @@ test("driver sees only driver modules and no role panel", () => {
   assert.equal(modules.includes("academy"), false);
   assert.equal(modules.includes("trust"), false);
   assert.equal(html.includes("driver-workspace"), false);
+});
+
+test("driver dashboard renders compact Driver Time widget from engine data", () => {
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const html = renderApp(driver.getSnapshot(), driver);
+
+  assert.ok(html.includes("data-dashboard-driver-time-widget"));
+  assert.ok(html.includes("Pozostały czas jazdy"));
+  assert.ok(html.includes("Następna przerwa"));
+  assert.ok(html.includes("DDD"));
+  assert.ok(html.includes("GPS"));
+  assert.ok(html.includes("data-module-route=\"/driver-time\""));
+  assert.ok(html.includes("Otwórz Czas pracy"));
+  assert.equal(html.includes("data-driver-time-module"), false);
+  assert.equal(html.includes("data-driver-time-tab=\"driving\""), false);
+  assert.equal(html.includes("czas legalny"), false);
+
+  const client = engineForUserContext("u-client-owner", "co-client-a");
+  const clientHtml = renderApp(client.getSnapshot(), client);
+  assert.equal(clientHtml.includes("data-dashboard-driver-time-widget"), false);
+});
+
+test("Driver Time module is permission driven and renders tachograph dashboard", () => {
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  const route = driver.dispatchAction(ActionTypes.SELECT_VIEW, { view: "driver_time", route: "/driver-time" });
+  const html = renderApp(driver.getSnapshot(), driver);
+  const driverModules = getVisibleModules(driver.getActor(), driver.getActor().role).map((module) => module.id);
+
+  assert.equal(route.ok, true);
+  assert.ok(driverModules.includes("driver-time"));
+  assert.ok(html.includes("Czas pracy kierowcy GL"));
+  assert.ok(html.includes("data-driver-time-tab=\"driving\""));
+  assert.ok(html.includes("data-driver-time-tab=\"work\""));
+  assert.ok(html.includes("data-driver-time-tab=\"rest\""));
+  assert.ok(html.includes("data-driver-time-tab=\"availability\""));
+  assert.ok(html.includes("Asystent AI kierowcy"));
+  assert.ok(html.includes("GL Live Parking"));
+  assert.ok(html.includes("Silnik zgodnosci"));
+  assert.ok(html.includes("data-countdown-seconds"));
+  assertAllButtonsHaveBehavior(html, "driver time");
+
+  const client = engineForUserContext("u-client-owner", "co-client-a");
+  const denied = client.dispatchAction(ActionTypes.SELECT_VIEW, { view: "driver_time", route: "/driver-time" });
+  assert.equal(denied.ok, false);
+});
+
+test("DDD import creates tachograph row and audit event", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  const before = engine.state.tachographImports.length;
+  const result = engine.dispatchAction(ActionTypes.IMPORT_DDD, { driverId: "u-driver-1" });
+
+  assert.equal(result.ok, true);
+  assert.equal(engine.state.tachographImports.length, before + 1);
+  assert.equal(engine.state.tachographImports[0].driverId, "u-driver-1");
+  assert.ok(engine.state.audit.some((entry) => entry.action === EventTypes.TACHOGRAPH_IMPORTED && entry.objectId === "u-driver-1"));
 });
 
 test("insurer sees policy, claim, risk, document and policy billing modules", () => {
@@ -1901,6 +1957,7 @@ test("module routes stay flat without role dashboard routes", () => {
     "/photos",
     "/documents",
     "/parking",
+    "/driver-time",
     "/chat",
     "/jobs",
     "/academy",

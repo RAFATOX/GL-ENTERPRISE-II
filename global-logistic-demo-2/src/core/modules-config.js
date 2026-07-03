@@ -88,6 +88,7 @@ export const ModulePermissions = Object.freeze({
   PHOTOS: "module.photos",
   DOCUMENTS: "module.documents",
   PARKING: "module.parking",
+  DRIVER_TIME: "module.driver_time",
   CHAT: "module.chat",
   JOBS: "module.jobs",
   ACADEMY: "module.academy",
@@ -204,6 +205,9 @@ export const modulesConfig = Object.freeze([
   moduleItem("parking", "Parkingi na zywo", "PK", "/parking", "parking", ModulePermissions.PARKING, [
     ...carrierRoles, ...dispatcherRoles, Roles.DRIVER
   ], "Parkingi, wolne miejsca i raporty kierowcow."),
+  moduleItem("driver-time", "Czas pracy", "DT", "/driver-time", "driver_time", ModulePermissions.DRIVER_TIME, [
+    ...carrierRoles, ...dispatcherRoles, Roles.DRIVER
+  ], "Tachograf, limity jazdy, odpoczynki, DDD i AI asystent kierowcy."),
   moduleItem("chat", "Czat GL", "CH", "/chat", "communication", ModulePermissions.CHAT, [
     ...clientRoles, ...carrierRoles, ...dispatcherRoles, Roles.DRIVER, Roles.WAREHOUSE_WORKER,
     Roles.SECURITY, Roles.CUSTOMS_AGENT, Roles.FERRY_OPERATOR, Roles.RAIL_OPERATOR, Roles.SUPPORT_AGENT
@@ -458,6 +462,7 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.PHOTOS,
     ModulePermissions.DOCUMENTS,
     ModulePermissions.PARKING,
+    ModulePermissions.DRIVER_TIME,
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
     ModulePermissions.ACADEMY,
@@ -491,6 +496,7 @@ export const PlatformRolePermissionMap = Object.freeze({
     ModulePermissions.PHOTOS,
     ModulePermissions.DOCUMENTS,
     ModulePermissions.PARKING,
+    ModulePermissions.DRIVER_TIME,
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
     ModulePermissions.ACADEMY,
@@ -567,6 +573,7 @@ const operationalCompanyPermissions = [
   ModulePermissions.PHOTOS,
   ModulePermissions.DOCUMENTS,
   ModulePermissions.PARKING,
+  ModulePermissions.DRIVER_TIME,
   ModulePermissions.CHAT,
   ModulePermissions.JOBS,
   ModulePermissions.PROFILE,
@@ -699,6 +706,7 @@ export const CompanyRolePermissionMap = Object.freeze({
     ModulePermissions.PHOTOS,
     ModulePermissions.DOCUMENTS,
     ModulePermissions.PARKING,
+    ModulePermissions.DRIVER_TIME,
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
     ModulePermissions.PROFILE,
@@ -826,6 +834,7 @@ export const CompanyTypePermissionMap = Object.freeze({
     ModulePermissions.PHOTOS,
     ModulePermissions.DOCUMENTS,
     ModulePermissions.PARKING,
+    ModulePermissions.DRIVER_TIME,
     ModulePermissions.CHAT,
     ModulePermissions.JOBS,
     LoadPermissions.ACCEPT,

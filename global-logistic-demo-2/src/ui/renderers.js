@@ -45,8 +45,8 @@ export function renderApp(state, engine) {
     ? state.session.view
     : "dashboard";
   return `
-    <div class="app-shell role-${state.session.role}">
-      <aside class="side">
+    <div class="app-shell role-${state.session.role}" data-layout-shell>
+      <aside class="side" data-layout-column="left">
         ${renderBrandMenu(roleConfig.workspace)}
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
@@ -54,7 +54,7 @@ export function renderApp(state, engine) {
           <strong>${state.access?.activeContextLabel || roleConfig.workspace}</strong>
         </div>
       </aside>
-      <main class="main">
+      <main class="main" data-layout-column="main">
         ${renderTopbar(state, activeView, roleConfig)}
         ${renderLastResult(state)}
         ${renderView(state, engine, selected, activeView)}
@@ -534,6 +534,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "driver_assignment") return renderDriverAssignment(state, engine, selected);
   if (view === "gps") return renderGps(state, engine, selected);
   if (view === "parking") return renderParking(state, engine, selected);
+  if (view === "driver_time") return renderDriverTime(state, engine, selected);
   if (view === "documents") return renderDocuments(state, engine, selected);
   if (view === "wallet") return renderPlatformWallet(state, engine, selected);
   if (view === "billing") return renderBillingModule(state, "billing");
@@ -568,6 +569,8 @@ function renderView(state, engine, selected, activeView = state.session.view) {
 function renderDashboard(state, engine, selected) {
   const metrics = dashboardOperationalMetrics(state, selected);
   const modules = menuForRole(state.session.role, state.access?.actor || { role: state.session.role });
+  const roleConfig = getRoleConfig(state.session.role);
+  const driverTimePreview = renderDriverTimeDashboardWidget(state, engine, selected, roleConfig, modules);
   return `
     <section class="business-dashboard">
       ${renderWorkspaceHero(state, selected)}
@@ -577,12 +580,70 @@ function renderDashboard(state, engine, selected) {
       <section class="workspace-grid">
         ${renderTodayWorkPanel(state, selected)}
         ${renderBusinessFocusPanel(state, engine, selected)}
+        ${driverTimePreview}
         ${renderBusinessNotificationsPanel(state, selected)}
       </section>
       ${isCarrierActor(state) ? renderCarrierOperationsPanel(state) : ""}
       ${renderBusinessModuleLauncher(modules)}
     </section>
   `;
+}
+
+function renderDriverTimeDashboardWidget(state, engine, selected, roleConfig, modules) {
+  const canRender = state.session.role === Roles.DRIVER
+    && roleConfig.widgets?.includes("driverTime")
+    && modules.some((module) => module.id === "driver_time" || module.moduleId === "driver-time");
+  if (!canRender) return "";
+  const actor = state.access?.actor || { role: state.session.role, userId: state.session.userId };
+  const dashboard = engine.modules.driverTime.dashboardFor(actor, state.session.selectedTransportId, state);
+  const alert = dashboard.notifications.find((item) => !String(item.body || "").includes("undefined"));
+  const aiMessage = dashboard.assistant.find((message) => !String(message || "").includes("undefined"));
+  return `
+    <article class="panel business-panel" data-dashboard-driver-time-widget data-ui-type="info">
+      <div class="panel-head">
+        <div>
+          <span class="eyebrow">Czas pracy</span>
+          <h2>Podgląd kierowcy</h2>
+        </div>
+        <mark class="${driverTimeMarkTone(dashboard.activityTone)}">${driverTimeToneLabel(dashboard.activityTone)}</mark>
+      </div>
+      <div class="detail-grid">
+        <div>
+          <span>Pozostały czas jazdy</span>
+          <strong>${formatDriverDuration(dashboard.driving.continuous.remaining)}</strong>
+        </div>
+        <div>
+          <span>Następna przerwa</span>
+          <strong>${formatDriverDuration(dashboard.driving.nextBreakIn)}</strong>
+        </div>
+        <div>
+          <span>DDD</span>
+          <strong>${dashboard.connections.ddd}</strong>
+        </div>
+        <div>
+          <span>GPS</span>
+          <strong>${dashboard.connections.gps}</strong>
+        </div>
+      </div>
+      <div class="business-row" data-ui-type="info">
+        <strong>${alert?.title || "Asystent AI"}</strong>
+        <span>${alert?.body || aiMessage || "Brak aktywnych alertow czasu pracy."}</span>
+        <small>${dashboard.transportNumber ? `Transport ${dashboard.transportNumber}` : "Monitorowanie czasu pracy"}</small>
+      </div>
+      ${driverTimeWidgetDebugEnabled(state) ? `<div class="debug-marker" data-driver-time-widget-debug>DRIVER_TIME_WIDGET_RENDERED</div>` : ""}
+      <button class="mini-action" type="button" data-ui-type="details" data-module-route="/driver-time">
+        Otwórz Czas pracy
+      </button>
+    </article>
+  `;
+}
+
+function driverTimeWidgetDebugEnabled(state) {
+  return Boolean(
+    state.session?.debugDriverTimeWidget
+    || state.session?.debug?.driverTimeWidget
+    || state.session?.debugFlags?.driverTimeWidget
+  );
 }
 
 function renderWorkspaceHero(state, selected) {
@@ -781,12 +842,10 @@ function dashboardOperationalMetrics(state, selected) {
 
   if (role === Roles.DRIVER) {
     const driverTransports = state.transports.filter((transport) => transport.driverId === userId);
-    const time = state.driverTime.find((item) => item.driverId === userId);
     return [
       { label: ui("dashboard.metric.my_transports"), value: driverTransports.length, sub: ui("dashboard.metric.today") },
       { label: ui("dashboard.metric.route_status"), value: valueLabel(selected?.status || ui("ui.missing")), sub: selected?.number || ui("ui.not_assigned") },
       { label: ui("dashboard.metric.eta"), value: selected?.eta ? formatTime(selected.eta) : ui("ui.missing"), sub: ui("dashboard.metric.delivery") },
-      { label: ui("dashboard.metric.work_time"), value: time ? `${time.remainingLegalHours}h` : ui("ui.missing"), sub: ui("dashboard.metric.legal_time") },
       { label: ui("dashboard.metric.documents"), value: selectedDocs, sub: ui("dashboard.metric.transport_files") }
     ];
   }
@@ -2492,6 +2551,348 @@ function renderRevenue(state) {
   `;
 }
 
+function renderDriverTime(state, engine, selected) {
+  const actor = state.access?.actor || { role: state.session.role, userId: state.session.userId };
+  const dashboard = engine.modules.driverTime.dashboardFor(actor, state.session.selectedTransportId, state);
+  const tabs = [
+    ["driving", "Jazda"],
+    ["work", "Inna praca"],
+    ["rest", "Odpoczynek"],
+    ["availability", "Dyspozycyjnosc"]
+  ];
+  return `
+    <section class="driver-time-shell" data-driver-time-module>
+      <header class="driver-time-header">
+        <div>
+          <span class="eyebrow">Czas pracy kierowcy GL</span>
+          <h2>${dashboard.driverName}</h2>
+          <p class="muted">${dashboard.transportNumber ? `Transport ${dashboard.transportNumber}` : "Centrum czasu pracy kierowcy"}</p>
+        </div>
+        <div class="driver-time-status-grid">
+          ${driverTimeStatus("Status", dashboard.status, dashboard.activityTone)}
+          ${driverTimeStatus("Aktywnosc", dashboard.currentActivity, dashboard.activityTone)}
+          ${driverTimeClock("Czas lokalny", "local")}
+          ${driverTimeClock("UTC", "utc")}
+          ${driverTimeStatus("DDD", dashboard.connections.ddd, dashboard.tachograph.status === "missing" ? "orange" : "green")}
+          ${driverTimeStatus("Karta", dashboard.connections.card, dashboard.tachograph.status === "missing" ? "orange" : "green")}
+          ${driverTimeStatus("GPS", dashboard.connections.gps, selected ? "green" : "yellow")}
+          ${driverTimeStatus("Synchronizacja", dashboard.connections.sync, dashboard.tachograph.status === "violation" ? "red" : "green")}
+        </div>
+      </header>
+
+      <nav class="driver-time-tabs" aria-label="Zakladki czasu pracy">
+        ${tabs.map(([id, label], index) => `
+          <button type="button" data-ui-type="action" data-driver-time-tab="${id}" aria-selected="${index === 0 ? "true" : "false"}">${label}</button>
+        `).join("")}
+      </nav>
+
+      <section class="driver-time-panel is-active" data-driver-time-panel="driving">
+        <div class="driver-time-primary-grid">
+          ${driverTimeRing(dashboard.driving.continuous, "Pozostalo jazdy ciaglej")}
+          ${driverTimeDailyCard(dashboard)}
+          ${driverTimeWeeklyCard(dashboard)}
+          ${driverTimeBiweeklyCard(dashboard)}
+        </div>
+        <div class="driver-time-shift-card">
+          <div>
+            <span>Zmiana</span>
+            <strong>${formatDriverDuration(dashboard.driving.shift.current)}</strong>
+          </div>
+          <div>
+            <span>Maksymalnie</span>
+            <strong>${formatDriverDuration(dashboard.driving.shift.max)}</strong>
+          </div>
+          <div>
+            <span>Pozostalo</span>
+            <strong data-countdown-seconds="${hoursToSeconds(dashboard.driving.shift.remaining)}">${formatDriverDuration(dashboard.driving.shift.remaining)}</strong>
+          </div>
+          <mark class="${driverTimeMarkTone(dashboard.driving.shift.tone)}">${driverTimeToneLabel(dashboard.driving.shift.tone)}</mark>
+        </div>
+      </section>
+
+      <section class="driver-time-panel" data-driver-time-panel="work" hidden>
+        <div class="driver-time-card-grid">
+          ${driverTimeMetric("Aktualna praca", formatDriverDuration(dashboard.otherWork.current), "czynnosci poza jazda", dashboard.otherWork.tone)}
+          ${driverTimeMetric("Aktualna zmiana", formatDriverDuration(dashboard.otherWork.shift), "jazda + praca + pauzy", dashboard.driving.shift.tone)}
+          ${driverTimeMetric("Praca tygodniowa", formatDriverDuration(dashboard.otherWork.weekly), "limit kontrolowany", dashboard.otherWork.tone)}
+          <article class="driver-time-card">
+            <span>Jazda / inna praca</span>
+            <div class="driver-time-ratio">
+              <i style="width: ${dashboard.otherWork.ratioDriving}%"></i>
+            </div>
+            <strong>${dashboard.otherWork.ratioDriving}% / ${dashboard.otherWork.ratioOther}%</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="driver-time-panel" data-driver-time-panel="rest" hidden>
+        <div class="driver-time-card-grid">
+          ${driverTimeMetric("Aktualna pauza", formatDriverDuration(dashboard.rest.currentBreak), "zarejestrowana w tacho", dashboard.rest.break45Remaining > 0 ? "yellow" : "green")}
+          ${driverTimeCountdownCard("Do 45 minut", dashboard.rest.break45Remaining, "obowiazkowa przerwa")}
+          <article class="driver-time-card">
+            <span>Pauza dzielona</span>
+            <div class="split-break">
+              <b style="width: ${Math.min(100, (dashboard.rest.split15 / 15) * 100)}%">15m</b>
+              <b style="width: ${Math.min(100, (dashboard.rest.split30 / 30) * 100)}%">30m</b>
+            </div>
+            <strong>${dashboard.rest.split15}m + ${dashboard.rest.split30}m</strong>
+          </article>
+          ${driverTimeMetric("Odpoczynek dzienny", `${dashboard.rest.regularDailyRest}h`, `${dashboard.rest.reducedDailyAvailable} skrocone dostepne`, "green")}
+          ${driverTimeMetric("Odpoczynek tygodniowy", `${dashboard.rest.weeklyRest}h`, `skrocony ${dashboard.rest.reducedWeeklyRest}h`, "green")}
+          ${driverTimeMetric("Kompensata", dashboard.rest.compensationRequired, "kontrola odpoczynku", dashboard.rest.compensationRequired === "brak" ? "green" : "orange")}
+        </div>
+      </section>
+
+      <section class="driver-time-panel" data-driver-time-panel="availability" hidden>
+        <div class="driver-time-card-grid">
+          ${driverTimeCountdownCard("Dyspozycyjnosc", dashboard.availability.timer, "czas dostepnosci")}
+          ${driverTimeMetric("Timer zmiany", formatDriverDuration(dashboard.availability.shift), "aktualny cykl pracy", dashboard.driving.shift.tone)}
+          ${driverTimeMetric("Praca tygodniowa", formatDriverDuration(dashboard.availability.weeklyWorkingTime), "monitoring 60h", dashboard.availability.tone)}
+        </div>
+      </section>
+
+      <section class="driver-time-integrations">
+        ${driverTimeAssistant(dashboard)}
+        ${driverTimeRoutePanel(dashboard)}
+        ${driverTimeParkingPanel(dashboard)}
+        ${driverTimeLegalPanel(dashboard)}
+        ${driverTimeDddPanel(dashboard)}
+        ${driverTimeNotifications(dashboard)}
+      </section>
+    </section>
+  `;
+}
+
+function driverTimeStatus(label, value, toneName = "green") {
+  return `
+    <article class="driver-time-status ${toneName}" data-ui-type="info">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </article>
+  `;
+}
+
+function driverTimeClock(label, mode) {
+  return `
+    <article class="driver-time-status green" data-ui-type="info">
+      <span>${label}</span>
+      <strong data-driver-time-clock="${mode}">--:--:--</strong>
+    </article>
+  `;
+}
+
+function driverTimeRing(block, caption) {
+  const remainingSeconds = hoursToSeconds(block.remaining);
+  const totalSeconds = hoursToSeconds(block.limit);
+  return `
+    <article class="driver-time-ring-card ${block.tone}" data-ui-type="info">
+      <div
+        class="driver-time-ring"
+        data-ring-total-seconds="${totalSeconds}"
+        data-ring-remaining-seconds="${remainingSeconds}"
+        style="--driver-time-progress: ${Math.round(block.progress * 100)}%">
+        <strong data-countdown-seconds="${remainingSeconds}">${formatDriverDuration(block.remaining)}</strong>
+        <span>${caption}</span>
+      </div>
+      <div class="driver-time-small-grid">
+        <div><span>Uplynelo</span><strong>${formatDriverDuration(block.elapsed)}</strong></div>
+        <div><span>Pozostalo</span><strong>${formatDriverDuration(block.remaining)}</strong></div>
+        <div><span>Nastepna pauza</span><strong>${formatDriverDuration(block.remaining)}</strong></div>
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeDailyCard(dashboard) {
+  const daily = dashboard.driving.daily;
+  return `
+    <article class="driver-time-ring-card ${daily.tone}" data-ui-type="info">
+      <div class="driver-time-ring small" style="--driver-time-progress: ${Math.round((daily.used / 10) * 100)}%">
+        <strong>${formatDriverDuration(daily.used)}</strong>
+        <span>Jazda dzienna</span>
+      </div>
+      <div class="driver-time-small-grid">
+        <div><span>Pozostalo 9h</span><strong>${formatDriverDuration(daily.remaining9)}</strong></div>
+        <div><span>10h status</span><strong>${daily.extensionUsed ? "uzyte" : "dostepne"}</strong></div>
+        <div><span>10h pozostalo</span><strong>${formatDriverDuration(daily.remaining10)}</strong></div>
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeWeeklyCard(dashboard) {
+  const weekly = dashboard.driving.weekly;
+  return `
+    <article class="driver-time-card ${weekly.tone}" data-ui-type="info">
+      <span>Tydzien</span>
+      <strong>${formatDriverDuration(weekly.used)} / ${weekly.limit}h</strong>
+      <div class="driver-time-bar"><i style="width: ${Math.round((weekly.used / weekly.limit) * 100)}%"></i></div>
+      <small>Pozostalo ${formatDriverDuration(weekly.remaining)}</small>
+    </article>
+  `;
+}
+
+function driverTimeBiweeklyCard(dashboard) {
+  const biweekly = dashboard.driving.biweekly;
+  return `
+    <article class="driver-time-card ${biweekly.tone}" data-ui-type="info">
+      <span>Dwa tygodnie</span>
+      <strong>${formatDriverDuration(biweekly.total)} / ${biweekly.limit}h</strong>
+      <div class="driver-time-small-grid">
+        <div><span>Tydz. 1</span><strong>${formatDriverDuration(biweekly.week1)}</strong></div>
+        <div><span>Tydz. 2</span><strong>${formatDriverDuration(biweekly.week2)}</strong></div>
+        <div><span>Pozostalo</span><strong>${formatDriverDuration(biweekly.remaining)}</strong></div>
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeMetric(label, value, sub, toneName = "green") {
+  return `
+    <article class="driver-time-card ${toneName}" data-ui-type="info">
+      <span>${label}</span>
+      <strong>${value}</strong>
+      <small>${sub}</small>
+    </article>
+  `;
+}
+
+function driverTimeCountdownCard(label, hours, sub) {
+  const toneName = hours <= 0 ? "green" : hours <= 0.25 ? "orange" : "yellow";
+  return `
+    <article class="driver-time-card ${toneName}" data-ui-type="info">
+      <span>${label}</span>
+      <strong data-countdown-seconds="${hoursToSeconds(hours)}">${formatDriverDuration(hours)}</strong>
+      <small>${sub}</small>
+    </article>
+  `;
+}
+
+function driverTimeAssistant(dashboard) {
+  return `
+    <article class="driver-time-side-card driver-time-ai">
+      <span class="eyebrow">Asystent AI kierowcy</span>
+      <h2>Rekomendacje</h2>
+      <div class="driver-time-list">
+        ${dashboard.assistant.map((message) => `<div><strong>${message}</strong></div>`).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeRoutePanel(dashboard) {
+  return `
+    <article class="driver-time-side-card">
+      <span class="eyebrow">Analiza trasy</span>
+      <h2>${dashboard.route.canReachDestination ? "Dojedziesz legalnie" : "Wymagana przerwa"}</h2>
+      <mark class="${dashboard.route.canReachDestination ? "good" : "danger"}">${dashboard.route.canReachDestination ? "TAK" : "NIE"}</mark>
+      <p class="muted">${dashboard.route.reason}</p>
+      <div class="driver-time-small-grid">
+        <div><span>Szacowana jazda</span><strong>${formatDriverDuration(dashboard.route.estimatedDriving)}</strong></div>
+        <div><span>GL GPS</span><strong>aktywny</strong></div>
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeParkingPanel(dashboard) {
+  const parking = dashboard.parking;
+  return `
+    <article class="driver-time-side-card">
+      <span class="eyebrow">GL Live Parking</span>
+      <h2>${parking?.name || "Brak parkingu"}</h2>
+      ${parking ? `
+        <div class="driver-time-small-grid">
+          <div><span>Wolne miejsca</span><strong>${parking.freeSpaces}</strong></div>
+          <div><span>Ocena</span><strong>${parking.rating}/100</strong></div>
+          <div><span>Ochrona</span><strong>${(parking.services || []).includes("guarded") ? "wysoka" : "standard"}</strong></div>
+          <div><span>Uslugi</span><strong>${(parking.services || []).join(", ") || "podstawowe"}</strong></div>
+        </div>
+        <p class="muted">Szacowany dojazd: 22 km.</p>
+      ` : `<p class="muted">GL pokaze parking, gdy trasa bedzie aktywna.</p>`}
+    </article>
+  `;
+}
+
+function driverTimeLegalPanel(dashboard) {
+  const rows = [
+    ["EU 561/2006", dashboard.legal.eu561],
+    ["AETR", dashboard.legal.aetr],
+    ["Wyjatki krajowe", dashboard.legal.nationalExceptions],
+    ["Podwojna obsada", dashboard.legal.doubleCrew],
+    ["Prom", dashboard.legal.ferryMode],
+    ["Pociag", dashboard.legal.trainMode]
+  ];
+  return `
+    <article class="driver-time-side-card">
+      <span class="eyebrow">Silnik zgodnosci</span>
+      <h2>Walidacja ciagla</h2>
+      <div class="driver-time-list compact">
+        ${rows.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeDddPanel(dashboard) {
+  return `
+    <article class="driver-time-side-card">
+      <span class="eyebrow">Import DDD</span>
+      <h2>Synchronizacja karty</h2>
+      <button class="mini-action" type="button" data-ui-type="action" data-action="${ActionTypes.IMPORT_DDD}" data-payload='${JSON.stringify({ driverId: dashboard.driverId })}'>Importuj DDD</button>
+      <div class="driver-time-list compact">
+        <div><span>Data importu</span><strong>${dashboard.tachograph.importDate ? formatTime(dashboard.tachograph.importDate) : "brak"}</strong></div>
+        <div><span>Karta kierowcy</span><strong>${dashboard.tachograph.driverCardDate ? formatTime(dashboard.tachograph.driverCardDate) : "brak"}</strong></div>
+        <div><span>Najnowsza aktywnosc</span><strong>${dashboard.tachograph.newestActivity}</strong></div>
+        <div><span>Status</span><strong>${dashboard.tachograph.status}</strong></div>
+      </div>
+    </article>
+  `;
+}
+
+function driverTimeNotifications(dashboard) {
+  return `
+    <article class="driver-time-side-card">
+      <span class="eyebrow">Powiadomienia</span>
+      <h2>Alerty kierowcy</h2>
+      <div class="driver-time-list">
+        ${dashboard.notifications.map((item) => `
+          <div class="${item.tone}">
+            <strong>${item.title}</strong>
+            <span>${item.body}</span>
+          </div>
+        `).join("") || `<p class="muted">Brak aktywnych powiadomien.</p>`}
+      </div>
+    </article>
+  `;
+}
+
+function formatDriverDuration(hours) {
+  const totalMinutes = Math.max(0, Math.round(Number(hours || 0) * 60));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (!h) return `${m}m`;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+function hoursToSeconds(hours) {
+  return Math.max(0, Math.round(Number(hours || 0) * 3600));
+}
+
+function driverTimeMarkTone(toneName) {
+  if (toneName === "red") return "danger";
+  if (toneName === "orange" || toneName === "yellow") return "warning";
+  return "good";
+}
+
+function driverTimeToneLabel(toneName) {
+  if (toneName === "red") return "naruszenie";
+  if (toneName === "orange") return "uwaga";
+  if (toneName === "yellow") return "blisko limitu";
+  if (toneName === "gray") return "nieaktywne";
+  return "OK";
+}
+
 function renderPolicies(state) {
   return `
     <section class="panel">
@@ -3365,7 +3766,7 @@ function renderContextRail(state, engine, selected, roleConfig) {
     ? state.audit.filter((row) => !selected || row.transportId === selected.id || row.objectId === selected.id).slice(0, 5)
     : operationalActivity(state, selected).slice(0, 5);
   return `
-    <aside class="context-rail">
+    <aside class="context-rail" data-layout-column="right">
       <section class="context-panel">
         <span class="eyebrow">${roleConfig.workspace}</span>
         <h2>Kontekst</h2>
