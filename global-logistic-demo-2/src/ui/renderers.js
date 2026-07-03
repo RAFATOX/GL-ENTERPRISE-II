@@ -481,7 +481,7 @@ function renderTopbar(state, activeView, roleConfig) {
 
 function renderLastResult(state) {
   const result = state.session.lastResult;
-  const developer = canViewDeveloperPanel(state);
+  const developer = canViewDeveloperPanel(state) && !shouldRenderOnboarding(state);
   if (!developer) {
     if (!result) return "";
     if (result.ok && result.events?.includes(EventTypes.COMPANY_EMPLOYEE_HIRED)) {
