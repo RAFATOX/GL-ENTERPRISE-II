@@ -140,7 +140,11 @@ const roleConfig = {
 };
 
 export function getRoleConfig(role) {
-  return roleConfig[role] || roleConfig[Roles.PLATFORM_OWNER];
+  const config = roleConfig[role] || roleConfig[Roles.PLATFORM_OWNER];
+  return {
+    ...config,
+    workspaceKey: config.workspaceKey || `roles.${role}`
+  };
 }
 
 export function menuForRole(role, actor = { role }) {
@@ -149,11 +153,13 @@ export function menuForRole(role, actor = { role }) {
     id: module.view,
     moduleId: module.id,
     label: module.labelByRole?.[role] || module.label,
+    labelKey: module.labelByRoleKey?.[role] || module.labelKey,
     icon: module.icon,
     route: module.route,
     requiredPermissions: module.requiredPermissions,
     allowedRoles: module.allowedRoles,
-    description: module.descriptionByRole?.[role] || module.description
+    description: module.descriptionByRole?.[role] || module.description,
+    descriptionKey: module.descriptionByRoleKey?.[role] || module.descriptionKey
   }));
 }
 

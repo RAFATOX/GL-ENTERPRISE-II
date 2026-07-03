@@ -153,17 +153,27 @@ function moduleItem(id, label, icon, route, view, permission, roles, description
   const allowedRoles = options.includePlatformControl === false
     ? unique(roles)
     : withPlatformControl(roles);
+  const labelByRoleKey = options.labelByRoleKey || Object.fromEntries(
+    Object.keys(options.labelByRole || {}).map((role) => [role, `modules.${id}.roles.${role}.label`])
+  );
+  const descriptionByRoleKey = options.descriptionByRoleKey || Object.fromEntries(
+    Object.keys(options.descriptionByRole || {}).map((role) => [role, `modules.${id}.roles.${role}.description`])
+  );
   return Object.freeze({
     id,
     label,
     icon,
     route,
     view,
+    labelKey: options.labelKey || `modules.${id}.label`,
+    descriptionKey: options.descriptionKey || `modules.${id}.description`,
     requiredPermissions,
     allowedRoles,
     allowPermissionOverride: Boolean(options.allowPermissionOverride),
     labelByRole: Object.freeze(options.labelByRole || {}),
+    labelByRoleKey: Object.freeze(labelByRoleKey),
     descriptionByRole: Object.freeze(options.descriptionByRole || {}),
+    descriptionByRoleKey: Object.freeze(descriptionByRoleKey),
     description
   });
 }

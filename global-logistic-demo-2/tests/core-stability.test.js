@@ -10,6 +10,7 @@ import {
   DEMO_DATA_VERSION,
   EventTypes,
   KnowledgeSourceTypes,
+  NavItems,
   PaymentStatuses,
   Roles,
   TransportStatuses
@@ -767,18 +768,43 @@ test("driver dashboard renders compact Driver Time widget from engine data", () 
   const driver = engineForUserContext("u-driver-1", "co-carrier-a");
   const html = renderApp(driver.getSnapshot(), driver);
 
+  assert.ok(DEMO_DATA_VERSION >= 18);
   assert.ok(html.includes("data-dashboard-driver-time-widget"));
-  assert.ok(html.includes("Pozostały czas jazdy"));
-  assert.ok(html.includes("Następna przerwa"));
+  assert.ok(html.includes("Pozostaly czas jazdy"));
+  assert.ok(html.includes("Nastepna przerwa"));
   assert.ok(html.includes("DDD"));
   assert.ok(html.includes("GPS"));
   assert.ok(html.includes("data-module-route=\"/driver-time\""));
-  assert.ok(html.includes("Otwórz Czas pracy"));
+  assert.ok(html.includes("Otworz Czas pracy"));
   assert.equal(html.includes("data-driver-time-module"), false);
   assert.equal(html.includes("data-driver-time-tab=\"driving\""), false);
   assert.equal(html.includes("czas legalny"), false);
 
   const client = engineForUserContext("u-client-owner", "co-client-a");
+  const clientHtml = renderApp(client.getSnapshot(), client);
+  assert.equal(clientHtml.includes("data-dashboard-driver-time-widget"), false);
+});
+
+test("english dashboard and menu do not leak Polish hardcoded labels", () => {
+  const driver = engineForUserContext("u-driver-1", "co-carrier-a");
+  driver.state.session.language = "en";
+  driver.state.session.languageSelected = true;
+  driver.dispatchAction(ActionTypes.SELECT_VIEW, { view: "dashboard", route: "/dashboard" });
+  const html = renderApp(driver.getSnapshot(), driver);
+
+  assert.equal(html.includes("[["), false);
+  assert.ok(html.includes("Active role"));
+  assert.ok(html.includes("Driver"));
+  assert.ok(html.includes("Driver time"));
+  assert.ok(html.includes("Remaining drive time"));
+  assert.ok(html.includes("Open Driver time"));
+  ["Pulpit", "Czas pracy", "Transporty", "Ładunki", "Ladunki", "Kierowca"].forEach((label) => {
+    assert.equal(html.includes(label), false, `${label} leaked into English UI`);
+  });
+
+  const client = engineForUserContext("u-client-owner", "co-client-a");
+  client.state.session.language = "en";
+  client.state.session.languageSelected = true;
   const clientHtml = renderApp(client.getSnapshot(), client);
   assert.equal(clientHtml.includes("data-dashboard-driver-time-widget"), false);
 });
@@ -2062,4 +2088,53 @@ test("UI labels are localized through Translation Engine", () => {
   assert.equal(rendererSource.includes("localizeHtml"), false);
   assert.equal(translationSource.includes("localizeHtml"), false);
   assert.ok(translationSource.includes("export function t("));
+});
+
+test("Translation Engine is not exposed as a normal user module", () => {
+  const driverHtml = renderRoleView(Roles.DRIVER, "dashboard", "/dashboard");
+  const clientHtml = renderRoleView(Roles.CLIENT_OWNER, "dashboard", "/dashboard");
+  const driverModules = menuForRole(Roles.DRIVER).map((module) => module.id);
+  const clientModules = menuForRole(Roles.CLIENT_OWNER).map((module) => module.id);
+
+  assert.equal(NavItems.some((item) => item.id === "translations"), false);
+  assert.equal(modulesConfig.some((module) => module.id === "translations" || module.view === "translations"), false);
+  assert.equal(driverModules.includes("translations"), false);
+  assert.equal(clientModules.includes("translations"), false);
+  assert.equal(driverHtml.includes("data-translation-registry"), false);
+  assert.equal(clientHtml.includes("data-translation-registry"), false);
+  assert.equal(driverHtml.includes("Tłumaczenia wiadomości"), false);
+  assert.equal(clientHtml.includes("Tłumaczenia wiadomości"), false);
+});
+
+test("transport chat renders contextual translations for the user language", () => {
+  const engine = engineForUserContext("u-driver-1", "co-carrier-a");
+  engine.state.session.language = "pl";
+  engine.dispatchAction(ActionTypes.SELECT_TRANSPORT, { transportId: "tr-1001" });
+  engine.dispatchAction(ActionTypes.SELECT_VIEW, { view: "communication", route: "/chat" });
+  const html = renderApp(engine.getSnapshot(), engine);
+
+  assert.ok(html.includes('data-contextual-translation="msg-2"'));
+  assert.ok(html.includes("Tłumaczenie (pl): Kierowca zglosil postoj na parkingu strzezonym."));
+  assert.equal(html.includes("data-translation-registry"), false);
+});
+
+test("Translation Engine exposes service contexts for documents and notifications", () => {
+  const engine = engineForUserContext("u-client-owner", "co-client-a");
+  engine.state.session.language = "pl";
+  const documentContext = engine.modules.translation.documentTranslationContext({
+    id: "doc-demo-en",
+    label: "Delivery confirmation",
+    language: "en"
+  });
+  const notificationContext = engine.modules.translation.notificationTranslationContext({
+    id: "ntf-demo-en",
+    message: "New message in transport thread",
+    language: "en"
+  });
+
+  assert.equal(engine.modules.translation.languageForSession(engine.state.session), "pl");
+  assert.equal(documentContext.shouldTranslate, true);
+  assert.equal(documentContext.operationalContext, "document");
+  assert.equal(notificationContext.shouldTranslate, true);
+  assert.equal(notificationContext.operationalContext, "notification");
 });

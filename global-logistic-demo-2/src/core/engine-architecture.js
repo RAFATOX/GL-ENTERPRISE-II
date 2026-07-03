@@ -150,15 +150,15 @@ const engineSpecificationDetails = Object.freeze({
     flowSteps: ["Permission Engine zwraca dozwolone moduły", "Translation Engine dostarcza teksty", "UI buduje menu i panel", "Akcja użytkownika trafia do właściwego silnika", "Widok aktualizuje się po zdarzeniu"]
   }),
   translation: spec({
-    purpose: "Zapewnia spójny język interfejsu i komunikatów bez mieszania języków.",
-    workflowOrder: ["1. Odczytuje język użytkownika.", "2. Zwraca teksty po translation_key.", "3. Obsługuje komunikaty walidacji, formularzy i statusów."],
-    businessRules: ["Polski UI nie pokazuje technicznych angielskich nazw.", "Brak klucza musi być wykrywalny w testach.", "Kod i modele mogą zostać techniczne, ale widok nie."],
-    triggers: ["wybór języka", "render widoku", "walidacja formularza", "zmiana aktywnej roli"],
-    auditLog: ["wybór języka", "zmiana języka", "brakujący klucz tłumaczenia"],
-    permissions: ["translation.read"],
+    purpose: "Działa jako usługa systemowa tłumaczeń dla Workflow, czatu, dokumentów, powiadomień i interfejsu.",
+    workflowOrder: ["1. Odczytuje język użytkownika z profilu albo sesji.", "2. Dostarcza translation_key dla UI i walidacji.", "3. Tworzy kontekstowe tłumaczenia wiadomości, dokumentów i powiadomień."],
+    businessRules: ["Translation Engine nie jest głównym panelem użytkownika.", "Zwykły użytkownik widzi tłumaczenie tylko w kontekście pracy.", "Tłumaczenia istotne operacyjnie publikują zdarzenie i trafiają do Audit Log."],
+    triggers: ["wybór języka", "wysłanie wiadomości", "żądanie tłumaczenia w czacie", "render dokumentu", "powiadomienie operacyjne"],
+    auditLog: ["wybór języka", "zmiana języka", "MESSAGE_TRANSLATED", "tłumaczenie dokumentu lub komunikatu istotnego operacyjnie"],
+    permissions: ["module.chat", "documents.upload", "modules.read"],
     relatedRoles: ["Każda rola użytkownika"],
-    relatedModules: ["Dashboard", "Onboarding", "Profil", "Wallet", "Dokumenty"],
-    flowSteps: ["UI prosi o translation_key", "Silnik wybiera słownik języka", "Parametry są podstawiane do komunikatu", "Widok renderuje tekst użytkownika", "Testy blokują powrót technicznych etykiet"]
+    relatedModules: ["Czat GL", "Transporty", "Dokumenty", "Powiadomienia", "Interfejs użytkownika"],
+    flowSteps: ["Workflow publikuje zdarzenie wiadomości", "Silnik odczytuje język odbiorcy", "Tworzy rekord tłumaczenia powiązany z wiadomością", "Audit Log zapisuje zdarzenie", "UI pokazuje tłumaczenie pod właściwą wiadomością"]
   }),
   workflow: spec({
     purpose: "Koordynuje cały cykl transportu od ładunku do dostawy, audytu, reputacji i rozliczenia.",
@@ -498,15 +498,15 @@ export const engineArchitecture = Object.freeze([
   engine({
     id: "translation",
     name: "Silnik Tłumaczeń",
-    layer: "ui",
+    layer: "communication",
     type: "silnik",
-    description: "Dostarcza klucze tłumaczeń dla interfejsu, walidacji, błędów, rejestracji, profili i procesów.",
-    responsibility: "Utrzymuje spójny język interfejsu i komunikatów.",
-    dependsOn: ["identity", "registration-onboarding"],
-    providesTo: ["ui", "registration-onboarding", "profile", "workflow"],
-    inputs: ["identity", "registration-onboarding"],
-    outputs: ["ui", "profile", "workflow"],
-    workflowRole: "język interfejsu",
+    description: "Usługa systemowa tłumaczeń dla interfejsu, czatu, transportu, dokumentów i powiadomień.",
+    responsibility: "Utrzymuje język użytkownika i dostarcza kontekstowe tłumaczenia tam, gdzie są potrzebne operacyjnie.",
+    dependsOn: ["identity", "registration-onboarding", "workflow"],
+    providesTo: ["ui", "registration-onboarding", "profile", "workflow", "document", "notification"],
+    inputs: ["identity", "registration-onboarding", "workflow"],
+    outputs: ["ui", "profile", "workflow", "document", "notification", "audit-log"],
+    workflowRole: "usługa tłumaczeń operacyjnych",
     mapPosition: [0.6, 8.2, 1.9]
   }),
   engine({
@@ -516,7 +516,7 @@ export const engineArchitecture = Object.freeze([
     type: "silnik",
     description: "Centralnie koordynuje proces transportowy od ładunku po rozliczenie, zabezpieczenie płatności, reputację i audyt.",
     responsibility: "Jest centrum operacyjnym GL i spina transport, dokumenty, GPS, płatności, reputację oraz audyt.",
-    dependsOn: ["identity", "company", "permission", "driver", "vehicle", "wallet", "escrow", "document", "gps", "knowledge", "audit-log", "notification", "transport-load"],
+    dependsOn: ["identity", "company", "permission", "driver", "vehicle", "wallet", "escrow", "document", "gps", "knowledge", "translation", "audit-log", "notification", "transport-load"],
     providesTo: ["transport-load", "driver", "vehicle", "document", "wallet", "escrow", "gps", "audit-log", "reputation", "notification", "ai-control", "knowledge", "profile", "admin-views", "gl-jobs", "ui"],
     inputs: ["permission", "company", "transport-load", "driver", "vehicle", "document", "gps"],
     outputs: ["wallet", "escrow", "audit-log", "reputation", "notification", "profile"],
@@ -814,6 +814,10 @@ export const engineArchitectureRelations = Object.freeze([
   rel("notification", "ui", "powiadomienie w interfejsie", "required"),
   rel("permission", "routing-access", "ochrona tras", "info"),
   rel("routing-access", "ui", "widoczny interfejs", "info"),
+  rel("workflow", "translation", "wiadomości i komunikaty do tłumaczenia", "info"),
+  rel("translation", "workflow", "język operacyjny procesu", "info"),
+  rel("translation", "document", "tłumaczenia dokumentów", "info"),
+  rel("translation", "notification", "tłumaczenia powiadomień", "info"),
   rel("translation", "ui", "klucze tłumaczeń", "info"),
   rel("company", "user-company-role", "członkostwo firmy", "info"),
   rel("user-company-role", "permission", "uprawnienia członkostwa", "info"),
@@ -843,7 +847,8 @@ export const engineArchitectureRelations = Object.freeze([
     "reputation",
     "dispute",
     "ai-control",
-    "knowledge"
+    "knowledge",
+    "translation"
   ].map((from) => rel(from, "audit-log", "zapis do rejestru dowodowego", "audit"))
 ]);
 

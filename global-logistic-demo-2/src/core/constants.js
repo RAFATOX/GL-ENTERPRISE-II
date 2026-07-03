@@ -1,5 +1,5 @@
 export const DEMO_MODE = true;
-export const DEMO_DATA_VERSION = 17;
+export const DEMO_DATA_VERSION = 18;
 export const STORAGE_KEY = "global-logistic-gl2-core-engine-v9";
 
 export const Roles = Object.freeze({
@@ -598,7 +598,6 @@ export const NavItems = Object.freeze([
   { id: "insurance", label: "Ubezpieczenia" },
   { id: "jobs", label: "Zlecenia pracy" },
   { id: "communication", label: "Komunikacja" },
-  { id: "translations", label: "Tłumaczenia" },
   { id: "security", label: "Ochrona" },
   { id: "customs", label: "Cło" },
   { id: "authority", label: "Kontrola drogowa" },

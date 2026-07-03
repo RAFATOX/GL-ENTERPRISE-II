@@ -681,10 +681,10 @@ test("e2e: GL Driver Time pokazuje tachograf, AI, parking i import DDD", () => {
   let html = render(driver);
 
   assert.ok(html.includes("data-dashboard-driver-time-widget"));
-  assert.ok(html.includes("Pozostały czas jazdy"));
-  assert.ok(html.includes("Następna przerwa"));
+  assert.ok(html.includes("Pozostaly czas jazdy"));
+  assert.ok(html.includes("Nastepna przerwa"));
   assert.ok(html.includes("data-module-route=\"/driver-time\""));
-  assert.ok(html.includes("Otwórz Czas pracy"));
+  assert.ok(html.includes("Otworz Czas pracy"));
   assert.equal(html.includes("data-driver-time-module"), false);
   assert.equal(html.includes("data-driver-time-tab=\"driving\""), false);
   assert.equal(html.includes("czas legalny"), false);

@@ -197,11 +197,16 @@ test("relacje pokazują proces główny, dostęp, finanse, audyt i moduły przys
   });
 
   assert.ok(hasDirectedLink(links, "permission", "routing-access"), "Silnik Uprawnień musi łączyć się z Routingiem i Dostępem");
+  assert.ok(hasDirectedLink(links, "workflow", "translation"), "Silnik Workflow musi korzystać z usługi tłumaczeń");
+  assert.ok(hasDirectedLink(links, "translation", "workflow"), "Silnik Tłumaczeń musi zasilać Workflow kontekstem języka");
+  assert.ok(hasDirectedLink(links, "translation", "document"), "Silnik Tłumaczeń musi wspierać dokumenty");
+  assert.ok(hasDirectedLink(links, "translation", "notification"), "Silnik Tłumaczeń musi wspierać powiadomienia");
   assert.ok(hasDirectedLink(links, "translation", "ui"), "Silnik Tłumaczeń musi zasilać Interfejs Użytkownika");
   assert.ok(hasDirectedLink(links, "wallet", "escrow"), "Silnik Portfeli musi łączyć się z Escrow");
   assert.ok(hasDirectedLink(links, "knowledge", "workflow"), "Silnik Wiedzy musi zasilać Workflow");
   assert.ok(hasDirectedLink(links, "knowledge", "ai-control"), "Silnik Wiedzy musi zasilać Agenta AI");
   assert.ok(isConnected(links, "profile", "reputation"), "Silnik Profilu i Silnik Reputacji muszą być połączone, ale osobne");
+  assert.equal(engineArchitectureById(engineArchitecture).get("translation").layer, "communication");
 });
 
 test("Silnik Audytu jest centralnym rejestrem dowodowym dla głównych silników", () => {

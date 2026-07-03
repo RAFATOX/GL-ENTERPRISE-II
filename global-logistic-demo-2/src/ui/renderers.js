@@ -27,6 +27,22 @@ function valueLabel(value) {
   return translateValue(value, uiLanguage);
 }
 
+function roleLabel(role) {
+  return ui(`roles.${role}`);
+}
+
+function workspaceLabel(state, roleConfig) {
+  return state.access?.activeContextLabel || ui(roleConfig.workspaceKey || `roles.${state.session.role}`);
+}
+
+function moduleLabel(module) {
+  return module.labelKey ? ui(module.labelKey) : valueLabel(module.label);
+}
+
+function moduleDescription(module) {
+  return module.descriptionKey ? ui(module.descriptionKey) : (module.description ? valueLabel(module.description) : ui("app.available_for_role"));
+}
+
 export function renderApp(state, engine) {
   state = sanitizeStateForUi(state);
   uiLanguage = state.session.language || "pl";
@@ -47,11 +63,11 @@ export function renderApp(state, engine) {
   return `
     <div class="app-shell role-${state.session.role}" data-layout-shell>
       <aside class="side" data-layout-column="left">
-        ${renderBrandMenu(roleConfig.workspace)}
+        ${renderBrandMenu(workspaceLabel(state, roleConfig))}
         ${renderAppNavigation(state, activeView)}
         <div class="core-seal">
           <span>${ui("app.active_space")}</span>
-          <strong>${state.access?.activeContextLabel || roleConfig.workspace}</strong>
+          <strong>${workspaceLabel(state, roleConfig)}</strong>
         </div>
       </aside>
       <main class="main" data-layout-column="main">
@@ -401,7 +417,7 @@ function renderAppNavigation(state, activeView) {
   const buttons = items.map((item) => `
     <button class="module-nav-button ${activeView === item.id ? "active" : ""}" data-ui-type="details" data-module-route="${item.route}" data-view="${item.id}">
       <span class="module-icon">${item.icon}</span>
-      <span>${item.label}</span>
+      <span>${moduleLabel(item)}</span>
     </button>
   `).join("");
   return `
@@ -422,7 +438,7 @@ function renderTopbar(state, activeView, roleConfig) {
   return `
     <header class="topbar">
       <div>
-        <span class="eyebrow">${state.access?.activeContextLabel || roleConfig.workspace}</span>
+        <span class="eyebrow">${workspaceLabel(state, roleConfig)}</span>
         <h1>${viewTitle(state.session.role, activeView, state.access?.actor || { role: state.session.role })}</h1>
       </div>
       <div class="role-login">
@@ -445,14 +461,14 @@ function renderTopbar(state, activeView, roleConfig) {
                   data-context-type="${option.context?.contextType || ""}"
                   data-company-id="${option.context?.companyId || ""}"
                   data-company-role-id="${option.context?.userCompanyRoleId || ""}"
-                  ${state.session.role === option.role ? "selected" : ""}>${RoleLabels[option.role] || valueLabel(option.role)}</option>
+                  ${state.session.role === option.role ? "selected" : ""}>${roleLabel(option.role)}</option>
               `).join("")}
             </select>
           </label>
         ` : `
           <div class="role-badge">
             <span>${ui("topbar.active_role")}</span>
-            <strong>${RoleLabels[state.session.role] || valueLabel(state.session.role)}</strong>
+            <strong>${roleLabel(state.session.role)}</strong>
           </div>
         `}
         ${developer ? `
@@ -549,7 +565,7 @@ function renderView(state, engine, selected, activeView = state.session.view) {
   if (view === "insurance") return renderInsurance(state, engine, selected);
   if (view === "jobs") return renderJobs(state);
   if (view === "communication") return renderCommunication(state, engine, selected);
-  if (view === "translations") return renderTranslations(state, engine);
+  if (view === "translations") return canViewDeveloperPanel(state) ? renderTranslationRegistry(state, engine) : renderModuleAccessDenied(state);
   if (view === "security") return renderSecurity(state, engine, selected);
   if (view === "customs") return renderCustoms(state, engine, selected);
   if (view === "authority") return renderAuthority(state, engine, selected);
@@ -599,40 +615,40 @@ function renderDriverTimeDashboardWidget(state, engine, selected, roleConfig, mo
   const alert = dashboard.notifications.find((item) => !String(item.body || "").includes("undefined"));
   const aiMessage = dashboard.assistant.find((message) => !String(message || "").includes("undefined"));
   return `
-    <article class="panel business-panel" data-dashboard-driver-time-widget data-ui-type="info">
+    <article class="panel business-panel driver-time-dashboard-card" data-dashboard-driver-time-widget data-ui-type="info">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Czas pracy</span>
-          <h2>Podgląd kierowcy</h2>
+          <span class="eyebrow">${ui("driver_time.dashboard_eyebrow")}</span>
+          <h2>${ui("driver_time.dashboard_title")}</h2>
         </div>
         <mark class="${driverTimeMarkTone(dashboard.activityTone)}">${driverTimeToneLabel(dashboard.activityTone)}</mark>
       </div>
-      <div class="detail-grid">
+      <div class="driver-time-dashboard-metrics">
         <div>
-          <span>Pozostały czas jazdy</span>
+          <span>${ui("driver_time.remaining_drive")}</span>
           <strong>${formatDriverDuration(dashboard.driving.continuous.remaining)}</strong>
         </div>
         <div>
-          <span>Następna przerwa</span>
+          <span>${ui("driver_time.next_break")}</span>
           <strong>${formatDriverDuration(dashboard.driving.nextBreakIn)}</strong>
         </div>
         <div>
-          <span>DDD</span>
+          <span>${ui("driver_time.ddd_status")}</span>
           <strong>${dashboard.connections.ddd}</strong>
         </div>
         <div>
-          <span>GPS</span>
+          <span>${ui("driver_time.gps_status")}</span>
           <strong>${dashboard.connections.gps}</strong>
         </div>
       </div>
       <div class="business-row" data-ui-type="info">
-        <strong>${alert?.title || "Asystent AI"}</strong>
-        <span>${alert?.body || aiMessage || "Brak aktywnych alertow czasu pracy."}</span>
-        <small>${dashboard.transportNumber ? `Transport ${dashboard.transportNumber}` : "Monitorowanie czasu pracy"}</small>
+        <strong>${alert?.title || ui("driver_time.ai_assistant")}</strong>
+        <span>${alert?.body || aiMessage || ui("driver_time.no_alerts")}</span>
+        <small>${dashboard.transportNumber ? ui("driver_time.transport_context", { number: dashboard.transportNumber }) : ui("driver_time.monitoring")}</small>
       </div>
       ${driverTimeWidgetDebugEnabled(state) ? `<div class="debug-marker" data-driver-time-widget-debug>DRIVER_TIME_WIDGET_RENDERED</div>` : ""}
       <button class="mini-action" type="button" data-ui-type="details" data-module-route="/driver-time">
-        Otwórz Czas pracy
+        ${ui("driver_time.open")}
       </button>
     </article>
   `;
@@ -653,6 +669,10 @@ function renderWorkspaceHero(state, selected) {
     <section class="workspace-hero">
       <div>
         <span class="eyebrow">${dashboardTitleForRole(state.session.role)}</span>
+        <div class="active-role-chip">
+          <span>${ui("dashboard.active_role")}</span>
+          <strong>${roleLabel(state.session.role)}</strong>
+        </div>
         <h2>${roleDashboardIntro(state, selected)}</h2>
         <p>${roleDashboardDescription(state)}</p>
       </div>
@@ -663,7 +683,7 @@ function renderWorkspaceHero(state, selected) {
           <strong>${rating.hasRating ? rating.label : ui("profile.no_reviews")}</strong>
           <small>${state.access?.activeContextLabel || subject.roleLabel}</small>
         </div>
-        <small class="detail-hint">Zobacz profil</small>
+        <small class="detail-hint">${ui("profile.view_profile")}</small>
       </button>
     </section>
   `;
@@ -675,8 +695,8 @@ function renderTodayWorkPanel(state, selected) {
     <article class="panel business-panel">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Dzisiaj</span>
-          <h2>Najważniejsze zadania</h2>
+          <span class="eyebrow">${ui("dashboard.today")}</span>
+          <h2>${ui("dashboard.priority_tasks")}</h2>
         </div>
       </div>
       <div class="business-list">
@@ -699,26 +719,26 @@ function renderBusinessFocusPanel(state, engine, selected) {
     <article class="panel business-panel transport-focus detail-card" data-ui-type="details" data-detail-route="/transports" data-transport="${selected.id}">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Aktywny transport</span>
+          <span class="eyebrow">${ui("dashboard.active_transport")}</span>
           <h2>${selected.number}</h2>
         </div>
         <mark class="${tone(selected.status)}">${valueLabel(selected.status)}</mark>
       </div>
       <p class="muted">${selected.cargo.description}</p>
       <div class="route-points">
-        <div><span>Załadunek</span><strong>${selected.pickup.address}</strong></div>
-        <div><span>Dostawa</span><strong>${selected.delivery.address}</strong></div>
+        <div><span>${ui("dashboard.pickup")}</span><strong>${selected.pickup.address}</strong></div>
+        <div><span>${ui("dashboard.delivery")}</span><strong>${selected.delivery.address}</strong></div>
       </div>
       <div class="progress">
         <span style="width:${progress}%"></span>
       </div>
       <div class="detail-grid">
-        <div><span>ETA</span><strong>${selected.eta ? formatTime(selected.eta) : "brak"}</strong></div>
-        <div><span>Kierowca</span><strong>${selected.driverId ? profileLink(state, selected.driverId, "user") : ui("ui.not_assigned")}</strong></div>
-        <div><span>Przewoźnik</span><strong>${selected.carrierCompanyId ? profileLink(state, selected.carrierCompanyId, "company") : ui("ui.not_assigned")}</strong></div>
-        <div><span>Płatność</span><strong>${state.access?.canViewFinancials ? valueLabel(selected.paymentStatus) : ui("ui.restricted")}</strong></div>
+        <div><span>ETA</span><strong>${selected.eta ? formatTime(selected.eta) : ui("ui.missing")}</strong></div>
+        <div><span>${ui("dashboard.driver")}</span><strong>${selected.driverId ? profileLink(state, selected.driverId, "user") : ui("ui.not_assigned")}</strong></div>
+        <div><span>${ui("dashboard.carrier")}</span><strong>${selected.carrierCompanyId ? profileLink(state, selected.carrierCompanyId, "company") : ui("ui.not_assigned")}</strong></div>
+        <div><span>${ui("dashboard.payment")}</span><strong>${state.access?.canViewFinancials ? valueLabel(selected.paymentStatus) : ui("ui.restricted")}</strong></div>
       </div>
-      <small class="detail-hint">Zobacz szczegóły transportu</small>
+      <small class="detail-hint">${ui("dashboard.open_transport")}</small>
     </article>
   `;
 }
@@ -729,8 +749,8 @@ function renderBusinessNotificationsPanel(state, selected) {
     <article class="panel business-panel">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Komunikaty</span>
-          <h2>Ostatnia aktywność</h2>
+          <span class="eyebrow">${ui("dashboard.notifications")}</span>
+          <h2>${ui("dashboard.recent_activity")}</h2>
         </div>
       </div>
       <div class="business-list">
@@ -740,7 +760,7 @@ function renderBusinessNotificationsPanel(state, selected) {
             <span>${item.value}</span>
             <small>${item.note}</small>
           </div>
-        `).join("") || `<p class="muted">Brak nowych komunikatów.</p>`}
+        `).join("") || `<p class="muted">${ui("dashboard.no_notifications")}</p>`}
       </div>
     </article>
   `;
@@ -803,8 +823,8 @@ function renderBusinessModuleLauncher(modules) {
         ${modules.map((module) => `
           <button class="module-tile" data-ui-type="details" data-module-route="${module.route}" data-view="${module.id}">
             <span class="module-icon">${module.icon}</span>
-            <strong>${valueLabel(module.label)}</strong>
-            <small>${module.description ? valueLabel(module.description) : ui("app.available_for_role")}</small>
+            <strong>${moduleLabel(module)}</strong>
+            <small>${moduleDescription(module)}</small>
           </button>
         `).join("")}
       </div>
@@ -813,18 +833,18 @@ function renderBusinessModuleLauncher(modules) {
 }
 
 function roleDashboardIntro(state, selected) {
-  if (state.session.role === Roles.DRIVER) return selected ? `Następny kurs: ${selected.number}` : "Twoje zadania na dziś";
-  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(state.session.role)) return selected ? `Ładunek ${selected.number}` : "Twoje ładunki i płatności";
-  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(state.session.role)) return "Transporty, kierowcy i flota";
-  if (state.session.role === Roles.WAREHOUSE_WORKER) return "Kolejka ramp i dokumenty";
-  if (state.session.role === Roles.INSURANCE_PARTNER) return "Polisy, szkody i ocena ryzyka";
-  if ([Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE].includes(state.session.role)) return "Zlecenia serwisowe i rozliczenia";
-  return "Twoje centrum pracy";
+  if (state.session.role === Roles.DRIVER) return selected ? ui("dashboard.intro.driver_next", { number: selected.number }) : ui("dashboard.intro.driver_empty");
+  if ([Roles.CLIENT_OWNER, Roles.CLIENT_DISPATCHER].includes(state.session.role)) return selected ? ui("dashboard.intro.client_load", { number: selected.number }) : ui("dashboard.intro.client_empty");
+  if ([Roles.CARRIER_OWNER, Roles.CARRIER_DISPATCHER].includes(state.session.role)) return ui("dashboard.intro.carrier");
+  if (state.session.role === Roles.WAREHOUSE_WORKER) return ui("dashboard.intro.warehouse");
+  if (state.session.role === Roles.INSURANCE_PARTNER) return ui("dashboard.intro.insurer");
+  if ([Roles.WORKSHOP, Roles.MOBILE_SERVICE, Roles.ROADSIDE_ASSISTANCE].includes(state.session.role)) return ui("dashboard.intro.service");
+  return ui("dashboard.intro.default");
 }
 
 function roleDashboardDescription(state) {
-  if (canViewDeveloperPanel(state)) return "Widok operacyjny platformy. Dane techniczne są dostępne w module System.";
-  return "Widzisz tylko informacje i funkcje potrzebne w aktywnym kontekście pracy.";
+  if (canViewDeveloperPanel(state)) return ui("dashboard.description.platform");
+  return ui("dashboard.description.user");
 }
 
 function dashboardOperationalMetrics(state, selected) {
@@ -1049,8 +1069,8 @@ function renderModuleMenuPanel(state) {
         ${modules.map((module) => `
           <button class="module-tile" data-ui-type="details" data-module-route="${module.route}" data-view="${module.id}">
             <span class="module-icon">${module.icon}</span>
-            <strong>${valueLabel(module.label)}</strong>
-            <small>${ui("app.available_for_role")}</small>
+            <strong>${moduleLabel(module)}</strong>
+            <small>${moduleDescription(module)}</small>
           </button>
         `).join("")}
       </div>
@@ -2886,11 +2906,11 @@ function driverTimeMarkTone(toneName) {
 }
 
 function driverTimeToneLabel(toneName) {
-  if (toneName === "red") return "naruszenie";
-  if (toneName === "orange") return "uwaga";
-  if (toneName === "yellow") return "blisko limitu";
-  if (toneName === "gray") return "nieaktywne";
-  return "OK";
+  if (toneName === "red") return ui("driver_time.tone.red");
+  if (toneName === "orange") return ui("driver_time.tone.orange");
+  if (toneName === "yellow") return ui("driver_time.tone.yellow");
+  if (toneName === "gray") return ui("driver_time.tone.gray");
+  return ui("driver_time.tone.ok");
 }
 
 function renderPolicies(state) {
@@ -3033,6 +3053,7 @@ function renderJobs(state) {
 
 function renderCommunication(state, engine, selected) {
   const messages = state.messages.filter((message) => message.transportId === selected.id);
+  const userLanguage = engine?.modules?.translation?.languageForSession(state.session) || state.session.language || "pl";
   return `
     <section class="grid two">
       <article class="panel">
@@ -3051,6 +3072,7 @@ function renderCommunication(state, engine, selected) {
               <strong>${userName(state, message.authorId) || message.authorRole}</strong>
               <span>${message.language}</span>
               <small>${message.body}</small>
+              ${renderContextualMessageTranslation(state, engine, message, userLanguage)}
             </div>
           `).join("") || `<p class="muted">Brak wiadomości dla wybranego transportu.</p>`}
         </div>
@@ -3059,12 +3081,26 @@ function renderCommunication(state, engine, selected) {
   `;
 }
 
-function renderTranslations(state, engine) {
+function renderContextualMessageTranslation(state, engine, message, userLanguage) {
+  if (!message || message.language === userLanguage) return "";
+  const translation = engine?.modules?.translation?.contextualMessageTranslation(message, userLanguage)
+    || state.translations.find((item) => item.messageId === message.id && item.targetLanguage === userLanguage);
+  if (!translation) return `<small class="muted">Tłumaczenie zostanie przygotowane przez Silnik Tłumaczeń.</small>`;
   return `
-    <section class="grid two">
+    <small class="message-translation" data-contextual-translation="${message.id}">
+      Tłumaczenie (${translation.targetLanguage}): ${translation.body}
+    </small>
+  `;
+}
+
+function renderTranslationRegistry(state, engine) {
+  if (!canViewDeveloperPanel(state)) return "";
+  return `
+    <section class="grid two developer-panel" data-translation-registry="admin">
       <article class="panel">
-        <span class="eyebrow">Tłumaczenia</span>
-        <h2>Tłumaczenia wiadomości</h2>
+        <span class="eyebrow">Rejestr techniczny</span>
+        <h2>Tłumaczenia operacyjne</h2>
+        <p class="muted">Widok administracyjny. Użytkownicy widzą tłumaczenia kontekstowo w czacie, dokumentach i powiadomieniach.</p>
         <div class="list">
           ${state.messages.slice(0, 8).map((message) => `
             <div class="row">
@@ -3076,7 +3112,7 @@ function renderTranslations(state, engine) {
         </div>
       </article>
       <article class="panel">
-        <h2>Gotowe tłumaczenia</h2>
+        <h2>Rekordy tłumaczeń</h2>
         <div class="list">
           ${state.translations.map((translation) => `
             <div class="row">
@@ -3768,18 +3804,18 @@ function renderContextRail(state, engine, selected, roleConfig) {
   return `
     <aside class="context-rail" data-layout-column="right">
       <section class="context-panel">
-        <span class="eyebrow">${roleConfig.workspace}</span>
-        <h2>Kontekst</h2>
+        <span class="eyebrow">${workspaceLabel(state, roleConfig)}</span>
+        <h2>${ui("context.title")}</h2>
         <div class="context-stack">
-          <div><span>Status</span><strong>${selected?.status || "brak transportu"}</strong></div>
+          <div><span>${ui("context.status")}</span><strong>${selected ? valueLabel(selected.status) : ui("context.no_transport")}</strong></div>
           <div><span>GPS</span><strong>${selected ? `${gpsLabel(selected.pickup.gps)} / ${gpsLabel(selected.delivery.gps)}` : "-"}</strong></div>
-          <div><span>ETA</span><strong>${selected?.eta ? formatTime(selected.eta) : "brak"}</strong></div>
-          <div><span>Platnosc</span><strong>${selected ? (state.access?.canViewFinancials ? selected.paymentStatus : "ograniczone") : "-"}</strong></div>
+          <div><span>ETA</span><strong>${selected?.eta ? formatTime(selected.eta) : ui("ui.missing")}</strong></div>
+          <div><span>${ui("dashboard.payment")}</span><strong>${selected ? (state.access?.canViewFinancials ? valueLabel(selected.paymentStatus) : ui("ui.restricted")) : "-"}</strong></div>
         </div>
       </section>
       <section class="context-panel">
-        <span class="eyebrow">AI / powiadomienia</span>
-        <h2>Alerty</h2>
+        <span class="eyebrow">${ui("context.ai_notifications")}</span>
+        <h2>${ui("context.alerts")}</h2>
         <div class="list compact-list">
           ${aiAlerts.map((alert) => `
             <div class="row">
@@ -3787,12 +3823,12 @@ function renderContextRail(state, engine, selected, roleConfig) {
               <span>${alert.status}</span>
               <small>${alert.reason}</small>
             </div>
-          `).join("") || `<p class="muted">Brak aktywnych alertow.</p>`}
+          `).join("") || `<p class="muted">${ui("context.no_alerts")}</p>`}
         </div>
       </section>
       <section class="context-panel">
-        <span class="eyebrow">Aktywnosc</span>
-        <h2>Ostatnie zdarzenia</h2>
+        <span class="eyebrow">${ui("context.activity")}</span>
+        <h2>${ui("context.latest_events")}</h2>
         <div class="list compact-list">
           ${activity.map((row) => `
             <div class="row">
@@ -3800,7 +3836,7 @@ function renderContextRail(state, engine, selected, roleConfig) {
               <span>${developer ? row.result || "success" : row.value}</span>
               <small>${developer ? row.reason : row.note}</small>
             </div>
-          `).join("") || `<p class="muted">Brak aktywnosci.</p>`}
+          `).join("") || `<p class="muted">${ui("context.no_activity")}</p>`}
         </div>
       </section>
     </aside>
@@ -4934,6 +4970,7 @@ function renderStatistics(state) {
 function renderSystem(state, engine) {
   return `
     ${renderDeveloperPanel(state)}
+    ${renderTranslationRegistry(state, engine)}
     <section class="grid two">
       <article class="panel">
         <span class="eyebrow">System</span>
@@ -5634,7 +5671,8 @@ function encodePayload(payload) {
 }
 
 function viewTitle(role, view, actor = { role }) {
-  return menuForRole(role, actor).find((item) => item.id === view)?.label || "Panel";
+  const module = menuForRole(role, actor).find((item) => item.id === view);
+  return module ? moduleLabel(module) : ui("dashboard.title");
 }
 
 function roleOptionsForTopbar(state) {
